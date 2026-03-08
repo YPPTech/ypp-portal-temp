@@ -7,7 +7,7 @@ import {
   boardApproveNomination,
   rejectNomination,
 } from "@/lib/award-nomination-actions";
-import { TIER_CONFIG } from "@/lib/award-nomination-actions";
+import { TIER_CONFIG } from "@/lib/award-tier-config";
 import type { AchievementAwardTier } from "@prisma/client";
 
 const TIER_ORDER: AchievementAwardTier[] = ["BRONZE", "SILVER", "GOLD", "LIFETIME"];

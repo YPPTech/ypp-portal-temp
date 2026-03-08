@@ -7,20 +7,7 @@ import { revalidatePath } from "next/cache";
 import { AchievementAwardTier, AwardNominationStatus } from "@prisma/client";
 import { logAuditEvent } from "@/lib/audit-log-actions";
 import { toMenteeRoleType } from "@/lib/mentee-role-utils";
-
-// ============================================
-// TIER CONFIG
-// ============================================
-
-export const TIER_CONFIG: Record<
-  AchievementAwardTier,
-  { label: string; color: string; bg: string; min: number; requiresBoard: boolean; emoji: string }
-> = {
-  BRONZE: { label: "Bronze", color: "#cd7f32", bg: "#fdf6ec", min: 175, requiresBoard: false, emoji: "🥉" },
-  SILVER: { label: "Silver", color: "#a8a9ad", bg: "#f5f5f5", min: 350, requiresBoard: false, emoji: "🥈" },
-  GOLD: { label: "Gold", color: "#d4af37", bg: "#fffbeb", min: 700, requiresBoard: true, emoji: "🥇" },
-  LIFETIME: { label: "Lifetime", color: "#7c3aed", bg: "#faf5ff", min: 1800, requiresBoard: true, emoji: "👑" },
-};
+import { TIER_CONFIG } from "@/lib/award-tier-config";
 
 const TIER_ORDER: AchievementAwardTier[] = ["BRONZE", "SILVER", "GOLD", "LIFETIME"];
 
