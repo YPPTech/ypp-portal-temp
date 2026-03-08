@@ -1,7 +1,8 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
-import { getMyAwardsData, TIER_CONFIG } from "@/lib/award-nomination-actions";
+import { getMyAwardsData } from "@/lib/award-nomination-actions";
+import { TIER_CONFIG } from "@/lib/award-tier-config";
 import Link from "next/link";
 
 export const metadata = { title: "My Awards — My Program" };

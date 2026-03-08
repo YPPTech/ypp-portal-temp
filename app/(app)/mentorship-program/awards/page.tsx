@@ -1,7 +1,8 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
-import { getEligibleMentees, getNominationQueue, TIER_CONFIG } from "@/lib/award-nomination-actions";
+import { getEligibleMentees, getNominationQueue } from "@/lib/award-nomination-actions";
+import { TIER_CONFIG } from "@/lib/award-tier-config";
 import NominationsPanel from "./nominations-panel";
 import Link from "next/link";
 
