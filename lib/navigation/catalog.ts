@@ -316,6 +316,20 @@ export const NAV_CATALOG: NavLink[] = [
       roles: ["ADMIN"] as NavRole[],
       dashboardDescription: "Approve or request changes on mentor goal reviews before they are released.",
     },
+    {
+      href: "/mentorship-program/awards",
+      label: "Awards",
+      icon: "🏆",
+      roles: ["MENTOR", "CHAPTER_LEAD", "ADMIN"] as NavRole[],
+      dashboardDescription: "Nominate mentees for Bronze, Silver, Gold, and Lifetime achievement awards.",
+    },
+    {
+      href: "/my-program/awards",
+      label: "My Awards",
+      icon: "🏅",
+      roles: ["INSTRUCTOR", "CHAPTER_LEAD", "ADMIN", "STAFF"] as NavRole[],
+      dashboardDescription: "View your achievement points, tier progress, and award nominations.",
+    },
     { href: "/events", label: "Events & Prep", icon: "📅" },
     { href: "/calendar", label: "Calendar", icon: "🗓" },
     {
