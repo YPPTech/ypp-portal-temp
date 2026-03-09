@@ -12,7 +12,14 @@ export default async function AdminCurriculaPage() {
   if (!isAdmin && !isChapterLead) redirect("/");
 
   // Admins see all submitted curricula; chapter leads see their chapter's
-  const chapterId = session?.user?.chapterId ?? null;
+  let chapterId: string | null = null;
+  if (isChapterLead && !isAdmin && session?.user?.id) {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { chapterId: true },
+    });
+    chapterId = dbUser?.chapterId ?? null;
+  }
 
   const submitted = await prisma.classTemplate.findMany({
     where: {

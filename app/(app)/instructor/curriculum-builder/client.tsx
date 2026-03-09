@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { createClassTemplate } from "@/lib/class-management-actions";
 import { useRouter } from "next/navigation";
 

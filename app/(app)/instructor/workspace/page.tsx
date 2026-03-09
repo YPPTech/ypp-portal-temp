@@ -120,7 +120,7 @@ export default async function InstructorWorkspacePage({
         _count: { select: { enrollments: { where: { status: "ENROLLED" } } } },
       },
     }),
-    prisma.mentorshipAssignment.count({
+    prisma.mentorship.count({
       where: { mentorId: session.user.id, status: "ACTIVE" },
     }).catch(() => 0),
   ]);
@@ -229,7 +229,7 @@ export default async function InstructorWorkspacePage({
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
                       {(() => {
                         const status = (template as { submissionStatus?: string }).submissionStatus ?? "DRAFT";
-                        const statusStyleMap: Record<string, React.CSSProperties> = {
+                        const statusStyleMap: Record<string, { background: string; color: string }> = {
                           APPROVED: { background: "#dcfce7", color: "#166534" },
                           SUBMITTED: { background: "#fef9c3", color: "#854d0e" },
                           NEEDS_REVISION: { background: "#fee2e2", color: "#991b1b" },
