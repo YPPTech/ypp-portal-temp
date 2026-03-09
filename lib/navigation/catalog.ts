@@ -524,6 +524,15 @@ export const NAV_CATALOG: NavLink[] = [
     { href: "/admin/activities", label: "Activities Mgmt", icon: "🧭", roles: ["ADMIN", "INSTRUCTOR", "CHAPTER_LEAD"] },
     { href: "/admin/passions", label: "Passion Areas", icon: "🌍", roles: ["ADMIN", "INSTRUCTOR", "CHAPTER_LEAD"] },
     { href: "/admin/incubator", label: "Incubator Mgmt", icon: "🚀", roles: ["ADMIN", "INSTRUCTOR", "CHAPTER_LEAD"] },
+    {
+      href: "/admin/curricula",
+      label: "Curriculum Review",
+      icon: "📝",
+      roles: ["ADMIN", "CHAPTER_LEAD"] as NavRole[],
+      dashboardDescription: "Review and approve instructor-submitted curricula before they go live.",
+      dashboardPriority: 8,
+      dashboardBadgeKey: "pending_curriculum_review",
+    },
   ]),
 
   ...groupLinks("Admin Reports", 1300, [
