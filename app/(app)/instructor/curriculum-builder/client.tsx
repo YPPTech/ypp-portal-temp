@@ -105,6 +105,15 @@ export function CurriculumBuilderClient() {
       const form = e.currentTarget;
       const formData = new FormData(form);
 
+      // Combine targetSkill + learningOutcomes (final outcome) into the learningOutcomes array
+      const targetSkillRaw = (formData.get("targetSkill") as string || "").trim();
+      const outcomesRaw = (formData.get("learningOutcomes") as string || "").trim();
+      const combinedOutcomes = [
+        targetSkillRaw ? `Target Skill: ${targetSkillRaw}` : null,
+        outcomesRaw ? `Final Outcome: ${outcomesRaw}` : null,
+      ].filter(Boolean).join("\n");
+      formData.set("learningOutcomes", combinedOutcomes);
+
       // Build weeklyTopics JSON with full lesson detail
       const weeklyTopics = lessons.map((lesson, i) => ({
         week: i + 1,
@@ -182,11 +191,6 @@ export function CurriculumBuilderClient() {
       {error && (
         <div style={{ padding: "12px 16px", background: "#fef2f2", color: "#dc2626", borderRadius: 8 }}>
           {error}
-        </div>
-      )}
-      {success && (
-        <div style={{ padding: "12px 16px", background: "#f0fdf4", color: "#16a34a", borderRadius: 8 }}>
-          Curriculum saved successfully!
         </div>
       )}
 
@@ -650,29 +654,19 @@ export function CurriculumBuilderClient() {
       {/* ─── SUBMIT ─── */}
       <div className="card">
         <h3 style={{ marginBottom: 8 }}>Save Your Curriculum</h3>
-        <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 16 }}>
-          Save as a draft to continue editing, or submit for review when you&apos;re ready for approval.
-        </p>
+        <div style={{ padding: "12px 16px", background: "#f0f9ff", borderRadius: 10, marginBottom: 16, fontSize: 14 }}>
+          <strong>How it works:</strong> Save as a Draft anytime while building. When you&apos;re finished, find your curriculum in &apos;Your Curricula&apos; above and click <strong>Submit for Review</strong> — your chapter lead or admin will then review and approve it.
+        </div>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <button type="submit" className="button primary" disabled={loading}>
+          <button type="submit" className="button primary" disabled={loading} style={{ minWidth: 140 }}>
             {loading ? "Saving..." : "Save Draft"}
           </button>
-          <button
-            type="button"
-            className="button secondary"
-            disabled={loading}
-            onClick={async () => {
-              // Save first, then show note
-              const form = document.querySelector("form") as HTMLFormElement;
-              if (form) form.requestSubmit();
-            }}
-          >
-            Save & Submit for Review
-          </button>
         </div>
-        <p style={{ marginTop: 10, fontSize: 12, color: "var(--text-secondary)" }}>
-          After saving, find your curriculum in &apos;My Curricula&apos; above and click &apos;Submit for Review&apos; to send it to your chapter lead.
-        </p>
+        {success && (
+          <div style={{ marginTop: 14, padding: "12px 16px", background: "#f0fdf4", color: "#166534", borderRadius: 10, fontSize: 14 }}>
+            Curriculum saved! Scroll up to &apos;Your Curricula&apos; and click <strong>Submit for Review</strong> when ready.
+          </div>
+        )}
       </div>
     </form>
   );

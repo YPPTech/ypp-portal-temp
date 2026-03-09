@@ -529,6 +529,48 @@ export default async function InstructorWorkspacePage({
               )}
             </div>
 
+            {/* Step 3: Build Your Curriculum */}
+            <div className="card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 12, flexWrap: "wrap" }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>Step 3 — Build Your Curriculum</h3>
+                  <p style={{ marginTop: 6, marginBottom: 0, color: "var(--text-secondary)", fontSize: 14 }}>
+                    Design your course using the structured YPP curriculum template — lesson plans, engagement strategy, and all. Submit for approval when ready.
+                  </p>
+                </div>
+                {(() => {
+                  const approvedCount = templates.filter((t) => (t as { submissionStatus?: string }).submissionStatus === "APPROVED").length;
+                  const submittedCount = templates.filter((t) => (t as { submissionStatus?: string }).submissionStatus === "SUBMITTED").length;
+                  const draftCount = templates.filter((t) => {
+                    const s = (t as { submissionStatus?: string }).submissionStatus ?? "DRAFT";
+                    return s === "DRAFT" || s === "NEEDS_REVISION";
+                  }).length;
+                  if (approvedCount > 0) return <span className="pill" style={{ background: "#dcfce7", color: "#166534" }}>{approvedCount} Approved</span>;
+                  if (submittedCount > 0) return <span className="pill" style={{ background: "#fef9c3", color: "#854d0e" }}>{submittedCount} Under Review</span>;
+                  if (draftCount > 0) return <span className="pill" style={{ background: "#ede9fe", color: "#5b21b6" }}>{draftCount} Draft</span>;
+                  return <span className="pill">Not Started</span>;
+                })()}
+              </div>
+              <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <Link
+                  href="/instructor/curriculum-builder#create"
+                  className="button primary"
+                  style={{ textDecoration: "none" }}
+                >
+                  Build New Curriculum
+                </Link>
+                {templates.length > 0 && (
+                  <Link
+                    href="/instructor/curriculum-builder"
+                    className="button secondary"
+                    style={{ textDecoration: "none" }}
+                  >
+                    View My Curricula ({templates.length})
+                  </Link>
+                )}
+              </div>
+            </div>
+
             {/* Next Level Requirements */}
             {nextLevel && (
               <div className="card">

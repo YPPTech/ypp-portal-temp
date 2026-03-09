@@ -60,9 +60,9 @@ export default async function CurriculumBuilderPage() {
         </div>
         <div className="card">
           <div style={{ fontSize: 28, fontWeight: 700, color: "var(--ypp-purple)" }}>
-            {templates.filter((t) => t.isPublished).length}
+            {templates.filter((t) => (t as { submissionStatus?: string }).submissionStatus === "APPROVED").length}
           </div>
-          <div style={{ color: "var(--text-secondary)", fontSize: 14 }}>Published</div>
+          <div style={{ color: "var(--text-secondary)", fontSize: 14 }}>Approved</div>
         </div>
         <div className="card">
           <div style={{ fontSize: 28, fontWeight: 700, color: "var(--ypp-purple)" }}>
