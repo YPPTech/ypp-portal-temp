@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
 import { RoleType } from "@prisma/client";
 import { logAuditEvent } from "@/lib/audit-log-actions";
+import { parseRoleTypes } from "@/lib/authorization";
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
@@ -34,7 +35,7 @@ export async function createAnnouncement(formData: FormData) {
   const chapterId = getString(formData, "chapterId", false);
   const expiresAtStr = getString(formData, "expiresAt", false);
   const scheduledPublishAtStr = getString(formData, "scheduledPublishAt", false);
-  const targetRoles = formData.getAll("targetRoles").map((r) => String(r)) as RoleType[];
+  const targetRoles = parseRoleTypes(formData.getAll("targetRoles").map(String)) as RoleType[];
 
   const scheduledPublishAt = scheduledPublishAtStr ? new Date(scheduledPublishAtStr) : null;
   const isScheduled = scheduledPublishAt && scheduledPublishAt > new Date();
@@ -104,7 +105,7 @@ export async function updateAnnouncement(formData: FormData) {
   const chapterId = getString(formData, "chapterId", false);
   const expiresAtStr = getString(formData, "expiresAt", false);
   const isActive = formData.get("isActive") === "on";
-  const targetRoles = formData.getAll("targetRoles").map((r) => String(r)) as RoleType[];
+  const targetRoles = parseRoleTypes(formData.getAll("targetRoles").map(String)) as RoleType[];
 
   await prisma.announcement.update({
     where: { id },

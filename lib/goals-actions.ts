@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
 import { ProgressStatus, RoleType } from "@prisma/client";
+import { parseRoleType } from "@/lib/authorization";
 
 async function requireAuth() {
   const session = await getServerSession(authOptions);
@@ -49,7 +50,7 @@ export async function createGoalTemplate(formData: FormData) {
 
   const title = getString(formData, "title");
   const description = getString(formData, "description", false);
-  const roleType = getString(formData, "roleType") as RoleType;
+  const roleType = parseRoleType(getString(formData, "roleType")) as RoleType;
   const chapterId = getString(formData, "chapterId", false);
   const sortOrder = Number(getString(formData, "sortOrder", false) || "0");
 
@@ -156,7 +157,7 @@ export async function assignGoalsToUserByRole(formData: FormData) {
   await requireAdmin();
 
   const userId = getString(formData, "userId");
-  const roleType = getString(formData, "roleType") as RoleType;
+  const roleType = parseRoleType(getString(formData, "roleType")) as RoleType;
 
   // Get all active templates for this role
   const templates = await prisma.goalTemplate.findMany({

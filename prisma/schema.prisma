@@ -623,10 +623,25 @@ model User {
   achievementAwardNominationsBoardApp  AwardNomination[]          @relation("AwardNominationsBoardApproved")
   mentorCommitteeChairRoles            MentorCommitteeChair[]     @relation("MentorCommitteeChairRoles")
 
+  // Two-Factor Authentication
+  twoFactorEnabled  Boolean            @default(false)
+  twoFactorSecret   String?            // AES-256-GCM encrypted TOTP secret
+  twoFactorRecovery TwoFactorRecovery[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([oauthProvider, oauthId])
+}
+
+model TwoFactorRecovery {
+  id       String    @id @default(cuid())
+  userId   String
+  codeHash String    // bcrypt hash of single-use recovery code
+  usedAt   DateTime?
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model UserRole {

@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { QuestionType, RoleType } from "@prisma/client";
+import { parseRoleType } from "@/lib/authorization";
 
 // ============================================
 // REFLECTION FORM MANAGEMENT (Admin)
@@ -61,7 +62,7 @@ export async function createReflectionForm(formData: FormData) {
 
   const title = formData.get("title") as string;
   const description = formData.get("description") as string;
-  const roleType = formData.get("roleType") as RoleType;
+  const roleType = parseRoleType(formData.get("roleType")) as RoleType;
 
   const form = await prisma.reflectionForm.create({
     data: {

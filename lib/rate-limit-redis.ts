@@ -29,7 +29,7 @@ function isRedisConfigured(): boolean {
 /**
  * Get or create Redis client
  */
-function getRedisClient(): Redis | null {
+export function getRedisClient(): Redis | null {
   if (!isRedisConfigured()) {
     return null;
   }
@@ -170,4 +170,80 @@ export async function checkPasswordResetRateLimit(email: string): Promise<RateLi
  */
 export function isRateLimitingConfigured(): boolean {
   return isRedisConfigured();
+}
+
+// ---------------------------------------------------------------------------
+// Account Lockout (persistent, Redis-backed)
+// ---------------------------------------------------------------------------
+
+const LOCKOUT_THRESHOLD = 5;
+const LOCKOUT_TTL_SECONDS = 30 * 60; // 30 minutes
+
+// In-memory fallback for development (single-instance only)
+const inMemoryLockout = new Map<string, { attempts: number; expiresAt: number }>();
+
+/**
+ * Check whether an account is currently locked out.
+ * Returns { locked: true } if the failure threshold has been reached.
+ */
+export async function checkAccountLockout(
+  email: string
+): Promise<{ locked: boolean; attempts: number }> {
+  const key = `lockout:${email.toLowerCase()}`;
+  const redisClient = getRedisClient();
+
+  if (redisClient) {
+    const attempts = (await redisClient.get<number>(key)) ?? 0;
+    return { locked: attempts >= LOCKOUT_THRESHOLD, attempts };
+  }
+
+  // In-memory fallback
+  const entry = inMemoryLockout.get(key);
+  if (!entry || Date.now() > entry.expiresAt) {
+    inMemoryLockout.delete(key);
+    return { locked: false, attempts: 0 };
+  }
+  return { locked: entry.attempts >= LOCKOUT_THRESHOLD, attempts: entry.attempts };
+}
+
+/**
+ * Record one failed login attempt. Starts a 30-minute lockout window.
+ * Returns the total failure count so callers can trigger audit logs.
+ */
+export async function recordFailedLoginAttempt(email: string): Promise<number> {
+  const key = `lockout:${email.toLowerCase()}`;
+  const redisClient = getRedisClient();
+
+  if (redisClient) {
+    const attempts = await redisClient.incr(key);
+    if (attempts === 1) {
+      await redisClient.expire(key, LOCKOUT_TTL_SECONDS);
+    }
+    return attempts;
+  }
+
+  // In-memory fallback
+  const now = Date.now();
+  const entry = inMemoryLockout.get(key);
+  if (!entry || now > entry.expiresAt) {
+    inMemoryLockout.set(key, { attempts: 1, expiresAt: now + LOCKOUT_TTL_SECONDS * 1000 });
+    return 1;
+  }
+  entry.attempts += 1;
+  return entry.attempts;
+}
+
+/**
+ * Clear the lockout counter on successful login.
+ */
+export async function clearAccountLockout(email: string): Promise<void> {
+  const key = `lockout:${email.toLowerCase()}`;
+  const redisClient = getRedisClient();
+
+  if (redisClient) {
+    await redisClient.del(key);
+    return;
+  }
+
+  inMemoryLockout.delete(key);
 }
