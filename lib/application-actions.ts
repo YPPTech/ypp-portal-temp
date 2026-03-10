@@ -380,6 +380,25 @@ async function applyAcceptedCandidateEffects(
     update: {},
   });
 
+  // Audit log for role assignment (best effort — failure must not abort the transaction)
+  try {
+    const { logAuditEvent } = await import("@/lib/audit-log-actions");
+    await logAuditEvent({
+      action: "SETTINGS_CHANGED",
+      actorId: decidedById,
+      targetType: "User",
+      targetId: application.applicantId,
+      description: `Role ${newRole} granted via application ${application.id}`,
+      metadata: {
+        applicationId: application.id,
+        positionType: application.position.type,
+        newRole,
+      },
+    });
+  } catch {
+    // Audit log failure must not block the application approval
+  }
+
   if (!chapterIdForAssignment && application.position.type === "CHAPTER_PRESIDENT") {
     const proposal = parseChapterProposalMetadata(application.additionalMaterials);
     if (!proposal) {

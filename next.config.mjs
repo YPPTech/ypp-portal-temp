@@ -20,19 +20,9 @@ const nextConfig = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
           },
-          {
-            key: "Content-Security-Policy",
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-              "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob: https:",
-              "font-src 'self' data: blob:",
-              "frame-src 'self' https://www.youtube.com https://player.vimeo.com https://www.loom.com",
-              "connect-src 'self' blob: data: https://*.pusher.com wss://*.pusher.com https://*.pusherapp.com wss://*.pusherapp.com",
-              "worker-src 'self' blob:",
-            ].join("; "),
-          },
+          // CSP is set dynamically in middleware.ts with a per-request nonce.
+          // This avoids 'unsafe-inline' in script-src.
+          // See: middleware.ts → buildCsp()
         ],
       },
     ];

@@ -59,6 +59,10 @@ function LoginPageContent() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showResend, setShowResend] = useState(false);
   const [resendEmail, setResendEmail] = useState("");
+  // 2FA challenge state
+  const [twoFactorStep, setTwoFactorStep] = useState(false);
+  const [challengeToken, setChallengeToken] = useState("");
+  const [totpCode, setTotpCode] = useState("");
 
   const [magicState, magicAction] = useFormState(requestMagicLink, { status: "", message: "" });
 
@@ -90,14 +94,22 @@ function LoginPageContent() {
     }
 
     const err = result?.error ?? "";
-    if (err === "EMAIL_NOT_VERIFIED") {
+    if (err.startsWith("TWO_FACTOR_REQUIRED::")) {
+      const token = err.replace("TWO_FACTOR_REQUIRED::", "");
+      setChallengeToken(token);
+      setTwoFactorStep(true);
+      setLoading(false);
+      return;
+    } else if (err === "EMAIL_NOT_VERIFIED") {
       setResendEmail(email);
       setShowResend(true);
       setError("Please verify your email before signing in.");
     } else if (err === "CredentialsSignin" || err === "") {
       setError("Invalid email or password.");
-    } else if (err.includes("Too many")) {
-      setError("Too many login attempts. Please try again later.");
+    } else if (err.includes("Too many") || err.includes("locked")) {
+      setError(err.includes("locked")
+        ? "Account temporarily locked. Try again in 30 minutes or reset your password."
+        : "Too many login attempts. Please try again later.");
     } else if (err.includes("Google sign-in")) {
       setError("This account uses Google sign-in. Please use the button above.");
     } else if (err === "MAGIC_LINK_EXPIRED") {
@@ -106,6 +118,34 @@ function LoginPageContent() {
       setError("Something went wrong. Please try again.");
     }
 
+    setLoading(false);
+  }
+
+  async function handleTotpSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    const result = await signIn("credentials", {
+      challengeToken,
+      totpCode,
+      redirect: false,
+    });
+
+    if (result?.ok) {
+      router.push(callbackUrl);
+      return;
+    }
+
+    const err = result?.error ?? "";
+    if (err.includes("expired")) {
+      setTwoFactorStep(false);
+      setChallengeToken("");
+      setTotpCode("");
+      setError("2FA session expired. Please sign in again.");
+    } else {
+      setError("Invalid verification code. Please try again.");
+    }
     setLoading(false);
   }
 
@@ -208,6 +248,48 @@ function LoginPageContent() {
               </p>
             </div>
           </div>
+
+          {/* 2FA step — shown after password is verified */}
+          {twoFactorStep && (
+            <form onSubmit={handleTotpSubmit}>
+              <p style={{ fontSize: 14, color: "var(--foreground)", fontWeight: 500, marginBottom: 4 }}>
+                Two-Factor Authentication
+              </p>
+              <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16, lineHeight: 1.5 }}>
+                Enter the 6-digit code from your authenticator app, or a recovery code.
+              </p>
+              <label className="form-label" style={{ marginTop: 0 }}>
+                Verification Code
+                <input
+                  className="input"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="000000"
+                  maxLength={11}
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value.trim())}
+                  autoFocus
+                  required
+                />
+              </label>
+              {error && <div className="form-error">{error}</div>}
+              <button className="button" type="submit" disabled={loading}>
+                {loading ? "Verifying\u2026" : "Verify"}
+              </button>
+              <button
+                type="button"
+                className="button secondary"
+                style={{ marginTop: 8, width: "100%" }}
+                onClick={() => { setTwoFactorStep(false); setChallengeToken(""); setTotpCode(""); setError(null); }}
+              >
+                Back to Sign In
+              </button>
+            </form>
+          )}
+
+          {/* Normal sign-in UI — hidden during 2FA step */}
+          {!twoFactorStep && <>
 
           {/* Google sign-in */}
           <button
@@ -344,6 +426,7 @@ function LoginPageContent() {
           <Link className="button secondary" style={{ display: "block", textAlign: "center" }} href="/signup">
             Create Account
           </Link>
+          </>}
         </div>
       </div>
     </div>

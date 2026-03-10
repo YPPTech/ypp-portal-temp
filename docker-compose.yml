@@ -1,4 +1,7 @@
 version: "3.9"
+# WARNING: Default credentials below (ypp/ypp) are for LOCAL DEVELOPMENT only.
+# Set POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB via environment variables
+# or a .env file before deploying to any shared or production environment.
 services:
   db:
     image: postgres:15

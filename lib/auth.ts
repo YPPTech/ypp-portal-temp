@@ -4,16 +4,17 @@ import Credentials from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { checkLoginRateLimit } from "@/lib/rate-limit-redis";
+import {
+  checkLoginRateLimit,
+  checkAccountLockout,
+  recordFailedLoginAttempt,
+  clearAccountLockout,
+} from "@/lib/rate-limit-redis";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8)
 });
-
-// Track consecutive failed login attempts (in-memory; for lockout alerts)
-const failedAttempts = new Map<string, number>();
-const LOCKOUT_THRESHOLD = 5;
 
 function buildProviders() {
   const providers: NextAuthOptions["providers"] = [
@@ -23,10 +24,51 @@ function buildProviders() {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
         mt: { label: "Magic Token", type: "text" },
+        challengeToken: { label: "2FA Challenge Token", type: "text" },
+        totpCode: { label: "2FA Code", type: "text" },
       },
       async authorize(credentials) {
+        const raw = credentials as Record<string, string> | undefined;
+
+        // --- 2FA challenge completion path ---
+        const challengeToken = raw?.challengeToken;
+        const totpCode = raw?.totpCode;
+        if (challengeToken && totpCode) {
+          const { resolveChallengeToken, verifyTwoFactorCode } = await import("@/lib/two-factor-actions");
+          const userId = await resolveChallengeToken(challengeToken);
+          if (!userId) {
+            throw new Error("2FA session expired. Please sign in again.");
+          }
+
+          const isValid = await verifyTwoFactorCode(userId, totpCode);
+          if (!isValid) {
+            throw new Error("Invalid verification code. Please try again.");
+          }
+
+          const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              primaryRole: true,
+              roles: { select: { role: true } },
+            },
+          });
+
+          if (!user) return null;
+
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            roles: user.roles.map((r) => r.role),
+            primaryRole: user.primaryRole,
+          } as any;
+        }
+
         // --- Magic relay token path (from /magic-link page) ---
-        const mt = (credentials as Record<string, string> | undefined)?.mt;
+        const mt = raw?.mt;
         if (mt) {
           const record = await prisma.emailVerificationToken.findUnique({
             where: { token: mt },
@@ -69,11 +111,16 @@ function buildProviders() {
 
         const email = parsed.data.email.toLowerCase();
 
-        // Rate limit: 10 login attempts per email per 15 minutes
-        // Uses Redis in production, falls back to in-memory in development
+        // Rate limit: 10 attempts per email per 15 minutes
         const rl = await checkLoginRateLimit(email);
         if (!rl.success) {
           throw new Error("Too many login attempts. Please try again later.");
+        }
+
+        // Check persistent account lockout (5 failed passwords → 30-min block)
+        const lockout = await checkAccountLockout(email);
+        if (lockout.locked) {
+          throw new Error("Account temporarily locked. Please try again in 30 minutes or reset your password.");
         }
 
         const user = await prisma.user.findUnique({
@@ -85,6 +132,7 @@ function buildProviders() {
             passwordHash: true,
             primaryRole: true,
             emailVerified: true,
+            twoFactorEnabled: true,
             roles: { select: { role: true } }
           }
         });
@@ -100,12 +148,10 @@ function buildProviders() {
 
         const isValid = await compare(parsed.data.password, user.passwordHash);
         if (!isValid) {
-          // Track failed attempts and create audit log after lockout threshold
-          const current = (failedAttempts.get(email) || 0) + 1;
-          failedAttempts.set(email, current);
+          const failCount = await recordFailedLoginAttempt(email);
 
-          if (current === LOCKOUT_THRESHOLD) {
-            // Log to audit if available (non-blocking, best effort)
+          // Audit log when lockout threshold is first reached
+          if (failCount === 5) {
             try {
               const { logAuditEvent } = await import("@/lib/audit-log-actions");
               await logAuditEvent({
@@ -113,7 +159,7 @@ function buildProviders() {
                 actorId: user.id,
                 targetType: "User",
                 targetId: user.id,
-                description: `Account lockout alert: ${LOCKOUT_THRESHOLD} failed login attempts for ${email}`,
+                description: `Account locked: 5 consecutive failed login attempts for ${email}`,
               });
             } catch {
               // Audit logging failure should not block auth
@@ -123,13 +169,20 @@ function buildProviders() {
           return null;
         }
 
-        // Clear failed attempts on success
-        failedAttempts.delete(email);
+        // Clear lockout counter on successful login
+        await clearAccountLockout(email);
 
         // Block unverified accounts — frontend detects this error code and shows resend prompt
         // IMPORTANT: run `npm run backfill:email-verified` against production BEFORE enabling this
         if (!user.emailVerified) {
           throw new Error("EMAIL_NOT_VERIFIED");
+        }
+
+        // If 2FA is enabled, issue a challenge token and require second factor
+        if ((user as any).twoFactorEnabled) {
+          const { issueTwoFactorChallenge } = await import("@/lib/two-factor-actions");
+          const challengeToken = await issueTwoFactorChallenge(user.id);
+          throw new Error(`TWO_FACTOR_REQUIRED::${challengeToken}`);
         }
 
         return {
@@ -159,6 +212,20 @@ function buildProviders() {
 export const authOptions: NextAuthOptions = {
   providers: buildProviders(),
   session: { strategy: "jwt", maxAge: 24 * 60 * 60 }, // 24 hour max session
+  cookies: {
+    sessionToken: {
+      name:
+        process.env.NODE_ENV === "production"
+          ? "__Secure-next-auth.session-token"
+          : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
   callbacks: {
     async signIn({ user, account }) {
       // Handle Google OAuth sign-in

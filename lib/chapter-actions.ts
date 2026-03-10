@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { RoleType } from "@prisma/client";
+import { parseRoleTypes } from "@/lib/authorization";
 
 // ============================================
 // CHAPTER DASHBOARD DATA
@@ -353,7 +354,7 @@ export async function createChapterUpdate(formData: FormData) {
   const isPinned = formData.get("isPinned") === "true";
   const targetRolesRaw = formData.get("targetRoles") as string;
   const targetRoles = targetRolesRaw
-    ? (targetRolesRaw.split(",") as RoleType[])
+    ? (parseRoleTypes(targetRolesRaw.split(",")) as RoleType[])
     : [];
 
   const update = await prisma.chapterUpdate.create({

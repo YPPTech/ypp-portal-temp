@@ -1,5 +1,6 @@
 "use server";
 
+import { requireSessionUser } from "@/lib/authorization";
 import { prisma } from "@/lib/prisma";
 
 export type StudentProgressSnapshot = {
@@ -19,6 +20,16 @@ export type StudentProgressSnapshot = {
 };
 
 export async function getStudentProgressSnapshot(userId: string): Promise<StudentProgressSnapshot> {
+  const sessionUser = await requireSessionUser();
+  const elevatedRoles = ["ADMIN", "STAFF", "INSTRUCTOR", "MENTOR", "CHAPTER_LEAD"];
+  const isSelf = sessionUser.id === userId;
+  const hasElevatedRole = sessionUser.roles.some((r) =>
+    elevatedRoles.includes(typeof r === "string" ? r : (r as { role: string }).role)
+  );
+  if (!isSelf && !hasElevatedRole) {
+    throw new Error("Forbidden");
+  }
+
   const now = new Date();
   const next7Days = new Date(now);
   next7Days.setDate(next7Days.getDate() + 7);

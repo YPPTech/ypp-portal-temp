@@ -1,11 +1,34 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import crypto from "crypto";
 
 const PUBLIC_PATHS = ["/login", "/signup", "/forgot-password", "/reset-password", "/verify-email", "/magic-link"];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
+
+function buildCsp(nonce: string): string {
+  const isDev = process.env.NODE_ENV !== "production";
+  const scriptSrc = [
+    "'self'",
+    `'nonce-${nonce}'`,
+    // unsafe-eval is only needed in development (Next.js HMR / fast refresh)
+    ...(isDev ? ["'unsafe-eval'"] : []),
+  ].join(" ");
+
+  return [
+    "default-src 'self'",
+    `script-src ${scriptSrc}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data: blob:",
+    "frame-src 'self' https://www.youtube.com https://player.vimeo.com https://www.loom.com",
+    "connect-src 'self' blob: data: https://*.pusher.com wss://*.pusher.com https://*.pusherapp.com wss://*.pusherapp.com",
+    "worker-src 'self' blob:",
+    "report-uri /api/csp-report",
+  ].join("; ");
 }
 
 export async function middleware(request: NextRequest) {
@@ -28,7 +51,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(appUrl);
   }
 
-  return NextResponse.next();
+  // Generate a cryptographically random nonce for CSP
+  const nonce = crypto.randomBytes(16).toString("base64");
+
+  // Forward nonce to server components via request header
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+
+  // Set dynamic nonce-based CSP on every response
+  response.headers.set("Content-Security-Policy", buildCsp(nonce));
+  // Expose nonce to layout for use in <Script> nonce props if needed in the future
+  response.headers.set("x-nonce", nonce);
+
+  return response;
 }
 
 export const config = {
