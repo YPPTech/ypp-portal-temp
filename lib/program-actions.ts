@@ -147,6 +147,39 @@ export async function enrollInProgram(programId: string) {
   return enrollment;
 }
 
+/**
+ * Instructor-initiated enrollment for a specific student.
+ * Idempotent — skips silently if already enrolled.
+ */
+export async function enrollStudentInProgram(
+  studentId: string,
+  programId: string
+): Promise<{ success: boolean; skipped: boolean }> {
+  const session = await getServerSession(authOptions);
+  const roles = session?.user?.roles ?? [];
+  if (
+    !session?.user?.id ||
+    (!roles.includes("ADMIN") &&
+      !roles.includes("INSTRUCTOR") &&
+      !roles.includes("CHAPTER_LEAD"))
+  ) {
+    throw new Error("Unauthorized – instructor role required");
+  }
+
+  const existing = await prisma.specialProgramEnrollment.findUnique({
+    where: { programId_userId: { programId, userId: studentId } },
+  });
+
+  if (existing) return { success: true, skipped: true };
+
+  await prisma.specialProgramEnrollment.create({
+    data: { programId, userId: studentId },
+  });
+
+  revalidatePath(`/programs/${programId}`);
+  return { success: true, skipped: false };
+}
+
 export async function withdrawFromProgram(programId: string) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) throw new Error("Unauthorized");

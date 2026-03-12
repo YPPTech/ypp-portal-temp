@@ -316,6 +316,9 @@ model Chapter {
   rolloutCampaigns RolloutCampaign[]
   featureGateRules FeatureGateRule[]
   pathwayConfigs   ChapterPathway[]
+  specialPrograms  SpecialProgram[]  @relation("ChapterSpecialPrograms")
+  rubrics          Rubric[]
+  instructorCohorts InstructorCohort[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -629,6 +632,15 @@ model User {
   twoFactorSecret   String?            // AES-256-GCM encrypted TOTP secret
   twoFactorRecovery TwoFactorRecovery[]
 
+  // Instructor Content Creation Relations
+  passionLabsCreated         SpecialProgram[]          @relation("PassionLabsCreated")
+  pathwaysCreated            Pathway[]                 @relation("PathwaysCreated")
+  competitionsCreated        SeasonalCompetition[]     @relation("CompetitionsCreated")
+  rubricsCreated             Rubric[]
+  instructorCohortsCreated   InstructorCohort[]        @relation("InstructorCohortsCreated")
+  instructorCohortMemberships InstructorCohortMember[] @relation("InstructorCohortMemberships")
+  pathwayStepUnlocks         PathwayStepUnlock[]       @relation("PathwayStepUnlocks")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -780,6 +792,8 @@ model Pathway {
   description  String
   interestArea String
   isActive     Boolean       @default(true)
+  createdById  String?
+  createdBy    User?         @relation("PathwaysCreated", fields: [createdById], references: [id])
   steps        PathwayStep[]
   certificates Certificate[]
 
@@ -795,12 +809,40 @@ model Pathway {
 }
 
 model PathwayStep {
-  id        String  @id @default(cuid())
-  pathwayId String
-  courseId  String
-  stepOrder Int
-  pathway   Pathway @relation(fields: [pathwayId], references: [id])
-  course    Course  @relation(fields: [courseId], references: [id])
+  id               String                 @id @default(cuid())
+  pathwayId        String
+  stepOrder        Int
+  unlockType       PathwayStepUnlockType  @default(AUTO)
+
+  // Content pointer — one of these should be set
+  courseId         String?
+  classTemplateId  String?
+  specialProgramId String?
+  title            String? // for standalone steps with no linked content
+
+  pathway          Pathway         @relation(fields: [pathwayId], references: [id])
+  course           Course?         @relation(fields: [courseId], references: [id])
+  classTemplate    ClassTemplate?  @relation("ClassTemplateSteps", fields: [classTemplateId], references: [id])
+  specialProgram   SpecialProgram? @relation("SpecialProgramSteps", fields: [specialProgramId], references: [id])
+  stepUnlocks      PathwayStepUnlock[]
+
+  @@index([pathwayId, stepOrder])
+}
+
+model PathwayStepUnlock {
+  id          String      @id @default(cuid())
+  stepId      String
+  step        PathwayStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User        @relation("PathwayStepUnlocks", fields: [userId], references: [id])
+  unlockedAt  DateTime    @default(now())
+
+  @@unique([stepId, userId])
+}
+
+enum PathwayStepUnlockType {
+  AUTO
+  MANUAL
 }
 
 model Enrollment {
@@ -1767,19 +1809,38 @@ model PromotionRecommendation {
 // ============================================
 
 model SpecialProgram {
-  id           String                     @id @default(cuid())
-  name         String
-  description  String?
-  interestArea String
-  type         ProgramType
-  isVirtual    Boolean                    @default(true)
-  isActive     Boolean                    @default(true)
-  leaderId     String?
-  leader       User?                      @relation("ProgramsLed", fields: [leaderId], references: [id])
-  participants SpecialProgramEnrollment[]
-  sessions     ProgramSession[]
-  createdAt    DateTime                   @default(now())
-  updatedAt    DateTime                   @updatedAt
+  id               String                     @id @default(cuid())
+  name             String
+  description      String?
+  interestArea     String
+  type             ProgramType
+  isVirtual        Boolean                    @default(true)
+  isActive         Boolean                    @default(true)
+  leaderId         String?
+  leader           User?                      @relation("ProgramsLed", fields: [leaderId], references: [id])
+
+  // Passion Lab specific fields
+  drivingQuestion  String?
+  targetAgeGroup   String?
+  difficulty       String? // BEGINNER, INTERMEDIATE, ADVANCED
+  deliveryMode     DeliveryMode?
+  finalShowcase    String?                    @db.Text
+  sessionTopics    Json                       @default("[]") // [{topic, activities, materials}]
+  submissionFormat String?
+  maxParticipants  Int?
+  startDate        DateTime?
+  endDate          DateTime?
+  chapterId        String?
+  chapter          Chapter?                   @relation("ChapterSpecialPrograms", fields: [chapterId], references: [id])
+  createdById      String?
+  createdBy        User?                      @relation("PassionLabsCreated", fields: [createdById], references: [id])
+  submissionStatus CurriculumSubmissionStatus @default(DRAFT)
+
+  participants     SpecialProgramEnrollment[]
+  sessions         ProgramSession[]
+  pathwaySteps     PathwayStep[]              @relation("SpecialProgramSteps")
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
 }
 
 model ProgramSession {
@@ -2469,6 +2530,8 @@ model Assignment {
   createdById         String
   createdBy           User                   @relation("AssignmentsCreated", fields: [createdById], references: [id])
   submissions         AssignmentSubmission[]
+  rubricId            String?
+  rubric              Rubric?                @relation("AssignmentRubric", fields: [rubricId], references: [id])
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
 
@@ -4761,8 +4824,9 @@ model ClassTemplate {
   chapterId   String?
   chapter     Chapter? @relation(fields: [chapterId], references: [id])
 
-  offerings   ClassOffering[]
-  lessonPlans LessonPlan[]
+  offerings    ClassOffering[]
+  lessonPlans  LessonPlan[]
+  pathwaySteps PathwayStep[]   @relation("ClassTemplateSteps")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -5568,6 +5632,10 @@ model SeasonalCompetition {
   firstPlaceReward  String?
   secondPlaceReward String?
   thirdPlaceReward  String?
+
+  // Instructor draft ownership
+  createdById String?
+  createdBy   User?   @relation("CompetitionsCreated", fields: [createdById], references: [id])
 
   entries CompetitionEntry[]
   votes   CompetitionVote[]
@@ -6694,4 +6762,66 @@ model MentorCommitteeChair {
 
   @@unique([userId, roleType])
   @@index([roleType])
+}
+
+// ============================================
+// INSTRUCTOR CONTENT CREATION MODELS
+// ============================================
+
+model Rubric {
+  id          String            @id @default(cuid())
+  title       String
+  description String?
+  chapterId   String?
+  chapter     Chapter?          @relation(fields: [chapterId], references: [id])
+  createdById String
+  createdBy   User              @relation(fields: [createdById], references: [id])
+  criteria    RubricCriterion[]
+  assignments Assignment[]      @relation("AssignmentRubric")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([createdById])
+  @@index([chapterId])
+}
+
+model RubricCriterion {
+  id          String   @id @default(cuid())
+  rubricId    String
+  rubric      Rubric   @relation(fields: [rubricId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  pointValue  Int      @default(10)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([rubricId, sortOrder])
+}
+
+model InstructorCohort {
+  id          String                   @id @default(cuid())
+  name        String
+  chapterId   String
+  chapter     Chapter                  @relation(fields: [chapterId], references: [id])
+  createdById String
+  createdBy   User                     @relation("InstructorCohortsCreated", fields: [createdById], references: [id])
+  members     InstructorCohortMember[]
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  @@index([chapterId])
+  @@index([createdById])
+}
+
+model InstructorCohortMember {
+  id        String           @id @default(cuid())
+  cohortId  String
+  cohort    InstructorCohort @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User             @relation("InstructorCohortMemberships", fields: [userId], references: [id])
+  addedAt   DateTime         @default(now())
+
+  @@unique([cohortId, userId])
+  @@index([userId])
 }
