@@ -674,6 +674,61 @@ export async function enrollInClass(offeringId: string) {
   return { success: true, waitlisted: isWaitlisted };
 }
 
+/**
+ * Instructor-initiated enrollment for a specific student.
+ * Used by cohort enrollment and instructor-managed enrollment panels.
+ * Skips if the student is already enrolled (idempotent).
+ */
+export async function enrollStudentInOffering(
+  studentId: string,
+  offeringId: string
+): Promise<{ success: boolean; waitlisted: boolean; skipped: boolean }> {
+  await requireInstructor();
+
+  const offering = await prisma.classOffering.findUnique({
+    where: { id: offeringId },
+    include: { enrollments: { where: { status: "ENROLLED" } } },
+  });
+
+  if (!offering) throw new Error("Class offering not found");
+
+  // Idempotent: skip if already actively enrolled
+  const existing = await prisma.classEnrollment.findUnique({
+    where: { studentId_offeringId: { studentId, offeringId } },
+  });
+
+  if (existing && (existing.status === "ENROLLED" || existing.status === "WAITLISTED")) {
+    return { success: true, waitlisted: existing.status === "WAITLISTED", skipped: true };
+  }
+
+  const enrolledCount = offering.enrollments.length;
+  const isWaitlisted = enrolledCount >= offering.capacity;
+
+  if (existing) {
+    await prisma.classEnrollment.update({
+      where: { id: existing.id },
+      data: {
+        status: isWaitlisted ? "WAITLISTED" : "ENROLLED",
+        enrolledAt: new Date(),
+        droppedAt: null,
+        waitlistPosition: isWaitlisted ? enrolledCount - offering.capacity + 1 : null,
+      },
+    });
+  } else {
+    await prisma.classEnrollment.create({
+      data: {
+        studentId,
+        offeringId,
+        status: isWaitlisted ? "WAITLISTED" : "ENROLLED",
+        waitlistPosition: isWaitlisted ? enrolledCount - offering.capacity + 1 : null,
+      },
+    });
+  }
+
+  revalidatePath(`/curriculum/${offeringId}`);
+  return { success: true, waitlisted: isWaitlisted, skipped: false };
+}
+
 export async function dropClass(offeringId: string) {
   const session = await requireAuth();
   const studentId = session.user.id;
