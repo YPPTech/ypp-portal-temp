@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { logger } from "@/lib/logger";
+import { reportClientError } from "@/lib/client-error-report";
 
 /**
  * App Error Boundary
@@ -17,15 +17,7 @@ export default function AppError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Log error to structured logging
-    logger.error(
-      {
-        err: error,
-        digest: error.digest,
-        errorBoundary: "app",
-      },
-      "App error boundary caught error"
-    );
+    reportClientError("app-error-boundary", error);
   }, [error]);
 
   return (
