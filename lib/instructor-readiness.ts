@@ -374,6 +374,16 @@ export async function canPublishFirstOffering(instructorId: string): Promise<boo
   return readiness.canPublishFirstOffering;
 }
 
+export function assertReadinessAllowsPublish(
+  readiness: Pick<InstructorReadiness, "canPublishFirstOffering">
+): void {
+  if (!readiness.canPublishFirstOffering) {
+    throw new Error(
+      "Publishing blocked. Complete required training modules and pass interview readiness first."
+    );
+  }
+}
+
 export async function assertCanPublishOffering(
   instructorId: string,
   templateId: string,
@@ -400,11 +410,7 @@ export async function assertCanPublishOffering(
   }
 
   const readiness = await getInstructorReadiness(instructorId);
-  if (!readiness.canPublishFirstOffering) {
-    throw new Error(
-      "Publishing blocked. Complete required training modules and pass interview readiness first."
-    );
-  }
+  assertReadinessAllowsPublish(readiness);
 
   const templateLevel = template.difficultyLevel as CourseLevel;
   if (levelRank(templateLevel) > 101) {
@@ -418,6 +424,15 @@ export async function assertCanPublishOffering(
       );
     }
   }
+}
+
+export async function assertCanPublishInstructorContent(
+  instructorId: string
+): Promise<void> {
+  if (!isNativeInstructorGateEnabled()) return;
+
+  const readiness = await getInstructorReadiness(instructorId);
+  assertReadinessAllowsPublish(readiness);
 }
 
 export async function getNextRequiredAction(instructorId: string): Promise<NextAction> {

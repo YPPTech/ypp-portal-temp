@@ -12,7 +12,9 @@ const tablePresenceCache = new Map<string, Promise<boolean>>();
 const columnSetCache = new Map<string, Promise<Set<string>>>();
 
 let competitionDraftOwnershipPromise: Promise<boolean> | null = null;
+let competitionPlanningDetailsPromise: Promise<boolean> | null = null;
 let pathwayCohortTablePromise: Promise<boolean> | null = null;
+let advancedSequenceBuilderSchemaPromise: Promise<boolean> | null = null;
 let passionLabBuilderSchemaPromise: Promise<boolean> | null = null;
 let instructorCohortTablesPromise: Promise<boolean> | null = null;
 
@@ -29,6 +31,7 @@ const PASSION_LAB_SPECIAL_PROGRAM_COLUMNS = [
   "difficulty",
   "deliveryMode",
   "finalShowcase",
+  "labBlueprint",
   "sessionTopics",
   "submissionFormat",
   "maxParticipants",
@@ -116,6 +119,20 @@ export async function hasCompetitionDraftOwnership(): Promise<boolean> {
   return competitionDraftOwnershipPromise;
 }
 
+export async function hasCompetitionPlanningDetails(): Promise<boolean> {
+  if (!competitionPlanningDetailsPromise) {
+    competitionPlanningDetailsPromise = hasColumn(
+      "SeasonalCompetition",
+      "planningDetails"
+    ).catch((error) => {
+      competitionPlanningDetailsPromise = null;
+      throw error;
+    });
+  }
+
+  return competitionPlanningDetailsPromise;
+}
+
 export async function hasPathwayCohortTable(): Promise<boolean> {
   if (!pathwayCohortTablePromise) {
     pathwayCohortTablePromise = hasTable("PathwayCohort").catch((error) => {
@@ -125,6 +142,22 @@ export async function hasPathwayCohortTable(): Promise<boolean> {
   }
 
   return pathwayCohortTablePromise;
+}
+
+export async function hasAdvancedSequenceBuilderSchema(): Promise<boolean> {
+  if (!advancedSequenceBuilderSchemaPromise) {
+    advancedSequenceBuilderSchemaPromise = Promise.all([
+      hasColumn("Pathway", "sequenceBlueprint"),
+      hasColumn("PathwayStep", "stepDetails"),
+    ])
+      .then(([hasSequenceBlueprint, hasStepDetails]) => hasSequenceBlueprint && hasStepDetails)
+      .catch((error) => {
+        advancedSequenceBuilderSchemaPromise = null;
+        throw error;
+      });
+  }
+
+  return advancedSequenceBuilderSchemaPromise;
 }
 
 export async function hasPassionLabBuilderSchema(): Promise<boolean> {

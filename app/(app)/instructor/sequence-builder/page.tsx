@@ -6,6 +6,7 @@ import { getInstructorPassionLabs } from "@/lib/passion-lab-actions";
 import { prisma } from "@/lib/prisma";
 import { SequenceBuilderClient } from "./client";
 import { getClassTemplateCapabilities } from "@/lib/class-template-compat";
+import { getInstructorReadiness } from "@/lib/instructor-readiness";
 
 export default async function SequenceBuilderPage() {
   const session = await getServerSession(authOptions);
@@ -22,7 +23,7 @@ export default async function SequenceBuilderPage() {
 
   const capabilities = await getClassTemplateCapabilities();
 
-  const [sequences, passionLabs, approvedTemplates] = await Promise.all([
+  const [sequences, passionLabs, approvedTemplates, readiness] = await Promise.all([
     getInstructorSequences(),
     getInstructorPassionLabs(),
     prisma.classTemplate.findMany({
@@ -35,6 +36,7 @@ export default async function SequenceBuilderPage() {
       select: { id: true, title: true, interestArea: true, difficultyLevel: true },
       orderBy: { title: "asc" },
     }),
+    getInstructorReadiness(session.user.id),
   ]);
 
   return (
@@ -42,6 +44,7 @@ export default async function SequenceBuilderPage() {
       sequences={sequences as any}
       approvedTemplates={approvedTemplates}
       passionLabs={passionLabs}
+      readiness={readiness}
     />
   );
 }

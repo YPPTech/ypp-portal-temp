@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { ClassSettingsClient } from "./client";
 import { getClassTemplateSelect } from "@/lib/class-template-compat";
+import { getInstructorReadiness } from "@/lib/instructor-readiness";
 
 export default async function InstructorClassSettingsPage({
   searchParams,
@@ -22,22 +23,23 @@ export default async function InstructorClassSettingsPage({
   const params = await searchParams;
 
   // Get templates for offering creation
-  const templates = await prisma.classTemplate.findMany({
-    where: {
-      OR: [
-        { createdById: session.user.id },
-        { isPublished: true },
-      ],
+  const [templates, chapters, readiness] = await Promise.all([
+    prisma.classTemplate.findMany({
+      where: {
+        OR: [
+          { createdById: session.user.id },
+          { isPublished: true },
+        ],
     },
     select: getClassTemplateSelect(),
-    orderBy: { title: "asc" },
-  });
-
-  // Get chapters for location
-  const chapters = await prisma.chapter.findMany({
-    orderBy: { name: "asc" },
-    select: { id: true, name: true, city: true },
-  });
+      orderBy: { title: "asc" },
+    }),
+    prisma.chapter.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, city: true },
+    }),
+    getInstructorReadiness(session.user.id),
+  ]);
 
   // If editing an offering, load it
   let offering = null;
@@ -88,6 +90,7 @@ export default async function InstructorClassSettingsPage({
         }))}
         chapters={chapters}
         selectedTemplateId={selectedTemplate?.id || null}
+        readiness={readiness}
         offering={offering ? {
           id: offering.id,
           templateId: offering.templateId,

@@ -1,10 +1,17 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { hasPassionLabBuilderSchema } from "@/lib/schema-compat";
+import { assertCanPublishInstructorContent } from "@/lib/instructor-readiness";
+import {
+  type PassionLabBlueprint,
+  normalizePassionLabBlueprint,
+  normalizePassionLabSessionTopic,
+} from "@/lib/instructor-builder-blueprints";
 
 const PASSION_LAB_SCHEMA_MESSAGE =
   "Passion Lab Builder will be available after the latest passion lab database migration is applied to this deployment.";
@@ -46,6 +53,30 @@ function getInt(formData: FormData, key: string, fallback: number): number {
   return isNaN(n) ? fallback : n;
 }
 
+function parseLabBlueprint(formData: FormData): PassionLabBlueprint | null {
+  const raw = getString(formData, "labBlueprint", false);
+  if (!raw) return null;
+
+  try {
+    return normalizePassionLabBlueprint(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+function parseSessionTopics(formData: FormData) {
+  const raw = getString(formData, "sessionTopics", false);
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((topic) => normalizePassionLabSessionTopic(topic));
+  } catch {
+    return [];
+  }
+}
+
 // ─── Passion Lab CRUD ─────────────────────────────────────────────────────────
 
 export async function createPassionLab(formData: FormData) {
@@ -63,15 +94,8 @@ export async function createPassionLab(formData: FormData) {
   const submissionFormat = getString(formData, "submissionFormat", false);
   const maxParticipants = getInt(formData, "maxParticipants", 25);
   const chapterId = getString(formData, "chapterId", false) || null;
-
-  // Parse session topics JSON from form
-  const sessionTopicsRaw = getString(formData, "sessionTopics", false);
-  let sessionTopics: object[] = [];
-  try {
-    sessionTopics = sessionTopicsRaw ? JSON.parse(sessionTopicsRaw) : [];
-  } catch {
-    sessionTopics = [];
-  }
+  const labBlueprint = parseLabBlueprint(formData);
+  const sessionTopics = parseSessionTopics(formData);
 
   const validDeliveryModes = ["IN_PERSON", "VIRTUAL", "HYBRID"];
   const deliveryMode = validDeliveryModes.includes(deliveryModeRaw)
@@ -95,6 +119,7 @@ export async function createPassionLab(formData: FormData) {
       difficulty: difficulty || null,
       deliveryMode: deliveryMode ?? null,
       finalShowcase: finalShowcase || null,
+      ...(labBlueprint ? { labBlueprint: labBlueprint as Prisma.InputJsonValue } : {}),
       submissionFormat: submissionFormat || null,
       maxParticipants,
       sessionTopics,
@@ -129,14 +154,8 @@ export async function updatePassionLab(id: string, formData: FormData) {
   const finalShowcase = getString(formData, "finalShowcase", false);
   const submissionFormat = getString(formData, "submissionFormat", false);
   const maxParticipants = getInt(formData, "maxParticipants", 25);
-
-  const sessionTopicsRaw = getString(formData, "sessionTopics", false);
-  let sessionTopics: object[] = [];
-  try {
-    sessionTopics = sessionTopicsRaw ? JSON.parse(sessionTopicsRaw) : [];
-  } catch {
-    sessionTopics = [];
-  }
+  const labBlueprint = parseLabBlueprint(formData);
+  const sessionTopics = parseSessionTopics(formData);
 
   // Offering fields
   const startDateRaw = getString(formData, "startDate", false);
@@ -161,6 +180,7 @@ export async function updatePassionLab(id: string, formData: FormData) {
       difficulty: difficulty || null,
       deliveryMode: deliveryMode ?? undefined,
       finalShowcase: finalShowcase || null,
+      ...(labBlueprint ? { labBlueprint: labBlueprint as Prisma.InputJsonValue } : {}),
       submissionFormat: submissionFormat || null,
       maxParticipants,
       sessionTopics,
@@ -273,6 +293,8 @@ export async function publishPassionLab(id: string) {
   if (!program.startDate) {
     throw new Error("Please set offering dates before publishing");
   }
+
+  await assertCanPublishInstructorContent(program.createdById ?? session.user.id);
 
   await prisma.specialProgram.update({
     where: { id },

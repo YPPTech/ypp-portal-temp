@@ -6,18 +6,17 @@ import {
   updatePassionLab,
   updatePassionLabOffering,
   publishPassionLab,
-  submitPassionLabForReview,
 } from "@/lib/passion-lab-actions";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { CohortManager } from "@/components/cohort-manager";
+import {
+  type PassionLabBlueprint,
+  type PassionLabSessionTopic,
+  emptyPassionLabBlueprint,
+  emptyPassionLabSessionTopic,
+} from "@/lib/instructor-builder-blueprints";
 
 type PassionArea = { id: string; name: string; category: string };
-
-type SessionTopic = {
-  topic: string;
-  activities: string;
-  materials: string;
-};
 
 type ExistingLab = {
   id: string;
@@ -28,10 +27,20 @@ type ExistingLab = {
   _count: { participants: number };
 };
 
+type ReadinessSummary = {
+  canPublishFirstOffering: boolean;
+  nextAction: {
+    title: string;
+    detail: string;
+    href: string;
+  };
+};
+
 type Props = {
   existingLabs: ExistingLab[];
   passionAreas: PassionArea[];
   chapterId: string | null;
+  readiness: ReadinessSummary;
 };
 
 type Step = "core" | "sessions" | "offering" | "done";
@@ -50,7 +59,12 @@ const DELIVERY_MODES = [
 
 const AGE_GROUPS = ["8-10", "10-12", "12-14", "14-16", "16-18", "18+", "Mixed"];
 
-export function PassionLabBuilderClient({ existingLabs, passionAreas, chapterId }: Props) {
+export function PassionLabBuilderClient({
+  existingLabs,
+  passionAreas,
+  chapterId,
+  readiness,
+}: Props) {
   const [step, setStep] = useState<Step>("core");
   const [savedProgramId, setSavedProgramId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,10 +80,13 @@ export function PassionLabBuilderClient({ existingLabs, passionAreas, chapterId 
   const [finalShowcase, setFinalShowcase] = useState<string | null>(null);
   const [submissionFormat, setSubmissionFormat] = useState("");
   const [description, setDescription] = useState("");
+  const [labBlueprint, setLabBlueprint] = useState<PassionLabBlueprint>(
+    emptyPassionLabBlueprint()
+  );
 
   // Session topics
-  const [sessionTopics, setSessionTopics] = useState<SessionTopic[]>([
-    { topic: "", activities: "", materials: "" },
+  const [sessionTopics, setSessionTopics] = useState<PassionLabSessionTopic[]>([
+    emptyPassionLabSessionTopic(),
   ]);
 
   // Offering setup
@@ -78,13 +95,18 @@ export function PassionLabBuilderClient({ existingLabs, passionAreas, chapterId 
   const [maxParticipants, setMaxParticipants] = useState(25);
   const [locationName, setLocationName] = useState("");
   const [zoomLink, setZoomLink] = useState("");
+  const publishBlocked = !readiness.canPublishFirstOffering;
 
   function addSessionRow() {
-    setSessionTopics((prev) => [...prev, { topic: "", activities: "", materials: "" }]);
+    setSessionTopics((prev) => [...prev, emptyPassionLabSessionTopic()]);
   }
 
-  function updateSessionRow(index: number, field: keyof SessionTopic, value: string) {
+  function updateSessionRow(index: number, field: keyof PassionLabSessionTopic, value: string) {
     setSessionTopics((prev) => prev.map((s, i) => (i === index ? { ...s, [field]: value } : s)));
+  }
+
+  function updateBlueprint(field: keyof PassionLabBlueprint, value: string) {
+    setLabBlueprint((prev) => ({ ...prev, [field]: value }));
   }
 
   function removeSessionRow(index: number) {
@@ -109,6 +131,7 @@ export function PassionLabBuilderClient({ existingLabs, passionAreas, chapterId 
         fd.set("finalShowcase", finalShowcase ?? "");
         fd.set("submissionFormat", submissionFormat);
         fd.set("maxParticipants", String(maxParticipants));
+        fd.set("labBlueprint", JSON.stringify(labBlueprint));
         if (chapterId) fd.set("chapterId", chapterId);
         fd.set("sessionTopics", JSON.stringify(sessionTopics));
 
@@ -135,6 +158,7 @@ export function PassionLabBuilderClient({ existingLabs, passionAreas, chapterId 
         const fd = new FormData();
         fd.set("name", name);
         fd.set("interestArea", interestArea);
+        fd.set("labBlueprint", JSON.stringify(labBlueprint));
         fd.set("sessionTopics", JSON.stringify(sessionTopics));
         await updatePassionLab(savedProgramId, fd);
         setStep("offering");
@@ -230,6 +254,24 @@ export function PassionLabBuilderClient({ existingLabs, passionAreas, chapterId 
           }}
         >
           {error}
+        </div>
+      )}
+      {!readiness.canPublishFirstOffering && (
+        <div
+          style={{
+            padding: "10px 14px",
+            background: "#fffbeb",
+            border: "1px solid #fcd34d",
+            borderRadius: "var(--radius-md)",
+            fontSize: 13,
+            color: "#92400e",
+            marginBottom: 16,
+          }}
+        >
+          <strong style={{ display: "block", marginBottom: 4 }}>
+            Drafts are open. Publishing is still locked.
+          </strong>
+          <span>{readiness.nextAction.detail}</span>
         </div>
       )}
 
@@ -329,6 +371,35 @@ export function PassionLabBuilderClient({ existingLabs, passionAreas, chapterId 
             />
           </div>
 
+          <div style={{ display: "grid", gap: 12 }}>
+            <div>
+              <strong style={{ display: "block", marginBottom: 4 }}>Lab Blueprint</strong>
+              <p style={{ fontSize: 12, color: "var(--muted)", margin: 0 }}>
+                Add the bigger plan that makes this lab feel thoughtful, supported, and showcase-ready.
+              </p>
+            </div>
+            {([
+              ["bigIdea", "Big Idea", "What larger idea are students exploring through this lab?"],
+              ["studentChoicePlan", "Student Choice Plan", "Where will students make decisions, personalize, or lead?"],
+              ["mentorCommunityConnection", "Mentor / Community Connection", "What real-world person, partner, or audience will connect to this lab?"],
+              ["showcaseCriteria", "Showcase Criteria", "What does a strong final showcase look like?"],
+              ["supportPlan", "Support Plan", "How will you support students when they get stuck?"],
+              ["riskSafetyNotes", "Risk / Safety Notes", "Any safety, access, or risk notes to plan around?"],
+              ["resourcePlan", "Resource Plan", "What materials, spaces, or digital tools will the lab need?"],
+            ] as const).map(([field, label, placeholder]) => (
+              <div className="form-row" key={field}>
+                <label>{label}</label>
+                <textarea
+                  className="input"
+                  rows={2}
+                  value={labBlueprint[field]}
+                  onChange={(e) => updateBlueprint(field, e.target.value)}
+                  placeholder={placeholder}
+                />
+              </div>
+            ))}
+          </div>
+
           <div style={{ display: "flex", gap: 12 }}>
             <button
               type="button"
@@ -388,25 +459,105 @@ export function PassionLabBuilderClient({ existingLabs, passionAreas, chapterId 
 
               <div className="form-grid">
                 <div className="form-row">
-                  <label>Activities</label>
+                  <label>Objective</label>
                   <textarea
                     className="input"
                     rows={2}
-                    value={s.activities}
-                    onChange={(e) => updateSessionRow(idx, "activities", e.target.value)}
-                    placeholder="Describe the main activities…"
+                    value={s.objective}
+                    onChange={(e) => updateSessionRow(idx, "objective", e.target.value)}
+                    placeholder="What should students learn or be able to do in this session?"
                   />
                 </div>
                 <div className="form-row">
-                  <label>Materials / Resources</label>
+                  <label>Checkpoint / Artifact</label>
                   <textarea
                     className="input"
                     rows={2}
-                    value={s.materials}
-                    onChange={(e) => updateSessionRow(idx, "materials", e.target.value)}
-                    placeholder="What materials will students need?"
+                    value={s.checkpointArtifact}
+                    onChange={(e) => updateSessionRow(idx, "checkpointArtifact", e.target.value)}
+                    placeholder="What visible checkpoint or artifact should students leave with?"
                   />
                 </div>
+              </div>
+
+              <div className="form-grid">
+                <div className="form-row">
+                  <label>Mini-Lesson</label>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={s.miniLesson}
+                    onChange={(e) => updateSessionRow(idx, "miniLesson", e.target.value)}
+                    placeholder="What concept or technique will you teach directly?"
+                  />
+                </div>
+                <div className="form-row">
+                  <label>Hands-On Build</label>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={s.handsOnBuild}
+                    onChange={(e) => updateSessionRow(idx, "handsOnBuild", e.target.value)}
+                    placeholder="What will students actively build, create, or test?"
+                  />
+                </div>
+              </div>
+
+              <div className="form-grid">
+                <div className="form-row">
+                  <label>Collaboration</label>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={s.collaboration}
+                    onChange={(e) => updateSessionRow(idx, "collaboration", e.target.value)}
+                    placeholder="How will students work with, critique, or support each other?"
+                  />
+                </div>
+                <div className="form-row">
+                  <label>Reflection</label>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={s.reflection}
+                    onChange={(e) => updateSessionRow(idx, "reflection", e.target.value)}
+                    placeholder="How will students pause and reflect on what happened?"
+                  />
+                </div>
+              </div>
+
+              <div className="form-grid">
+                <div className="form-row">
+                  <label>Materials / Tools</label>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={s.materialsTools}
+                    onChange={(e) => updateSessionRow(idx, "materialsTools", e.target.value)}
+                    placeholder="What materials, tools, software, or resources will be used?"
+                  />
+                </div>
+                <div className="form-row">
+                  <label>Progress Evidence</label>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={s.progressEvidence}
+                    onChange={(e) => updateSessionRow(idx, "progressEvidence", e.target.value)}
+                    placeholder="How will you know students made progress in this session?"
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <label>Extension Prompt</label>
+                <textarea
+                  className="input"
+                  rows={2}
+                  value={s.extensionPrompt}
+                  onChange={(e) => updateSessionRow(idx, "extensionPrompt", e.target.value)}
+                  placeholder="Optional extension, take-home prompt, or next step…"
+                />
               </div>
             </div>
           ))}
@@ -507,7 +658,7 @@ export function PassionLabBuilderClient({ existingLabs, passionAreas, chapterId 
               onClick={handleSaveOffering}
               disabled={isPending}
             >
-              {isPending ? "Saving…" : "Save & Publish →"}
+              {isPending ? "Saving…" : "Save & Prepare Publish →"}
             </button>
           </div>
         </div>
@@ -529,12 +680,30 @@ export function PassionLabBuilderClient({ existingLabs, passionAreas, chapterId 
               Publish to make it visible to students, then enroll your cohorts.
             </p>
           </div>
+          {!readiness.canPublishFirstOffering && (
+            <div
+              style={{
+                padding: "12px 16px",
+                background: "#fffbeb",
+                border: "1px solid #fcd34d",
+                borderRadius: "var(--radius-md)",
+                color: "#92400e",
+                fontSize: 13,
+              }}
+            >
+              <strong style={{ display: "block", marginBottom: 4 }}>
+                You can keep this lab as a draft, but you cannot publish it yet.
+              </strong>
+              <span>{readiness.nextAction.detail}</span>
+            </div>
+          )}
 
           <button
             type="button"
             className="button primary"
             onClick={handlePublish}
-            disabled={isPending}
+            disabled={isPending || publishBlocked}
+            title={publishBlocked ? readiness.nextAction.detail : undefined}
           >
             {isPending ? "Publishing…" : "Publish Passion Lab"}
           </button>

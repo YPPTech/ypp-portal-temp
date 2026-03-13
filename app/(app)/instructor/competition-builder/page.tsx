@@ -5,7 +5,10 @@ import { getInstructorCompetitionDrafts } from "@/lib/competition-draft-actions"
 import { getActivePassionAreas } from "@/lib/passion-lab-actions";
 import { prisma } from "@/lib/prisma";
 import { CompetitionBuilderClient } from "./client";
-import { hasCompetitionDraftOwnership } from "@/lib/schema-compat";
+import {
+  hasCompetitionDraftOwnership,
+  hasCompetitionPlanningDetails,
+} from "@/lib/schema-compat";
 
 export default async function CompetitionBuilderPage() {
   const session = await getServerSession(authOptions);
@@ -26,6 +29,7 @@ export default async function CompetitionBuilderPage() {
     select: { chapterId: true },
   });
   const hasDraftBuilderSupport = await hasCompetitionDraftOwnership();
+  const hasPlanningDetailsSupport = await hasCompetitionPlanningDetails();
 
   const [drafts, passionAreas, chapterUsers] = await Promise.all([
     hasDraftBuilderSupport ? getInstructorCompetitionDrafts() : Promise.resolve([]),
@@ -58,6 +62,7 @@ export default async function CompetitionBuilderPage() {
         passionAreas={passionAreas}
         chapterUsers={chapterUsers}
         isDraftBuilderAvailable={hasDraftBuilderSupport}
+        isPlanningDetailsAvailable={hasPlanningDetailsSupport}
       />
     </div>
   );

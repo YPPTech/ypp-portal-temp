@@ -1,5 +1,6 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -9,12 +10,18 @@ import {
   getClassTemplateCapabilities,
   getClassTemplateSelect,
 } from "@/lib/class-template-compat";
+import {
+  type CurriculumEngagementStrategy,
+  normalizeCurriculumEngagementStrategy,
+} from "@/lib/instructor-builder-blueprints";
 
 type WeeklyTopic = {
   week?: number;
   topic?: string;
   milestone?: string;
   materials?: string;
+  outcomes?: string[];
+  [key: string]: unknown;
 };
 
 type IntroVideoProvider = "YOUTUBE" | "VIMEO" | "LOOM" | "CUSTOM";
@@ -212,10 +219,12 @@ export async function createClassTemplate(formData: FormData) {
   const targetAgeGroup = getString(formData, "targetAgeGroup", false);
   const classDurationMin = getInt(formData, "classDurationMin", 0);
   const engagementStrategyRaw = getString(formData, "engagementStrategy", false);
-  let engagementStrategy: Record<string, string> | null = null;
+  let engagementStrategy: CurriculumEngagementStrategy | null = null;
   if (engagementStrategyRaw) {
     try {
-      engagementStrategy = JSON.parse(engagementStrategyRaw) as Record<string, string>;
+      engagementStrategy = normalizeCurriculumEngagementStrategy(
+        JSON.parse(engagementStrategyRaw)
+      );
     } catch {
       engagementStrategy = null;
     }
@@ -228,7 +237,7 @@ export async function createClassTemplate(formData: FormData) {
       interestArea,
       difficultyLevel,
       prerequisites,
-      weeklyTopics,
+      weeklyTopics: weeklyTopics as Prisma.InputJsonValue,
       learningOutcomes,
       estimatedHours,
       durationWeeks,
@@ -242,7 +251,9 @@ export async function createClassTemplate(formData: FormData) {
         ? {
             targetAgeGroup: targetAgeGroup || null,
             classDurationMin: classDurationMin || null,
-            engagementStrategy: engagementStrategy ?? undefined,
+            ...(engagementStrategy
+              ? { engagementStrategy: engagementStrategy as Prisma.InputJsonValue }
+              : {}),
           }
         : {}),
       createdById: session.user.id,
@@ -344,10 +355,12 @@ export async function updateClassTemplate(formData: FormData) {
   const targetAgeGroup = getString(formData, "targetAgeGroup", false);
   const classDurationMin = getInt(formData, "classDurationMin", 0);
   const engagementStrategyRaw = getString(formData, "engagementStrategy", false);
-  let engagementStrategy: Record<string, string> | null = null;
+  let engagementStrategy: CurriculumEngagementStrategy | null = null;
   if (engagementStrategyRaw) {
     try {
-      engagementStrategy = JSON.parse(engagementStrategyRaw) as Record<string, string>;
+      engagementStrategy = normalizeCurriculumEngagementStrategy(
+        JSON.parse(engagementStrategyRaw)
+      );
     } catch {
       engagementStrategy = null;
     }
@@ -361,7 +374,7 @@ export async function updateClassTemplate(formData: FormData) {
       interestArea,
       difficultyLevel,
       prerequisites,
-      weeklyTopics,
+      weeklyTopics: weeklyTopics as Prisma.InputJsonValue,
       learningOutcomes,
       estimatedHours,
       durationWeeks,
@@ -376,7 +389,9 @@ export async function updateClassTemplate(formData: FormData) {
         ? {
             targetAgeGroup: targetAgeGroup || null,
             classDurationMin: classDurationMin || null,
-            engagementStrategy: engagementStrategy ?? undefined,
+            ...(engagementStrategy
+              ? { engagementStrategy: engagementStrategy as Prisma.InputJsonValue }
+              : {}),
           }
         : {}),
     },

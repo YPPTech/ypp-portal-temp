@@ -51,6 +51,15 @@ interface OfferingData {
   enrolledCount: number;
 }
 
+interface ReadinessSummary {
+  canPublishFirstOffering: boolean;
+  nextAction: {
+    title: string;
+    detail: string;
+    href: string;
+  };
+}
+
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 const difficultyLabels: Record<string, string> = {
@@ -64,11 +73,13 @@ export function ClassSettingsClient({
   templates,
   chapters,
   selectedTemplateId,
+  readiness,
   offering,
 }: {
   templates: TemplateOption[];
   chapters: ChapterOption[];
   selectedTemplateId: string | null;
+  readiness: ReadinessSummary;
   offering: OfferingData | null;
 }) {
   const router = useRouter();
@@ -79,6 +90,7 @@ export function ClassSettingsClient({
   const [meetingDays, setMeetingDays] = useState<string[]>(offering?.meetingDays || []);
   const [deliveryMode, setDeliveryMode] = useState(offering?.deliveryMode || "VIRTUAL");
   const [introVideoProvider, setIntroVideoProvider] = useState(offering?.introVideoProvider || "YOUTUBE");
+  const publishBlocked = !readiness.canPublishFirstOffering && offering?.status === "DRAFT";
 
   const selectedTemplate = templates.find((t) => t.id === templateId);
 
@@ -148,6 +160,23 @@ export function ClassSettingsClient({
       {success && (
         <div style={{ padding: "12px 16px", background: "#f0fdf4", color: "#16a34a", borderRadius: 8, marginBottom: 16 }}>
           {success}
+        </div>
+      )}
+      {!readiness.canPublishFirstOffering && (
+        <div
+          style={{
+            padding: "12px 16px",
+            background: "#fffbeb",
+            color: "#92400e",
+            borderRadius: 8,
+            marginBottom: 16,
+            border: "1px solid #fcd34d",
+          }}
+        >
+          <strong style={{ display: "block", marginBottom: 4 }}>
+            Publishing is still locked for your first class.
+          </strong>
+          <span>{readiness.nextAction.detail}</span>
         </div>
       )}
 
@@ -474,8 +503,9 @@ export function ClassSettingsClient({
           <button
             type="button"
             className="button secondary"
-            disabled={loading}
+            disabled={loading || publishBlocked}
             onClick={handlePublish}
+            title={publishBlocked ? readiness.nextAction.detail : undefined}
           >
             Publish & Open Enrollment
           </button>
