@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   createSequence,
   updateSequence,
@@ -11,6 +11,12 @@ import {
   publishSequence,
   deleteSequence,
 } from "@/lib/sequence-actions";
+import {
+  type SequenceBlueprint,
+  type SequenceStepDetails,
+  emptySequenceBlueprint,
+  emptySequenceStepDetails,
+} from "@/lib/instructor-builder-blueprints";
 
 type ClassTemplate = {
   id: string;
@@ -32,6 +38,7 @@ type Step = {
   title: string | null;
   classTemplateId: string | null;
   specialProgramId: string | null;
+  stepDetails?: SequenceStepDetails | null;
   classTemplate?: { id: string; title: string } | null;
   specialProgram?: { id: string; name: string; type: string } | null;
 };
@@ -40,19 +47,36 @@ type Sequence = {
   id: string;
   name: string;
   description: string;
+  interestArea: string;
   isActive: boolean;
+  sequenceBlueprint?: SequenceBlueprint | null;
   steps: Step[];
+};
+
+type ReadinessSummary = {
+  canPublishFirstOffering: boolean;
+  nextAction: {
+    title: string;
+    detail: string;
+    href: string;
+  };
 };
 
 type Props = {
   sequences: Sequence[];
   approvedTemplates: ClassTemplate[];
   passionLabs: PassionLab[];
+  readiness: ReadinessSummary;
 };
 
 type AddStepTab = "class" | "passion-lab" | "standalone";
 
-export function SequenceBuilderClient({ sequences, approvedTemplates, passionLabs }: Props) {
+export function SequenceBuilderClient({
+  sequences,
+  approvedTemplates,
+  passionLabs,
+  readiness,
+}: Props) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -68,12 +92,31 @@ export function SequenceBuilderClient({ sequences, approvedTemplates, passionLab
   const [showNewForm, setShowNewForm] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const [newInterestArea, setNewInterestArea] = useState("");
+  const [newSequenceBlueprint, setNewSequenceBlueprint] = useState<SequenceBlueprint>(
+    emptySequenceBlueprint()
+  );
 
   // Add step panel
   const [addStepTab, setAddStepTab] = useState<AddStepTab>("class");
   const [standaloneTitle, setStandaloneTitle] = useState("");
+  const [sequenceBlueprint, setSequenceBlueprint] = useState<SequenceBlueprint>(
+    emptySequenceBlueprint()
+  );
+  const [stepDetails, setStepDetails] = useState<SequenceStepDetails>(
+    emptySequenceStepDetails()
+  );
 
   const activeSequence = localSequences.find((s) => s.id === activeSequenceId) ?? null;
+  const publishBlocked = !readiness.canPublishFirstOffering;
+
+  useEffect(() => {
+    if (!activeSequence) {
+      setSequenceBlueprint(emptySequenceBlueprint());
+      return;
+    }
+    setSequenceBlueprint(activeSequence.sequenceBlueprint ?? emptySequenceBlueprint());
+  }, [activeSequence]);
 
   async function handleCreateSequence() {
     if (!newName.trim()) { setError("Name is required"); return; }
@@ -83,12 +126,16 @@ export function SequenceBuilderClient({ sequences, approvedTemplates, passionLab
         const fd = new FormData();
         fd.set("name", newName);
         fd.set("description", newDescription);
+        fd.set("interestArea", newInterestArea || "General");
+        fd.set("sequenceBlueprint", JSON.stringify(newSequenceBlueprint));
         const res = await createSequence(fd);
         const newSeq: Sequence = {
           id: res.sequenceId,
           name: newName,
           description: newDescription,
+          interestArea: newInterestArea || "General",
           isActive: false,
+          sequenceBlueprint: newSequenceBlueprint,
           steps: [],
         };
         setLocalSequences((prev) => [newSeq, ...prev]);
@@ -96,8 +143,35 @@ export function SequenceBuilderClient({ sequences, approvedTemplates, passionLab
         setShowNewForm(false);
         setNewName("");
         setNewDescription("");
+        setNewInterestArea("");
+        setNewSequenceBlueprint(emptySequenceBlueprint());
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to create sequence");
+      }
+    });
+  }
+
+  async function handleSaveOverview() {
+    if (!activeSequence) return;
+    setError(null);
+
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("name", activeSequence.name);
+        fd.set("description", activeSequence.description);
+        fd.set("interestArea", activeSequence.interestArea || "General");
+        fd.set("sequenceBlueprint", JSON.stringify(sequenceBlueprint));
+        await updateSequence(activeSequence.id, fd);
+        setLocalSequences((prev) =>
+          prev.map((sequence) =>
+            sequence.id === activeSequence.id
+              ? { ...sequence, sequenceBlueprint: { ...sequenceBlueprint } }
+              : sequence
+          )
+        );
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to save sequence overview");
       }
     });
   }
@@ -121,6 +195,7 @@ export function SequenceBuilderClient({ sequences, approvedTemplates, passionLab
           if (!standaloneTitle.trim()) { setError("Enter a title for the step"); return; }
           fd.set("title", standaloneTitle);
         }
+        fd.set("stepDetails", JSON.stringify(stepDetails));
 
         const res = await addSequenceStep(activeSequenceId, fd);
 
@@ -131,6 +206,7 @@ export function SequenceBuilderClient({ sequences, approvedTemplates, passionLab
           title: type === "standalone" ? standaloneTitle : null,
           classTemplateId: type === "class" ? contentId ?? null : null,
           specialProgramId: type === "passion-lab" ? contentId ?? null : null,
+          stepDetails: { ...stepDetails },
           classTemplate: type === "class" ? { id: contentId!, title: label! } : null,
           specialProgram:
             type === "passion-lab"
@@ -147,6 +223,7 @@ export function SequenceBuilderClient({ sequences, approvedTemplates, passionLab
         );
 
         if (type === "standalone") setStandaloneTitle("");
+        setStepDetails(emptySequenceStepDetails());
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to add step");
       }
@@ -230,6 +307,33 @@ export function SequenceBuilderClient({ sequences, approvedTemplates, passionLab
     });
   }
 
+  function updateSequenceField(
+    field: "name" | "description" | "interestArea",
+    value: string
+  ) {
+    if (!activeSequenceId) return;
+    setLocalSequences((prev) =>
+      prev.map((sequence) =>
+        sequence.id === activeSequenceId ? { ...sequence, [field]: value } : sequence
+      )
+    );
+  }
+
+  function updateSequenceBlueprintField(field: keyof SequenceBlueprint, value: string) {
+    setSequenceBlueprint((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function updateNewSequenceBlueprintField(
+    field: keyof SequenceBlueprint,
+    value: string
+  ) {
+    setNewSequenceBlueprint((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function updateStepDetailsField(field: keyof SequenceStepDetails, value: string) {
+    setStepDetails((prev) => ({ ...prev, [field]: value }));
+  }
+
   async function handleDeleteSequence(id: string) {
     if (!confirm("Delete this sequence? This cannot be undone.")) return;
     startTransition(async () => {
@@ -260,13 +364,46 @@ export function SequenceBuilderClient({ sequences, approvedTemplates, passionLab
           Build ordered learning sequences from classes, passion labs, and standalone milestones.
         </p>
       </div>
+      {!readiness.canPublishFirstOffering && (
+        <div
+          style={{
+            padding: "10px 14px",
+            background: "#fffbeb",
+            border: "1px solid #fcd34d",
+            borderRadius: "var(--radius-md)",
+            fontSize: 13,
+            color: "#92400e",
+            marginBottom: 16,
+          }}
+        >
+          <strong style={{ display: "block", marginBottom: 4 }}>
+            Drafts are open. Publishing is still locked.
+          </strong>
+          <span>{readiness.nextAction.detail}</span>
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 24 }}>
         {/* ── Left: Sequence list ─────────────────────────────────────── */}
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <strong style={{ fontSize: 14 }}>My Sequences</strong>
-            <button type="button" className="button outline small" onClick={() => setShowNewForm((v) => !v)}>
+            <button
+              type="button"
+              className="button outline small"
+              onClick={() => {
+                setShowNewForm((value) => {
+                  const next = !value;
+                  if (next) {
+                    setNewName("");
+                    setNewDescription("");
+                    setNewInterestArea("");
+                    setNewSequenceBlueprint(emptySequenceBlueprint());
+                  }
+                  return next;
+                });
+              }}
+            >
               {showNewForm ? "Cancel" : "+ New"}
             </button>
           </div>
@@ -275,6 +412,14 @@ export function SequenceBuilderClient({ sequences, approvedTemplates, passionLab
             <div style={{ marginBottom: 12, display: "flex", flexDirection: "column", gap: 8 }}>
               <input className="input" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Sequence name" />
               <input className="input" value={newDescription} onChange={(e) => setNewDescription(e.target.value)} placeholder="Short description (optional)" />
+              <input className="input" value={newInterestArea} onChange={(e) => setNewInterestArea(e.target.value)} placeholder="Interest area (optional)" />
+              <textarea
+                className="input"
+                rows={2}
+                value={newSequenceBlueprint.endGoalCapstone}
+                onChange={(e) => updateNewSequenceBlueprintField("endGoalCapstone", e.target.value)}
+                placeholder="Optional: what is the capstone or end goal?"
+              />
               <button type="button" className="button primary small" onClick={handleCreateSequence} disabled={isPending}>
                 Create
               </button>
@@ -327,10 +472,19 @@ export function SequenceBuilderClient({ sequences, approvedTemplates, passionLab
                   {activeSequence.description && (
                     <p style={{ fontSize: 13, color: "var(--muted)", margin: "4px 0 0" }}>{activeSequence.description}</p>
                   )}
+                  <p style={{ fontSize: 12, color: "var(--muted)", margin: "6px 0 0" }}>
+                    {activeSequence.interestArea || "General"}
+                  </p>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
                   {!activeSequence.isActive && (
-                    <button type="button" className="button primary small" onClick={handlePublish} disabled={isPending || activeSequence.steps.length === 0}>
+                    <button
+                      type="button"
+                      className="button primary small"
+                      onClick={handlePublish}
+                      disabled={isPending || activeSequence.steps.length === 0 || publishBlocked}
+                      title={publishBlocked ? readiness.nextAction.detail : undefined}
+                    >
                       Publish Sequence
                     </button>
                   )}
@@ -349,6 +503,63 @@ export function SequenceBuilderClient({ sequences, approvedTemplates, passionLab
                     Delete
                   </button>
                 </div>
+              </div>
+
+              <div className="card" style={{ marginBottom: 16, display: "grid", gap: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                  <strong>Sequence Overview</strong>
+                  <button type="button" className="button outline small" onClick={handleSaveOverview} disabled={isPending}>
+                    Save Overview
+                  </button>
+                </div>
+                <div className="form-grid">
+                  <div className="form-row">
+                    <label>Name</label>
+                    <input
+                      className="input"
+                      value={activeSequence.name}
+                      onChange={(e) => updateSequenceField("name", e.target.value)}
+                    />
+                  </div>
+                  <div className="form-row">
+                    <label>Interest Area</label>
+                    <input
+                      className="input"
+                      value={activeSequence.interestArea}
+                      onChange={(e) => updateSequenceField("interestArea", e.target.value)}
+                      placeholder="General"
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label>Description</label>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={activeSequence.description}
+                    onChange={(e) => updateSequenceField("description", e.target.value)}
+                    placeholder="Short description for instructors and students"
+                  />
+                </div>
+                {([
+                  ["targetLearner", "Target Learner", "Who is this sequence designed for?"],
+                  ["entryPoint", "Entry Point", "What should students know, bring, or start with?"],
+                  ["endGoalCapstone", "End Goal / Capstone", "What is the final outcome or capstone at the end of the sequence?"],
+                  ["pacingGuidance", "Pacing Guidance", "How fast should students move through the sequence?"],
+                  ["supportCheckpoints", "Support Checkpoints", "Where should instructors pause for check-ins or support?"],
+                  ["completionSignals", "Completion Signals", "What evidence shows a student is truly ready to move on?"],
+                ] as const).map(([field, label, placeholder]) => (
+                  <div className="form-row" key={field}>
+                    <label>{label}</label>
+                    <textarea
+                      className="input"
+                      rows={2}
+                      value={sequenceBlueprint[field]}
+                      onChange={(e) => updateSequenceBlueprintField(field, e.target.value)}
+                      placeholder={placeholder}
+                    />
+                  </div>
+                ))}
               </div>
 
               {/* Step list */}
@@ -380,6 +591,12 @@ export function SequenceBuilderClient({ sequences, approvedTemplates, passionLab
 
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13, fontWeight: 500 }}>{getStepLabel(step)}</div>
+                        {step.stepDetails && (
+                          <div style={{ marginTop: 6, fontSize: 11, color: "var(--muted)" }}>
+                            {step.stepDetails.purpose || "Purpose not set"}
+                            {step.stepDetails.estimatedDuration ? ` · ${step.stepDetails.estimatedDuration}` : ""}
+                          </div>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleToggleUnlock(step.id, step.unlockType)}
@@ -500,6 +717,30 @@ export function SequenceBuilderClient({ sequences, approvedTemplates, passionLab
                           </button>
                         </div>
                       )}
+
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+                        <strong style={{ display: "block", fontSize: 12, marginBottom: 8 }}>Step Details</strong>
+                        {([
+                          ["purpose", "Purpose", "Why is this step in the sequence?"],
+                          ["expectedEvidence", "Expected Evidence", "What should students produce or demonstrate here?"],
+                          ["estimatedDuration", "Estimated Duration", "e.g. 1 week, 2 sessions, 90 minutes"],
+                          ["coachSupportNote", "Coach / Support Note", "What support should instructors or mentors give here?"],
+                          ["unlockRationale", "Unlock Rationale", "Why should this step unlock when it does?"],
+                        ] as const).map(([field, label, placeholder]) => (
+                          <div key={field} style={{ marginBottom: 8 }}>
+                            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>
+                              {label}
+                            </label>
+                            <textarea
+                              className="input"
+                              rows={2}
+                              value={stepDetails[field]}
+                              onChange={(e) => updateStepDetailsField(field, e.target.value)}
+                              placeholder={placeholder}
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>

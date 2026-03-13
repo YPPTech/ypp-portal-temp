@@ -792,6 +792,7 @@ model Pathway {
   description  String
   interestArea String
   isActive     Boolean       @default(true)
+  sequenceBlueprint Json?
   createdById  String?
   createdBy    User?         @relation("PathwaysCreated", fields: [createdById], references: [id])
   steps        PathwayStep[]
@@ -813,6 +814,7 @@ model PathwayStep {
   pathwayId        String
   stepOrder        Int
   unlockType       PathwayStepUnlockType  @default(AUTO)
+  stepDetails      Json?
 
   // Content pointer — one of these should be set
   courseId         String?
@@ -1825,6 +1827,7 @@ model SpecialProgram {
   difficulty       String? // BEGINNER, INTERMEDIATE, ADVANCED
   deliveryMode     DeliveryMode?
   finalShowcase    String?                    @db.Text
+  labBlueprint     Json?
   sessionTopics    Json                       @default("[]") // [{topic, activities, materials}]
   submissionFormat String?
   maxParticipants  Int?
@@ -5622,6 +5625,7 @@ model SeasonalCompetition {
   submissionDeadline DateTime
 
   rules           String @db.Text
+  planningDetails Json?
   judgingCriteria Json   @default("[]") // [{name, weight, description}]
 
   // Judging

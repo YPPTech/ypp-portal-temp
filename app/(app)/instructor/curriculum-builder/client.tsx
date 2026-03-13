@@ -4,46 +4,13 @@ import React, { useState } from "react";
 import { createClassTemplate } from "@/lib/class-management-actions";
 import { useRouter } from "next/navigation";
 import { RichTextEditor } from "@/components/rich-text-editor";
-
-interface LessonDetail {
-  topic: string;
-  activities: string;          // What Students Do
-  progressNote: string;        // Progress Toward Final Outcome
-  milestone: string;
-  socialStarter: string;       // 0-5 min
-  conceptIntro: string;        // 5-10 min
-  instructorModel: string;     // 10-15 min
-  guidedPractice: string;      // 15-25 min
-  studentActivity: string;     // 25-40 min
-  sharingDiscussion: string;   // 40-50 min
-  nextPreview: string;         // 55-60 min
-  lessonMaterials: string;
-}
-
-interface EngagementStrategy {
-  energyStyle: string;
-  differentiationPlan: string;
-  technologyTools: string;
-  studentVoiceMoments: string;
-  assessmentApproach: string;
-}
-
-function emptyLesson(): LessonDetail {
-  return {
-    topic: "",
-    activities: "",
-    progressNote: "",
-    milestone: "",
-    socialStarter: "",
-    conceptIntro: "",
-    instructorModel: "",
-    guidedPractice: "",
-    studentActivity: "",
-    sharingDiscussion: "",
-    nextPreview: "",
-    lessonMaterials: "",
-  };
-}
+import {
+  type CurriculumEngagementStrategy,
+  type CurriculumLessonBlueprint,
+  emptyCurriculumEngagementStrategy,
+  emptyCurriculumLessonBlueprint,
+  serializeCurriculumLessonBlueprint,
+} from "@/lib/instructor-builder-blueprints";
 
 export function CurriculumBuilderClient() {
   const router = useRouter();
@@ -54,30 +21,26 @@ export function CurriculumBuilderClient() {
   const [description, setDescription] = useState<string | null>(null);
   const [numLessons, setNumLessons] = useState(8);
   const [classDurationMin, setClassDurationMin] = useState(60);
-  const [lessons, setLessons] = useState<LessonDetail[]>(() =>
-    Array.from({ length: 8 }, emptyLesson)
+  const [lessons, setLessons] = useState<CurriculumLessonBlueprint[]>(() =>
+    Array.from({ length: 8 }, emptyCurriculumLessonBlueprint)
   );
   const [expandedLessons, setExpandedLessons] = useState<Set<number>>(new Set());
 
-  const [engagement, setEngagement] = useState<EngagementStrategy>({
-    energyStyle: "",
-    differentiationPlan: "",
-    technologyTools: "",
-    studentVoiceMoments: "",
-    assessmentApproach: "",
-  });
+  const [engagement, setEngagement] = useState<CurriculumEngagementStrategy>(
+    emptyCurriculumEngagementStrategy()
+  );
 
   function handleNumLessonsChange(n: number) {
     const clamped = Math.max(1, Math.min(60, n));
     setNumLessons(clamped);
     setLessons((prev) => {
       const next = [...prev];
-      while (next.length < clamped) next.push(emptyLesson());
+      while (next.length < clamped) next.push(emptyCurriculumLessonBlueprint());
       return next.slice(0, clamped);
     });
   }
 
-  function updateLesson(idx: number, field: keyof LessonDetail, value: string) {
+  function updateLesson(idx: number, field: keyof CurriculumLessonBlueprint, value: string) {
     setLessons((prev) => {
       const next = [...prev];
       next[idx] = { ...next[idx], [field]: value };
@@ -94,7 +57,7 @@ export function CurriculumBuilderClient() {
     });
   }
 
-  function updateEngagement(field: keyof EngagementStrategy, value: string) {
+  function updateEngagement(field: keyof CurriculumEngagementStrategy, value: string) {
     setEngagement((prev) => ({ ...prev, [field]: value }));
   }
 
@@ -118,22 +81,9 @@ export function CurriculumBuilderClient() {
       formData.set("learningOutcomes", combinedOutcomes);
 
       // Build weeklyTopics JSON with full lesson detail
-      const weeklyTopics = lessons.map((lesson, i) => ({
-        week: i + 1,
-        topic: lesson.topic,
-        milestone: lesson.milestone,
-        materials: lesson.lessonMaterials,
-        activities: lesson.activities,
-        progressNote: lesson.progressNote,
-        socialStarter: lesson.socialStarter,
-        conceptIntro: lesson.conceptIntro,
-        instructorModel: lesson.instructorModel,
-        guidedPractice: lesson.guidedPractice,
-        studentActivity: lesson.studentActivity,
-        sharingDiscussion: lesson.sharingDiscussion,
-        nextPreview: lesson.nextPreview,
-        lessonMaterials: lesson.lessonMaterials,
-      }));
+      const weeklyTopics = lessons.map((lesson, i) =>
+        serializeCurriculumLessonBlueprint(lesson, i + 1)
+      );
 
       formData.set("weeklyTopics", JSON.stringify(weeklyTopics));
       formData.set("durationWeeks", String(numLessons));
@@ -420,154 +370,219 @@ export function CurriculumBuilderClient() {
               </div>
 
               <div style={{ display: "grid", gap: 12 }}>
+                <div className="form-grid">
+                  <div style={timeBlockStyle}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
+                      Essential Question
+                    </div>
+                    <textarea
+                      style={{ ...textareaStyle, background: "white" }}
+                      rows={2}
+                      placeholder="What big question anchors this lesson?"
+                      value={lessons[idx].essentialQuestion}
+                      onChange={(e) => updateLesson(idx, "essentialQuestion", e.target.value)}
+                    />
+                  </div>
+                  <div style={timeBlockStyle}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
+                      Lesson Goal
+                    </div>
+                    <textarea
+                      style={{ ...textareaStyle, background: "white" }}
+                      rows={2}
+                      placeholder="What should students know or do by the end of this class?"
+                      value={lessons[idx].lessonGoal}
+                      onChange={(e) => updateLesson(idx, "lessonGoal", e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-grid">
+                  <div style={timeBlockStyle}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
+                      Student Artifact
+                    </div>
+                    <textarea
+                      style={{ ...textareaStyle, background: "white" }}
+                      rows={2}
+                      placeholder="What visible thing will students create, share, or turn in?"
+                      value={lessons[idx].studentArtifact}
+                      onChange={(e) => updateLesson(idx, "studentArtifact", e.target.value)}
+                    />
+                  </div>
+                  <div style={timeBlockStyle}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
+                      Warm-Up / Hook
+                    </div>
+                    <textarea
+                      style={{ ...textareaStyle, background: "white" }}
+                      rows={2}
+                      placeholder="How will you grab attention at the start?"
+                      value={lessons[idx].warmUpHook}
+                      onChange={(e) => updateLesson(idx, "warmUpHook", e.target.value)}
+                    />
+                  </div>
+                </div>
+
                 <div style={timeBlockStyle}>
                   <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
-                    0–5 Minutes — Social Starter / Engagement Hook
+                    Mini-Lesson
                   </div>
-                  <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>
-                    Goal: Immediately engage students and build energy. Try: icebreaker question, poll, quick debate, real-world example, short challenge.
-                  </p>
-                  <p style={{ fontSize: 12, color: "var(--text-secondary)", fontStyle: "italic", margin: "0 0 8px" }}>
-                    Example: "Would you rather own a small business making $10k/month or a risky startup that could make millions?"
-                  </p>
                   <textarea
                     style={{ ...textareaStyle, background: "white" }}
                     rows={3}
-                    placeholder="Instructor plan: What will you do to hook students in the first 5 minutes?"
-                    value={lessons[idx].socialStarter}
-                    onChange={(e) => updateLesson(idx, "socialStarter", e.target.value)}
+                    placeholder="How will you introduce the concept or skill clearly and quickly?"
+                    value={lessons[idx].miniLesson}
+                    onChange={(e) => updateLesson(idx, "miniLesson", e.target.value)}
                   />
                 </div>
 
                 <div style={timeBlockStyle}>
                   <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
-                    5–10 Minutes — Introduction to the Concept
+                    Instructor Model
                   </div>
-                  <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>
-                    Goal: Introduce the key idea. Keep it short, use examples, ask students questions during explanation.
-                  </p>
-                  <p style={{ fontSize: 12, color: "var(--text-secondary)", fontStyle: "italic", margin: "0 0 8px" }}>
-                    Example prompts: "What do you think causes prices to go up or down?" · "Why do some athletes earn more than others?"
-                  </p>
                   <textarea
                     style={{ ...textareaStyle, background: "white" }}
                     rows={3}
-                    placeholder="Instructor plan: How will you introduce the concept?"
-                    value={lessons[idx].conceptIntro}
-                    onChange={(e) => updateLesson(idx, "conceptIntro", e.target.value)}
-                  />
-                </div>
-
-                <div style={timeBlockStyle}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
-                    10–15 Minutes — Instructor Modeling (I Do)
-                  </div>
-                  <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>
-                    Goal: Show students how the concept works by walking through an example step-by-step.
-                  </p>
-                  <p style={{ fontSize: 12, color: "var(--text-secondary)", fontStyle: "italic", margin: "0 0 8px" }}>
-                    Example: Break down how a sports team earns money — ticket sales, sponsorships, broadcasting rights.
-                  </p>
-                  <textarea
-                    style={{ ...textareaStyle, background: "white" }}
-                    rows={3}
-                    placeholder="Instructor plan: What example or demo will you walk through?"
+                    placeholder="What example, demo, or think-aloud will you model?"
                     value={lessons[idx].instructorModel}
                     onChange={(e) => updateLesson(idx, "instructorModel", e.target.value)}
                   />
                 </div>
 
-                <div style={timeBlockStyle}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
-                    15–25 Minutes — Guided Practice (We Do)
+                <div className="form-grid">
+                  <div style={timeBlockStyle}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
+                      Guided Practice
+                    </div>
+                    <textarea
+                      style={{ ...textareaStyle, background: "white" }}
+                      rows={3}
+                      placeholder="What will students practice with support?"
+                      value={lessons[idx].guidedPractice}
+                      onChange={(e) => updateLesson(idx, "guidedPractice", e.target.value)}
+                    />
                   </div>
-                  <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>
-                    Goal: Students practice the idea with guidance. Try: group discussion, collaborative problem solving, case study, interactive simulation, AI game.
-                  </p>
-                  <p style={{ fontSize: 12, color: "var(--text-secondary)", fontStyle: "italic", margin: "0 0 8px" }}>
-                    Example: Students examine a hypothetical team and determine possible revenue streams together.
-                  </p>
-                  <textarea
-                    style={{ ...textareaStyle, background: "white" }}
-                    rows={3}
-                    placeholder="Instructor plan: What guided activity will you do together?"
-                    value={lessons[idx].guidedPractice}
-                    onChange={(e) => updateLesson(idx, "guidedPractice", e.target.value)}
-                  />
+                  <div style={timeBlockStyle}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
+                      Independent Build
+                    </div>
+                    <textarea
+                      style={{ ...textareaStyle, background: "white" }}
+                      rows={3}
+                      placeholder="What will students build, create, or solve on their own?"
+                      value={lessons[idx].independentBuild}
+                      onChange={(e) => updateLesson(idx, "independentBuild", e.target.value)}
+                    />
+                  </div>
                 </div>
 
-                <div style={timeBlockStyle}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
-                    25–40 Minutes — Student Activity / Application (You Do)
+                <div className="form-grid">
+                  <div style={timeBlockStyle}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
+                      Collaboration / Share
+                    </div>
+                    <textarea
+                      style={{ ...textareaStyle, background: "white" }}
+                      rows={2}
+                      placeholder="How will students discuss, compare, or present work?"
+                      value={lessons[idx].collaborationShare}
+                      onChange={(e) => updateLesson(idx, "collaborationShare", e.target.value)}
+                    />
                   </div>
-                  <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>
-                    Goal: Students apply the concept themselves — actively creating, designing, or solving something.
-                    Try: design challenge, mini project, group presentation, debate, simulation.
-                  </p>
-                  <p style={{ fontSize: 12, color: "var(--text-secondary)", fontStyle: "italic", margin: "0 0 8px" }}>
-                    Example: Students design their own sports team and decide how it will generate revenue.
-                  </p>
-                  <textarea
-                    style={{ ...textareaStyle, background: "white" }}
-                    rows={3}
-                    placeholder="Instructor plan: What will students independently create or do?"
-                    value={lessons[idx].studentActivity}
-                    onChange={(e) => updateLesson(idx, "studentActivity", e.target.value)}
-                  />
+                  <div style={timeBlockStyle}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
+                      Check for Understanding
+                    </div>
+                    <textarea
+                      style={{ ...textareaStyle, background: "white" }}
+                      rows={2}
+                      placeholder="What quick check tells you students understood?"
+                      value={lessons[idx].checkForUnderstanding}
+                      onChange={(e) => updateLesson(idx, "checkForUnderstanding", e.target.value)}
+                    />
+                  </div>
                 </div>
 
-                <div style={timeBlockStyle}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
-                    40–50 Minutes — Sharing & Discussion
+                <div className="form-grid">
+                  <div style={timeBlockStyle}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
+                      Differentiation / Support
+                    </div>
+                    <textarea
+                      style={{ ...textareaStyle, background: "white" }}
+                      rows={2}
+                      placeholder="How will you support students who need more structure?"
+                      value={lessons[idx].differentiationSupport}
+                      onChange={(e) => updateLesson(idx, "differentiationSupport", e.target.value)}
+                    />
                   </div>
-                  <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>
-                    Goal: Students share ideas and reflect on what they created. Try: group presentations, class discussion, comparing different solutions.
-                  </p>
-                  <p style={{ fontSize: 12, color: "var(--text-secondary)", fontStyle: "italic", margin: "0 0 8px" }}>
-                    Example questions: "What strategy would work best?" · "What surprised you about this activity?"
-                  </p>
-                  <textarea
-                    style={{ ...textareaStyle, background: "white" }}
-                    rows={3}
-                    placeholder="Instructor plan: How will students share and reflect?"
-                    value={lessons[idx].sharingDiscussion}
-                    onChange={(e) => updateLesson(idx, "sharingDiscussion", e.target.value)}
-                  />
+                  <div style={timeBlockStyle}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
+                      Extension Challenge
+                    </div>
+                    <textarea
+                      style={{ ...textareaStyle, background: "white" }}
+                      rows={2}
+                      placeholder="What can advanced or early-finishing students do next?"
+                      value={lessons[idx].extensionChallenge}
+                      onChange={(e) => updateLesson(idx, "extensionChallenge", e.target.value)}
+                    />
+                  </div>
                 </div>
 
-                <div style={timeBlockStyle}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
-                    55–60 Minutes — Preview of Next Class
+                <div className="form-grid">
+                  <div style={timeBlockStyle}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
+                      Exit Ticket
+                    </div>
+                    <textarea
+                      style={{ ...textareaStyle, background: "white" }}
+                      rows={2}
+                      placeholder="How will students close and show what stuck?"
+                      value={lessons[idx].exitTicket}
+                      onChange={(e) => updateLesson(idx, "exitTicket", e.target.value)}
+                    />
                   </div>
-                  <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>
-                    Goal: Create curiosity and continuity for the next session.
-                  </p>
-                  <p style={{ fontSize: 12, color: "var(--text-secondary)", fontStyle: "italic", margin: "0 0 8px" }}>
-                    Example: "Next class we're going to look at how teams negotiate player contracts."
-                  </p>
-                  <textarea
-                    style={{ ...textareaStyle, background: "white" }}
-                    rows={2}
-                    placeholder="Instructor plan: What teaser will you give for next class?"
-                    value={lessons[idx].nextPreview}
-                    onChange={(e) => updateLesson(idx, "nextPreview", e.target.value)}
-                  />
+                  <div style={timeBlockStyle}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
+                      Next-Step Preview
+                    </div>
+                    <textarea
+                      style={{ ...textareaStyle, background: "white" }}
+                      rows={2}
+                      placeholder="What curiosity-building teaser points to the next class?"
+                      value={lessons[idx].nextStepPreview}
+                      onChange={(e) => updateLesson(idx, "nextStepPreview", e.target.value)}
+                    />
+                  </div>
                 </div>
 
-                <div style={timeBlockStyle}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
-                    Lesson Materials
+                <div className="form-grid">
+                  <div style={timeBlockStyle}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
+                      Materials / Tools
+                    </div>
+                    <textarea
+                      style={{ ...textareaStyle, background: "white" }}
+                      rows={2}
+                      placeholder="Slides, handouts, software, AI tools, studio supplies, etc."
+                      value={lessons[idx].materialsTools}
+                      onChange={(e) => updateLesson(idx, "materialsTools", e.target.value)}
+                    />
                   </div>
-                  <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>
-                    List any materials needed: slides, videos, worksheets, simulations, online tools, etc.
-                  </p>
-                  <textarea
-                    style={{ ...textareaStyle, background: "white" }}
-                    rows={2}
-                    placeholder="e.g., Slide deck, YouTube video on supply/demand, whiteboard activity sheet..."
-                    value={lessons[idx].lessonMaterials}
-                    onChange={(e) => updateLesson(idx, "lessonMaterials", e.target.value)}
-                  />
+                  <div style={timeBlockStyle}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ypp-purple)", marginBottom: 6 }}>
+                      Assessment Evidence
+                    </div>
+                    <textarea
+                      style={{ ...textareaStyle, background: "white" }}
+                      rows={2}
+                      placeholder="What evidence will you collect that learning happened?"
+                      value={lessons[idx].assessmentEvidence}
+                      onChange={(e) => updateLesson(idx, "assessmentEvidence", e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -654,6 +669,90 @@ export function CurriculumBuilderClient() {
               placeholder="e.g., Weekly exit ticket (2 questions), observation during You Do time, final presentation rubric..."
               value={engagement.assessmentApproach}
               onChange={(e) => updateEngagement("assessmentApproach", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Class Culture Rituals</label>
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>
+              Examples: opening check-in, weekly celebration, peer shout-outs, shared norms
+            </p>
+            <textarea
+              style={textareaStyle}
+              rows={2}
+              placeholder="What routines will make the room feel safe, energized, and consistent?"
+              value={engagement.classCultureRituals}
+              onChange={(e) => updateEngagement("classCultureRituals", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Grouping Plan</label>
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>
+              Examples: rotating pairs, mixed-experience teams, critique circles, stations
+            </p>
+            <textarea
+              style={textareaStyle}
+              rows={2}
+              placeholder="How will students be grouped across the course?"
+              value={engagement.groupingPlan}
+              onChange={(e) => updateEngagement("groupingPlan", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Accessibility Supports</label>
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>
+              Examples: visual instructions, sentence stems, alt formats, quiet-work options
+            </p>
+            <textarea
+              style={textareaStyle}
+              rows={2}
+              placeholder="What access supports will you plan from the start?"
+              value={engagement.accessibilitySupports}
+              onChange={(e) => updateEngagement("accessibilitySupports", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Real-World Connection</label>
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>
+              Examples: guest speakers, case studies, community problems, industry examples
+            </p>
+            <textarea
+              style={textareaStyle}
+              rows={2}
+              placeholder="How will the course connect to real life beyond the classroom?"
+              value={engagement.realWorldConnection}
+              onChange={(e) => updateEngagement("realWorldConnection", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Family / Community Connection</label>
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>
+              Examples: showcase invites, take-home prompts, community gallery, family feedback moments
+            </p>
+            <textarea
+              style={textareaStyle}
+              rows={2}
+              placeholder="Where can families or community members connect to the learning?"
+              value={engagement.familyCommunityConnection}
+              onChange={(e) => updateEngagement("familyCommunityConnection", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Tool Stack</label>
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>
+              Examples: Canva + Google Slides + Padlet, or Scratch + Loom + Jamboard
+            </p>
+            <textarea
+              style={textareaStyle}
+              rows={2}
+              placeholder="What core tool stack supports the course from start to finish?"
+              value={engagement.toolStack}
+              onChange={(e) => updateEngagement("toolStack", e.target.value)}
             />
           </div>
         </div>

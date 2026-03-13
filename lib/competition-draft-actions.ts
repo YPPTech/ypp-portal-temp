@@ -1,10 +1,18 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { hasCompetitionDraftOwnership } from "@/lib/schema-compat";
+import {
+  hasCompetitionDraftOwnership,
+  hasCompetitionPlanningDetails,
+} from "@/lib/schema-compat";
+import {
+  type CompetitionPlanningDetails,
+  normalizeCompetitionPlanningDetails,
+} from "@/lib/instructor-builder-blueprints";
 
 const COMPETITION_DRAFT_SCHEMA_MESSAGE =
   "Competition drafts will be available after the latest competition database migration is applied to this deployment.";
@@ -59,11 +67,23 @@ function getFloat(formData: FormData, key: string, fallback: number): number {
   return isNaN(n) ? fallback : n;
 }
 
+function parsePlanningDetails(formData: FormData): CompetitionPlanningDetails | null {
+  const raw = getString(formData, "planningDetails", false);
+  if (!raw) return null;
+
+  try {
+    return normalizeCompetitionPlanningDetails(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
 // ─── Instructor Competition Drafts ────────────────────────────────────────────
 
 export async function createCompetitionDraft(formData: FormData) {
   const session = await requireInstructor();
   await requireCompetitionDraftSupport();
+  const supportsPlanningDetails = await hasCompetitionPlanningDetails();
 
   const season = getString(formData, "season");
   const theme = getString(formData, "theme");
@@ -77,6 +97,7 @@ export async function createCompetitionDraft(formData: FormData) {
   const firstPlaceReward = getString(formData, "firstPlaceReward", false) || null;
   const secondPlaceReward = getString(formData, "secondPlaceReward", false) || null;
   const thirdPlaceReward = getString(formData, "thirdPlaceReward", false) || null;
+  const planningDetails = parsePlanningDetails(formData);
 
   const judgingCriteriaRaw = getString(formData, "judgingCriteria", false);
   let judgingCriteria: object[] = [];
@@ -106,6 +127,9 @@ export async function createCompetitionDraft(formData: FormData) {
       secondPlaceReward,
       thirdPlaceReward,
       judgingCriteria,
+      ...(supportsPlanningDetails && planningDetails
+        ? { planningDetails: planningDetails as Prisma.InputJsonValue }
+        : {}),
       status: "UPCOMING",
       createdById: session.user.id,
       ...(judgeIds.length > 0
@@ -125,8 +149,12 @@ export async function createCompetitionDraft(formData: FormData) {
 export async function updateCompetitionDraft(id: string, formData: FormData) {
   const session = await requireInstructor();
   await requireCompetitionDraftSupport();
+  const supportsPlanningDetails = await hasCompetitionPlanningDetails();
 
-  const competition = await prisma.seasonalCompetition.findUnique({ where: { id } });
+  const competition = await prisma.seasonalCompetition.findUnique({
+    where: { id },
+    select: { createdById: true, status: true },
+  });
   if (!competition) throw new Error("Competition not found");
   if (
     competition.createdById !== session.user.id &&
@@ -150,6 +178,7 @@ export async function updateCompetitionDraft(id: string, formData: FormData) {
   const firstPlaceReward = getString(formData, "firstPlaceReward", false) || null;
   const secondPlaceReward = getString(formData, "secondPlaceReward", false) || null;
   const thirdPlaceReward = getString(formData, "thirdPlaceReward", false) || null;
+  const planningDetails = parsePlanningDetails(formData);
 
   const judgingCriteriaRaw = getString(formData, "judgingCriteria", false);
   let judgingCriteria: object[] = [];
@@ -180,6 +209,9 @@ export async function updateCompetitionDraft(id: string, formData: FormData) {
       secondPlaceReward,
       thirdPlaceReward,
       judgingCriteria,
+      ...(supportsPlanningDetails && planningDetails
+        ? { planningDetails: planningDetails as Prisma.InputJsonValue }
+        : {}),
       judges: {
         set: judgeIds.map((id) => ({ id })),
       },
@@ -194,7 +226,10 @@ export async function deleteCompetitionDraft(id: string) {
   const session = await requireInstructor();
   await requireCompetitionDraftSupport();
 
-  const competition = await prisma.seasonalCompetition.findUnique({ where: { id } });
+  const competition = await prisma.seasonalCompetition.findUnique({
+    where: { id },
+    select: { createdById: true, status: true },
+  });
   if (!competition) throw new Error("Competition not found");
   if (
     competition.createdById !== session.user.id &&
@@ -219,6 +254,13 @@ export async function getInstructorCompetitionDrafts() {
 
   return prisma.seasonalCompetition.findMany({
     where: { createdById: session.user.id },
+    select: {
+      id: true,
+      season: true,
+      theme: true,
+      status: true,
+      createdAt: true,
+    },
     orderBy: { createdAt: "desc" },
   });
 }
@@ -228,7 +270,10 @@ export async function getInstructorCompetitionDrafts() {
 export async function publishCompetitionDraft(id: string) {
   await requireAdmin();
 
-  const competition = await prisma.seasonalCompetition.findUnique({ where: { id } });
+  const competition = await prisma.seasonalCompetition.findUnique({
+    where: { id },
+    select: { status: true },
+  });
   if (!competition) throw new Error("Competition not found");
   if (competition.status !== "UPCOMING") {
     throw new Error("Competition is not in draft/upcoming state");
@@ -261,7 +306,21 @@ export async function getPendingInstructorCompetitionDrafts() {
       createdById: { not: null },
       status: "UPCOMING",
     },
-    include: {
+    select: {
+      id: true,
+      season: true,
+      theme: true,
+      passionArea: true,
+      rules: true,
+      judgingCriteria: true,
+      firstPlaceReward: true,
+      secondPlaceReward: true,
+      thirdPlaceReward: true,
+      startDate: true,
+      endDate: true,
+      submissionDeadline: true,
+      status: true,
+      createdAt: true,
       createdBy: { select: { id: true, name: true, email: true } },
     },
     orderBy: { createdAt: "asc" },

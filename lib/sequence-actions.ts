@@ -1,5 +1,6 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -8,7 +9,17 @@ import {
   getClassTemplateCapabilities,
   getClassTemplateSelect,
 } from "@/lib/class-template-compat";
-import { hasPathwayCohortTable } from "@/lib/schema-compat";
+import {
+  hasAdvancedSequenceBuilderSchema,
+  hasPathwayCohortTable,
+} from "@/lib/schema-compat";
+import { assertCanPublishInstructorContent } from "@/lib/instructor-readiness";
+import {
+  type SequenceBlueprint,
+  type SequenceStepDetails,
+  normalizeSequenceBlueprint,
+  normalizeSequenceStepDetails,
+} from "@/lib/instructor-builder-blueprints";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -34,20 +45,47 @@ function getString(formData: FormData, key: string, required = true): string {
   return value ? String(value).trim() : "";
 }
 
+function parseSequenceBlueprint(formData: FormData): SequenceBlueprint | null {
+  const raw = getString(formData, "sequenceBlueprint", false);
+  if (!raw) return null;
+
+  try {
+    return normalizeSequenceBlueprint(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+function parseStepDetails(formData: FormData): SequenceStepDetails | null {
+  const raw = getString(formData, "stepDetails", false);
+  if (!raw) return null;
+
+  try {
+    return normalizeSequenceStepDetails(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
 // ─── Sequence (Pathway) CRUD ──────────────────────────────────────────────────
 
 export async function createSequence(formData: FormData) {
   const session = await requireInstructor();
+  const supportsAdvancedSchema = await hasAdvancedSequenceBuilderSchema();
 
   const name = getString(formData, "name");
   const description = getString(formData, "description", false) || "Instructor-created sequence";
   const interestArea = getString(formData, "interestArea", false) || "General";
+  const sequenceBlueprint = parseSequenceBlueprint(formData);
 
   const pathway = await prisma.pathway.create({
     data: {
       name,
       description,
       interestArea,
+      ...(supportsAdvancedSchema && sequenceBlueprint
+        ? { sequenceBlueprint: sequenceBlueprint as Prisma.InputJsonValue }
+        : {}),
       isActive: false,
       createdById: session.user.id,
     },
@@ -59,8 +97,12 @@ export async function createSequence(formData: FormData) {
 
 export async function updateSequence(id: string, formData: FormData) {
   const session = await requireInstructor();
+  const supportsAdvancedSchema = await hasAdvancedSequenceBuilderSchema();
 
-  const pathway = await prisma.pathway.findUnique({ where: { id } });
+  const pathway = await prisma.pathway.findUnique({
+    where: { id },
+    select: { createdById: true },
+  });
   if (!pathway) throw new Error("Sequence not found");
   if (
     pathway.createdById !== session.user.id &&
@@ -71,10 +113,19 @@ export async function updateSequence(id: string, formData: FormData) {
 
   const name = getString(formData, "name");
   const description = getString(formData, "description", false);
+  const interestArea = getString(formData, "interestArea", false);
+  const sequenceBlueprint = parseSequenceBlueprint(formData);
 
   await prisma.pathway.update({
     where: { id },
-    data: { name, description: description || undefined },
+    data: {
+      name,
+      description: description || undefined,
+      ...(interestArea ? { interestArea } : {}),
+      ...(supportsAdvancedSchema && sequenceBlueprint
+        ? { sequenceBlueprint: sequenceBlueprint as Prisma.InputJsonValue }
+        : {}),
+    },
   });
 
   revalidatePath("/instructor/sequence-builder");
@@ -84,7 +135,10 @@ export async function updateSequence(id: string, formData: FormData) {
 export async function deleteSequence(id: string) {
   const session = await requireInstructor();
 
-  const pathway = await prisma.pathway.findUnique({ where: { id } });
+  const pathway = await prisma.pathway.findUnique({
+    where: { id },
+    select: { createdById: true },
+  });
   if (!pathway) throw new Error("Sequence not found");
   if (
     pathway.createdById !== session.user.id &&
@@ -102,6 +156,7 @@ export async function deleteSequence(id: string) {
 
 export async function addSequenceStep(pathwayId: string, formData: FormData) {
   await requireInstructor();
+  const supportsAdvancedSchema = await hasAdvancedSequenceBuilderSchema();
 
   // Exactly one content pointer should be set
   const classTemplateId = getString(formData, "classTemplateId", false) || null;
@@ -109,6 +164,7 @@ export async function addSequenceStep(pathwayId: string, formData: FormData) {
   const title = getString(formData, "title", false) || null;
   const unlockTypeRaw = getString(formData, "unlockType", false) || "AUTO";
   const unlockType = unlockTypeRaw === "MANUAL" ? "MANUAL" : "AUTO";
+  const stepDetails = parseStepDetails(formData);
 
   if (!classTemplateId && !specialProgramId && !title) {
     throw new Error("Step must have a ClassTemplate, PassionLab, or standalone title");
@@ -130,6 +186,9 @@ export async function addSequenceStep(pathwayId: string, formData: FormData) {
       classTemplateId,
       specialProgramId,
       title,
+      ...(supportsAdvancedSchema && stepDetails
+        ? { stepDetails: stepDetails as Prisma.InputJsonValue }
+        : {}),
       courseId: null,
     },
   });
@@ -141,7 +200,10 @@ export async function addSequenceStep(pathwayId: string, formData: FormData) {
 export async function deleteSequenceStep(stepId: string) {
   await requireInstructor();
 
-  const step = await prisma.pathwayStep.findUnique({ where: { id: stepId } });
+  const step = await prisma.pathwayStep.findUnique({
+    where: { id: stepId },
+    select: { pathwayId: true },
+  });
   if (!step) throw new Error("Step not found");
 
   await prisma.pathwayStep.delete({ where: { id: stepId } });
@@ -150,6 +212,7 @@ export async function deleteSequenceStep(stepId: string) {
   const remaining = await prisma.pathwayStep.findMany({
     where: { pathwayId: step.pathwayId },
     orderBy: { stepOrder: "asc" },
+    select: { id: true },
   });
 
   await prisma.$transaction(
@@ -165,7 +228,10 @@ export async function deleteSequenceStep(stepId: string) {
 export async function reorderSequenceStep(stepId: string, direction: "up" | "down") {
   await requireInstructor();
 
-  const step = await prisma.pathwayStep.findUnique({ where: { id: stepId } });
+  const step = await prisma.pathwayStep.findUnique({
+    where: { id: stepId },
+    select: { id: true, pathwayId: true, stepOrder: true },
+  });
   if (!step) throw new Error("Step not found");
 
   const sibling = await prisma.pathwayStep.findFirst({
@@ -173,6 +239,7 @@ export async function reorderSequenceStep(stepId: string, direction: "up" | "dow
       pathwayId: step.pathwayId,
       stepOrder: direction === "up" ? step.stepOrder - 1 : step.stepOrder + 1,
     },
+    select: { id: true, stepOrder: true },
   });
 
   if (!sibling) return { success: true }; // Already at boundary
@@ -210,7 +277,10 @@ export async function setStepUnlockType(
 export async function publishSequence(pathwayId: string) {
   const session = await requireInstructor();
 
-  const pathway = await prisma.pathway.findUnique({ where: { id: pathwayId } });
+  const pathway = await prisma.pathway.findUnique({
+    where: { id: pathwayId },
+    select: { createdById: true },
+  });
   if (!pathway) throw new Error("Sequence not found");
   if (
     pathway.createdById !== session.user.id &&
@@ -221,6 +291,8 @@ export async function publishSequence(pathwayId: string) {
 
   const stepCount = await prisma.pathwayStep.count({ where: { pathwayId } });
   if (stepCount === 0) throw new Error("Add at least one step before publishing");
+
+  await assertCanPublishInstructorContent(pathway.createdById ?? session.user.id);
 
   await prisma.pathway.update({ where: { id: pathwayId }, data: { isActive: true } });
 
@@ -331,14 +403,31 @@ export async function manuallyUnlockStep(stepId: string, userId: string) {
 export async function getInstructorSequences() {
   const session = await requireInstructor();
   const capabilities = await getClassTemplateCapabilities();
-  const canCountCohorts = await hasPathwayCohortTable();
+  const [canCountCohorts, supportsAdvancedSchema] = await Promise.all([
+    hasPathwayCohortTable(),
+    hasAdvancedSequenceBuilderSchema(),
+  ]);
 
-  return prisma.pathway.findMany({
+  const sequences = await prisma.pathway.findMany({
     where: { createdById: session.user.id },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      interestArea: true,
+      isActive: true,
+      createdAt: true,
+      ...(supportsAdvancedSchema ? { sequenceBlueprint: true } : {}),
       steps: {
         orderBy: { stepOrder: "asc" },
-        include: {
+        select: {
+          id: true,
+          stepOrder: true,
+          unlockType: true,
+          title: true,
+          classTemplateId: true,
+          specialProgramId: true,
+          ...(supportsAdvancedSchema ? { stepDetails: true } : {}),
           classTemplate: {
             select: getClassTemplateSelect({
               includeWorkflow: capabilities.hasReviewWorkflow,
@@ -351,4 +440,17 @@ export async function getInstructorSequences() {
     },
     orderBy: { createdAt: "desc" },
   });
+
+  if (!supportsAdvancedSchema) {
+    return sequences;
+  }
+
+  return sequences.map((sequence) => ({
+    ...sequence,
+    sequenceBlueprint: normalizeSequenceBlueprint(sequence.sequenceBlueprint),
+    steps: sequence.steps.map((step) => ({
+      ...step,
+      stepDetails: normalizeSequenceStepDetails(step.stepDetails),
+    })),
+  }));
 }

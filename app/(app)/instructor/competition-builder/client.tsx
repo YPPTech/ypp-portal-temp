@@ -7,6 +7,10 @@ import {
   deleteCompetitionDraft,
 } from "@/lib/competition-draft-actions";
 import { RichTextEditor } from "@/components/rich-text-editor";
+import {
+  type CompetitionPlanningDetails,
+  emptyCompetitionPlanningDetails,
+} from "@/lib/instructor-builder-blueprints";
 
 type PassionArea = { id: string; name: string; category: string };
 type ChapterUser = { id: string; name: string; email: string };
@@ -30,6 +34,7 @@ type Props = {
   passionAreas: PassionArea[];
   chapterUsers: ChapterUser[];
   isDraftBuilderAvailable: boolean;
+  isPlanningDetailsAvailable: boolean;
 };
 
 export function CompetitionBuilderClient({
@@ -37,6 +42,7 @@ export function CompetitionBuilderClient({
   passionAreas,
   chapterUsers,
   isDraftBuilderAvailable,
+  isPlanningDetailsAvailable,
 }: Props) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +62,9 @@ export function CompetitionBuilderClient({
   const [firstPlaceReward, setFirstPlaceReward] = useState("");
   const [secondPlaceReward, setSecondPlaceReward] = useState("");
   const [thirdPlaceReward, setThirdPlaceReward] = useState("");
+  const [planningDetails, setPlanningDetails] = useState<CompetitionPlanningDetails>(
+    emptyCompetitionPlanningDetails()
+  );
   const [judgingCriteria, setJudgingCriteria] = useState<JudgingCriterion[]>([
     { name: "", weight: 1, description: "" },
   ]);
@@ -81,6 +90,13 @@ export function CompetitionBuilderClient({
     );
   }
 
+  function updatePlanningDetail(
+    field: keyof CompetitionPlanningDetails,
+    value: string
+  ) {
+    setPlanningDetails((prev) => ({ ...prev, [field]: value }));
+  }
+
   function buildFormData() {
     const fd = new FormData();
     fd.set("season", season);
@@ -95,6 +111,7 @@ export function CompetitionBuilderClient({
     if (firstPlaceReward) fd.set("firstPlaceReward", firstPlaceReward);
     if (secondPlaceReward) fd.set("secondPlaceReward", secondPlaceReward);
     if (thirdPlaceReward) fd.set("thirdPlaceReward", thirdPlaceReward);
+    fd.set("planningDetails", JSON.stringify(planningDetails));
     fd.set(
       "judgingCriteria",
       JSON.stringify(
@@ -218,6 +235,22 @@ export function CompetitionBuilderClient({
           ✓ {successMessage}
         </div>
       )}
+      {!isPlanningDetailsAvailable && (
+        <div
+          style={{
+            padding: "10px 14px",
+            background: "#fffbeb",
+            border: "1px solid #fcd34d",
+            borderRadius: "var(--radius-md)",
+            fontSize: 13,
+            color: "#92400e",
+            marginBottom: 16,
+          }}
+        >
+          The richer competition planning fields are waiting on the latest database migration for
+          this deployment. You can still save the draft basics right now.
+        </div>
+      )}
 
       <div className="card" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         {/* Basic Info */}
@@ -276,6 +309,37 @@ export function CompetitionBuilderClient({
             onChange={setRules}
             placeholder="Enter competition rules, eligibility, submission requirements…"
           />
+        </div>
+
+        {/* Planning Blueprint */}
+        <div style={{ display: "grid", gap: 12 }}>
+          <div>
+            <strong style={{ display: "block", marginBottom: 4 }}>Planning Blueprint</strong>
+            <p style={{ fontSize: 12, color: "var(--muted)", margin: 0 }}>
+              Build the competition like a full experience, not just a title and a rules page.
+            </p>
+          </div>
+          {([
+            ["challengeBrief", "Challenge Brief", "What is the core problem or creative challenge students are responding to?"],
+            ["idealParticipant", "Ideal Participant", "Who is this best for and what experience level should they have?"],
+            ["submissionPackage", "Submission Package", "What exactly must students turn in?"],
+            ["milestoneTimeline", "Milestone Timeline", "What checkpoints should happen between launch and deadline?"],
+            ["supportResources", "Support Resources", "What templates, office hours, examples, or guides will help students succeed?"],
+            ["reviewProcess", "Review Process", "How will judging, review, and feedback work?"],
+            ["celebrationPlan", "Celebration Plan", "How will winners and participants be recognized?"],
+            ["promotionPlan", "Promotion Plan", "How will you announce and promote the competition?"],
+          ] as const).map(([field, label, placeholder]) => (
+            <div className="form-row" key={field}>
+              <label>{label}</label>
+              <textarea
+                className="input"
+                rows={2}
+                value={planningDetails[field]}
+                onChange={(e) => updatePlanningDetail(field, e.target.value)}
+                placeholder={placeholder}
+              />
+            </div>
+          ))}
         </div>
 
         {/* Judging Criteria */}

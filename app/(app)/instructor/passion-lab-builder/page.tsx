@@ -5,6 +5,7 @@ import { getInstructorPassionLabs, getActivePassionAreas } from "@/lib/passion-l
 import { prisma } from "@/lib/prisma";
 import { PassionLabBuilderClient } from "./client";
 import { hasPassionLabBuilderSchema } from "@/lib/schema-compat";
+import { getInstructorReadiness } from "@/lib/instructor-readiness";
 
 export default async function PassionLabBuilderPage() {
   const session = await getServerSession(authOptions);
@@ -20,10 +21,11 @@ export default async function PassionLabBuilderPage() {
   }
   const hasPassionLabSupport = await hasPassionLabBuilderSchema();
 
-  const [passionLabs, passionAreas, instructor] = await Promise.all([
+  const [passionLabs, passionAreas, instructor, readiness] = await Promise.all([
     hasPassionLabSupport ? getInstructorPassionLabs() : Promise.resolve([]),
     getActivePassionAreas(),
     prisma.user.findUnique({ where: { id: session.user.id }, select: { chapterId: true } }),
+    getInstructorReadiness(session.user.id),
   ]);
 
   if (!hasPassionLabSupport) {
@@ -53,6 +55,7 @@ export default async function PassionLabBuilderPage() {
       existingLabs={passionLabs}
       passionAreas={passionAreas}
       chapterId={instructor?.chapterId ?? null}
+      readiness={readiness}
     />
   );
 }
