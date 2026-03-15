@@ -326,6 +326,14 @@ export const NAV_CATALOG: NavLink[] = [
     },
     { href: "/my-mentor", label: "My Mentor", icon: "🧑‍🏫", roles: STUDENT_ONLY },
     {
+      href: "/mentorship/unlock-sections",
+      label: "Unlock Sections",
+      icon: "🔓",
+      roles: MENTOR_ROLES,
+      dashboardDescription: "Manage which portal sections your mentees can access.",
+      dashboardPriority: 18,
+    },
+    {
       href: "/my-program",
       label: "My Program",
       icon: "🎯",
@@ -661,5 +669,6 @@ export const NAV_CATALOG: NavLink[] = [
     { href: "/admin/mentor-match", label: "Mentor Match", icon: "🤝", roles: ADMIN_ONLY },
     { href: "/admin/mentorship-program", label: "Mentorship Program", icon: "🎯", roles: ADMIN_ONLY },
     { href: "/admin/alumni", label: "Manage Alumni", icon: "🎓", roles: ADMIN_ONLY },
+    { href: "/admin/unlock-approvals", label: "Unlock Approvals", icon: "🔓", roles: ADMIN_ONLY, dashboardDescription: "Review and approve section unlock recommendations from mentors." },
   ]),
 ];

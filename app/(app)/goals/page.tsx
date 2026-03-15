@@ -5,6 +5,8 @@ import { authOptions } from "@/lib/auth";
 import { ProgressBar, GoalProgressDisplay } from "@/components/progress-bar";
 import { PROGRESS_STATUS_META } from "@/lib/mentorship-review-helpers";
 import { prisma } from "@/lib/prisma";
+import { buildContextTrail } from "@/lib/context-trail";
+import ContextTrail from "@/components/context-trail";
 
 const TONE_STYLES = {
   neutral: { background: "#e2e8f0", color: "#334155" },
@@ -144,6 +146,13 @@ export default async function GoalsPage() {
     redirect("/login");
   }
 
+  let trailItems: Awaited<ReturnType<typeof buildContextTrail>> = [];
+  try {
+    trailItems = await buildContextTrail({ route: "/goals", userId });
+  } catch {
+    trailItems = [];
+  }
+
   const roles = user.roles.map((role) => role.role);
   const isInstructor = roles.includes("INSTRUCTOR");
   const isChapterLead = roles.includes("CHAPTER_LEAD");
@@ -193,6 +202,8 @@ export default async function GoalsPage() {
           Goals
         </div>
       </div>
+
+      <ContextTrail items={trailItems} />
 
       <div className="card" style={{ marginBottom: 24 }}>
         <div

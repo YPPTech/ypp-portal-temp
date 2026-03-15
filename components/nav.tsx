@@ -64,12 +64,18 @@ export default function Nav({
   awardTier,
   badges,
   onNavigate,
+  unlockedSections,
+  recentlyUnlockedGroups,
+  lockedGroups: lockedGroupsProp,
 }: {
   roles?: string[];
   primaryRole?: string | null;
   awardTier?: string;
   badges?: NavBadges;
   onNavigate?: () => void;
+  unlockedSections?: Set<string>;
+  recentlyUnlockedGroups?: Set<string>;
+  lockedGroups?: Map<string, string>;
 }) {
   const pathname = usePathname();
 
@@ -80,9 +86,13 @@ export default function Nav({
         primaryRole,
         awardTier,
         pathname,
+        unlockedSections,
       }),
-    [awardTier, pathname, primaryRole, roles],
+    [awardTier, pathname, primaryRole, roles, unlockedSections],
   );
+
+  // Use locked groups from the model (computed from unlockedSections) or from explicit prop
+  const lockedGroups = model.lockedGroups ?? lockedGroupsProp;
 
   const storageKey = useMemo(() => storageKeyForRole(model.primaryRole), [model.primaryRole]);
 
@@ -265,21 +275,34 @@ export default function Nav({
                       ? true
                       : (openGroups[group.label] ?? false) || groupHasActive;
 
+                    const isLocked = lockedGroups?.has(group.label);
+                    const lockReason = isLocked && lockedGroups ? lockedGroups.get(group.label) : undefined;
+                    const isRecentlyUnlocked = recentlyUnlockedGroups?.has(group.label);
+
                     return (
                       <div key={group.label} className="nav-more-group">
                         <button
                           type="button"
-                          className={`nav-more-group-toggle ${groupHasActive ? "nav-section-active" : ""}`}
-                          onClick={() => toggleGroup(group.label)}
-                          aria-expanded={groupOpen}
-                          aria-label={`${groupOpen ? "Collapse" : "Expand"} ${group.label}`}
-                          disabled={hasSearch}
+                          className={`nav-more-group-toggle ${groupHasActive ? "nav-section-active" : ""}${isLocked ? " nav-section-locked" : ""}`}
+                          onClick={() => !isLocked && toggleGroup(group.label)}
+                          aria-expanded={isLocked ? false : groupOpen}
+                          aria-label={`${isLocked ? `${group.label} — locked: ${lockReason}` : `${groupOpen ? "Collapse" : "Expand"} ${group.label}`}`}
+                          disabled={hasSearch || isLocked}
+                          title={isLocked ? `Locked: ${lockReason}` : undefined}
                         >
-                          <span className="nav-section-label">{group.label}</span>
-                          <span className={`nav-section-chevron ${groupOpen ? "open" : ""}`}>{"›"}</span>
+                          <span className="nav-section-label">
+                            {isLocked && <span className="nav-lock-icon" aria-hidden="true">{"🔒 "}</span>}
+                            {group.label}
+                          </span>
+                          {isRecentlyUnlocked && (
+                            <span className="nav-new-badge">New!</span>
+                          )}
+                          {!isLocked && (
+                            <span className={`nav-section-chevron ${groupOpen ? "open" : ""}`}>{"›"}</span>
+                          )}
                         </button>
 
-                        {groupOpen ? (
+                        {!isLocked && groupOpen ? (
                           <div className="nav-more-group-items">{group.items.map(renderNavLink)}</div>
                         ) : null}
                       </div>

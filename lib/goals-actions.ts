@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
 import { ProgressStatus, RoleType } from "@prisma/client";
 import { parseRoleType } from "@/lib/authorization";
+import { onProgressEvent } from "@/lib/progress-events";
 
 async function requireAuth() {
   const session = await getServerSession(authOptions);
@@ -148,6 +149,8 @@ export async function assignGoalToUser(formData: FormData) {
     }
   });
 
+  onProgressEvent({ type: "GOAL_UPDATED", userId, metadata: { templateId } }).catch(() => {});
+
   revalidatePath("/admin/goals");
   revalidatePath("/goals");
   revalidatePath("/mentorship");
@@ -188,6 +191,8 @@ export async function assignGoalsToUserByRole(formData: FormData) {
     await prisma.goal.createMany({
       data: newGoals
     });
+
+    onProgressEvent({ type: "GOAL_UPDATED", userId, metadata: { roleType, count: newGoals.length } }).catch(() => {});
   }
 
   revalidatePath("/admin/goals");
@@ -260,6 +265,8 @@ export async function submitProgressUpdate(formData: FormData) {
     }
   });
 
+  onProgressEvent({ type: "GOAL_UPDATED", userId: forUserId, metadata: { goalId, status } }).catch(() => {});
+
   revalidatePath("/goals");
   revalidatePath("/mentorship");
   revalidatePath(`/mentorship/mentees/${forUserId}`);
@@ -318,6 +325,8 @@ export async function submitBulkProgressUpdates(formData: FormData) {
       comments: update.comments || overallComments || null
     }))
   });
+
+  onProgressEvent({ type: "GOAL_UPDATED", userId: forUserId, metadata: { bulkCount: updates.length } }).catch(() => {});
 
   revalidatePath("/goals");
   revalidatePath("/mentorship");

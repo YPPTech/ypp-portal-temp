@@ -3,11 +3,22 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { buildContextTrail } from "@/lib/context-trail";
+import ContextTrail from "@/components/context-trail";
 
 export default async function BadgesPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     redirect("/login");
+  }
+
+  const userId = session.user.id;
+
+  let trailItems: Awaited<ReturnType<typeof buildContextTrail>> = [];
+  try {
+    trailItems = await buildContextTrail({ route: "/badges", userId });
+  } catch {
+    trailItems = [];
   }
 
   // Get user's badges
@@ -44,6 +55,8 @@ export default async function BadgesPage() {
           Browse All Skills
         </Link>
       </div>
+
+      <ContextTrail items={trailItems} />
 
       <div className="grid two" style={{ marginBottom: 28 }}>
         <div className="card">
