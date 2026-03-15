@@ -392,7 +392,7 @@ export async function getCompetitionSubmissions(competitionId: string) {
         select: { id: true, name: true, email: true },
       },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: { submittedAt: "desc" },
   });
 }
 
