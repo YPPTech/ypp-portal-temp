@@ -12,6 +12,7 @@ const ADMIN_ONLY: NavRole[] = ["ADMIN"];
 const PARENT_ONLY: NavRole[] = ["PARENT"];
 const STUDENT_ONLY: NavRole[] = ["STUDENT"];
 const CHAPTER_LEAD_ONLY: NavRole[] = ["CHAPTER_LEAD"];
+const INSTRUCTOR_APPLICANT_ONLY: NavRole[] = ["APPLICANT"];
 
 function groupLinks(group: NavGroup, basePriority: number, links: CatalogInput[]): NavLink[] {
   return links.map((link, index) => ({
@@ -23,6 +24,18 @@ function groupLinks(group: NavGroup, basePriority: number, links: CatalogInput[]
 }
 
 export const NAV_CATALOG: NavLink[] = [
+  ...groupLinks("Start Here", 50, [
+    {
+      href: "/application-status",
+      label: "My Application",
+      icon: "📋",
+      roles: INSTRUCTOR_APPLICANT_ONLY,
+      dashboardDescription: "Track the status of your instructor application.",
+      dashboardPriority: 1,
+      coreEligible: true,
+    },
+  ]),
+
   ...groupLinks("Family", 100, [
     {
       href: "/parent",
@@ -409,6 +422,14 @@ export const NAV_CATALOG: NavLink[] = [
       dashboardPriority: 15,
     },
     {
+      href: "/chapter-lead/instructor-applicants",
+      label: "Instructor Applicants",
+      icon: "📝",
+      roles: CHAPTER_LEAD_ONLY,
+      dashboardDescription: "Review and approve instructor applications for your chapter.",
+      dashboardPriority: 6,
+    },
+    {
       href: "/chapter-lead/instructor-readiness",
       label: "Instructor Readiness",
       icon: "✅",
@@ -474,6 +495,15 @@ export const NAV_CATALOG: NavLink[] = [
       dashboardDescription: "Approve or reject pending parent-student link requests.",
       dashboardPriority: 4,
       dashboardBadgeKey: "pending_parent_approvals",
+    },
+    {
+      href: "/admin/instructor-applicants",
+      label: "Instructor Applicants",
+      icon: "📝",
+      roles: ADMIN_ONLY,
+      dashboardDescription: "Review and approve incoming instructor applications.",
+      dashboardPriority: 4,
+      dashboardBadgeKey: "instructor_applicants",
     },
     {
       href: "/admin/instructor-readiness",

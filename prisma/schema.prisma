@@ -25,6 +25,7 @@ enum RoleType {
   CHAPTER_LEAD
   STAFF
   PARENT
+  APPLICANT
 }
 
 enum CourseFormat {
@@ -200,6 +201,16 @@ enum ApplicationStatus {
   ACCEPTED
   REJECTED
   WITHDRAWN
+}
+
+enum InstructorApplicationStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  INFO_REQUESTED
+  INTERVIEW_SCHEDULED
+  INTERVIEW_COMPLETED
+  APPROVED
+  REJECTED
 }
 
 enum HiringRecommendation {
@@ -648,6 +659,10 @@ model User {
   instructorCohortMemberships InstructorCohortMember[] @relation("InstructorCohortMemberships")
   pathwayStepUnlocks         PathwayStepUnlock[]       @relation("PathwayStepUnlocks")
 
+  // Instructor Application Relations
+  instructorApplication          InstructorApplication?  @relation("InstructorApplications")
+  instructorApplicationsReviewed InstructorApplication[] @relation("InstructorApplicationReviews")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -970,6 +985,30 @@ model InstructorApprovalLevel {
   level      CourseLevel
   approvedAt DateTime           @default(now())
   approval   InstructorApproval @relation(fields: [approvalId], references: [id])
+}
+
+model InstructorApplication {
+  id                   String                      @id @default(cuid())
+  applicantId          String                      @unique
+  applicant            User                        @relation("InstructorApplications", fields: [applicantId], references: [id])
+  status               InstructorApplicationStatus @default(SUBMITTED)
+  motivation           String                      @db.Text
+  teachingExperience   String                      @db.Text
+  availability         String
+  reviewerId           String?
+  reviewer             User?                       @relation("InstructorApplicationReviews", fields: [reviewerId], references: [id])
+  reviewerNotes        String?                     @db.Text
+  infoRequest          String?                     @db.Text
+  applicantResponse    String?                     @db.Text
+  rejectionReason      String?                     @db.Text
+  interviewScheduledAt DateTime?
+  approvedAt           DateTime?
+  rejectedAt           DateTime?
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+
+  @@index([status])
+  @@index([reviewerId])
 }
 
 model TrainingCheckpoint {
@@ -5474,6 +5513,7 @@ enum RarityTier {
 
 enum CompetitionStatus {
   UPCOMING
+  NEEDS_REVISION
   OPEN_FOR_SUBMISSIONS
   JUDGING
   VOTING

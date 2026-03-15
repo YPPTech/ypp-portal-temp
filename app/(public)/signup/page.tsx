@@ -14,6 +14,7 @@ export default function SignupPage() {
   const [state, formAction] = useFormState(signUp, initialState);
   const [chapters, setChapters] = useState<Array<{ id: string; name: string }>>([]);
   const [submittedEmail, setSubmittedEmail] = useState("");
+  const [accountType, setAccountType] = useState("STUDENT");
 
   useEffect(() => {
     async function loadChapters() {
@@ -25,7 +26,40 @@ export default function SignupPage() {
     loadChapters();
   }, []);
 
-  // Show "Check Your Email" confirmation after successful signup
+  // Show "Application Submitted" confirmation for new applicants
+  if (state.status === "success" && state.message === "APPLICATION_SUBMITTED") {
+    return (
+      <div className="login-shell">
+        <div className="login-card" style={{ justifySelf: "center" }}>
+          <div className="login-card-header">
+            <Image src="/logo-icon.svg" alt="YPP" width={44} height={44} />
+            <div>
+              <h1 className="page-title" style={{ fontSize: 20 }}>Application Submitted!</h1>
+              <p className="page-subtitle mt-0" style={{ fontSize: 13 }}>
+                We&apos;ve received your instructor application
+              </p>
+            </div>
+          </div>
+          <p style={{ fontSize: 14, color: "var(--muted)", lineHeight: 1.6, margin: "0 0 12px" }}>
+            We sent a verification link to <strong>{submittedEmail || "your email"}</strong>.
+            Please verify your email address first to activate your account.
+          </p>
+          <p style={{ fontSize: 14, color: "var(--muted)", lineHeight: 1.6, margin: "0 0 12px" }}>
+            Once verified, an admin or chapter lead will review your application and reach out to schedule an interview. You can log in at any time to check your application status.
+          </p>
+          <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6, margin: "0 0 20px" }}>
+            Didn&apos;t get the verification email? Check your spam folder, or request a new link below.
+          </p>
+          <ResendVerificationForm initialEmail={submittedEmail} />
+          <div className="login-help" style={{ marginTop: 16 }}>
+            <Link href="/login">Back to Sign In</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show "Check Your Email" confirmation after successful student signup
   if (state.status === "success" && state.message === "CHECK_EMAIL") {
     return (
       <div className="login-shell">
@@ -70,7 +104,7 @@ export default function SignupPage() {
               Join Youth Passion Project
             </h1>
             <p className="page-subtitle mt-0" style={{ fontSize: 13 }}>
-              Create your student or instructor account to get started
+              Create a student account or apply to become an instructor
             </p>
           </div>
         </div>
@@ -118,13 +152,20 @@ export default function SignupPage() {
           </label>
           <label className="form-label">
             Account Type
-            <select className="input" name="accountType" defaultValue="STUDENT">
+            <select
+              className="input"
+              name="accountType"
+              defaultValue="STUDENT"
+              onChange={(e) => setAccountType(e.target.value)}
+            >
               <option value="STUDENT">Student</option>
-              <option value="INSTRUCTOR">Instructor</option>
+              <option value="APPLICANT">Instructor Applicant (apply to become an instructor)</option>
             </select>
-            <span style={{ display: "block", fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
-              Instructors can sign up here, then finish onboarding after signing in.
-            </span>
+            {accountType === "APPLICANT" && (
+              <span style={{ display: "block", fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
+                Your application will be reviewed by an admin or chapter lead before you are approved as an instructor.
+              </span>
+            )}
           </label>
           <label className="form-label">
             Chapter (optional)
@@ -137,13 +178,54 @@ export default function SignupPage() {
               ))}
             </select>
           </label>
-          {state.message && state.message !== "CHECK_EMAIL" && (
+
+          {/* Additional fields for instructor applicants */}
+          {accountType === "APPLICANT" && (
+            <>
+              <label className="form-label">
+                Why do you want to teach with YPP?
+                <textarea
+                  className="input"
+                  name="motivation"
+                  placeholder="Share what motivates you to teach and what you hope to bring to students..."
+                  required
+                  rows={4}
+                  style={{ resize: "vertical" }}
+                />
+              </label>
+              <label className="form-label">
+                Teaching or mentoring experience
+                <textarea
+                  className="input"
+                  name="teachingExperience"
+                  placeholder="Describe any prior experience in teaching, tutoring, mentoring, or leading groups..."
+                  required
+                  rows={4}
+                  style={{ resize: "vertical" }}
+                />
+              </label>
+              <label className="form-label">
+                Interview availability
+                <input
+                  className="input"
+                  name="availability"
+                  placeholder="e.g. Weekday evenings, Saturday mornings..."
+                  required
+                />
+                <span style={{ display: "block", fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                  When are you generally available for a short interview call?
+                </span>
+              </label>
+            </>
+          )}
+
+          {state.message && state.message !== "CHECK_EMAIL" && state.message !== "APPLICATION_SUBMITTED" && (
             <div className={state.status === "error" ? "form-error" : "form-success"}>
               {state.message}
             </div>
           )}
           <button className="button" type="submit">
-            Create Account
+            {accountType === "APPLICANT" ? "Submit Application" : "Create Account"}
           </button>
         </form>
         <div className="login-help">
