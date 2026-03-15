@@ -26,8 +26,8 @@ export default async function AppLayout({
   const roles = session?.user?.roles ?? [];
   const primaryRole = session?.user?.primaryRole ?? null;
 
-  // Redirect to onboarding if not completed yet
-  if (session?.user?.id) {
+  // Redirect to onboarding if not completed yet (skip for APPLICANT users)
+  if (session?.user?.id && primaryRole !== "APPLICANT") {
     try {
       const onboarding = await prisma.onboardingProgress.findUnique({
         where: { userId: session.user.id },

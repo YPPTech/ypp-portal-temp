@@ -26,9 +26,12 @@ export async function signUp(prevState: FormState, formData: FormData): Promise<
     const phone = getString(formData, "phone", false);
     const chapterId = getString(formData, "chapterId", false);
     const accountTypeRaw = getString(formData, "accountType", false).toUpperCase();
-    const primaryRole = accountTypeRaw === RoleType.INSTRUCTOR
-      ? RoleType.INSTRUCTOR
-      : RoleType.STUDENT;
+    const primaryRole =
+      accountTypeRaw === RoleType.APPLICANT
+        ? RoleType.APPLICANT
+        : accountTypeRaw === RoleType.INSTRUCTOR
+        ? RoleType.INSTRUCTOR
+        : RoleType.STUDENT;
 
     // Rate limit: 5 signup attempts per email per 15 minutes
     const rl = checkRateLimit(`signup:${email}`, 5, 15 * 60 * 1000);
@@ -69,12 +72,41 @@ export async function signUp(prevState: FormState, formData: FormData): Promise<
       }
     });
 
+    // If applicant, create the InstructorApplication record
+    if (primaryRole === RoleType.APPLICANT) {
+      const motivation = getString(formData, "motivation");
+      const teachingExperience = getString(formData, "teachingExperience");
+      const availability = getString(formData, "availability");
+      await prisma.instructorApplication.create({
+        data: {
+          applicantId: newUser.id,
+          motivation,
+          teachingExperience,
+          availability,
+        },
+      });
+    }
+
     // Send verification email (non-blocking — signup succeeds even if email fails)
     try {
       const { sendVerificationEmail } = await import("@/lib/email-verification-actions");
       await sendVerificationEmail(newUser.id);
     } catch (verifyError) {
       console.error("[Signup] Failed to send verification email:", verifyError);
+    }
+
+    // Notify reviewers of new applicant (non-blocking)
+    if (primaryRole === RoleType.APPLICANT) {
+      try {
+        const { notifyReviewersOfNewApplication } = await import("@/lib/instructor-application-actions");
+        await notifyReviewersOfNewApplication(newUser.id);
+      } catch (notifyError) {
+        console.error("[Signup] Failed to notify reviewers:", notifyError);
+      }
+      return {
+        status: "success",
+        message: "APPLICATION_SUBMITTED",
+      };
     }
 
     return {

@@ -10,9 +10,15 @@ export const PRIMARY_ROLE_FALLBACK_ORDER: NavRole[] = [
   "PARENT",
   "STUDENT",
   "STAFF",
+  "APPLICANT",
 ];
 
 export const CORE_NAV_MAP: Record<NavRole, string[]> = {
+  APPLICANT: [
+    "/",
+    "/application-status",
+    "/notifications",
+  ],
   STUDENT: [
     "/",
     "/activities",
@@ -37,7 +43,7 @@ export const CORE_NAV_MAP: Record<NavRole, string[]> = {
     "/",
     "/admin",
     "/admin/portal-rollout",
-    "/admin/applications",
+    "/admin/instructor-applicants",
     "/admin/instructor-readiness",
     "/admin/waitlist",
     "/admin/students",
@@ -57,7 +63,7 @@ export const CORE_NAV_MAP: Record<NavRole, string[]> = {
     "/",
     "/chapter-lead/dashboard",
     "/chapter-lead/portal-rollout",
-    "/chapter/recruiting",
+    "/chapter-lead/instructor-applicants",
     "/chapter-lead/instructor-readiness",
     "/chapter",
     "/attendance",

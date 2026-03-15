@@ -491,6 +491,166 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+const emailShell = (body: string) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1c1917; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #4a1c7a 0%, #7c3aed 50%, #ec4899 100%); padding: 32px; border-radius: 16px 16px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">Youth Passion Project</h1>
+  </div>
+  <div style="background: #ffffff; padding: 32px; border: 1px solid #e7e5e4; border-top: none; border-radius: 0 0 16px 16px;">
+    ${body}
+  </div>
+  <p style="text-align: center; color: #78716c; font-size: 12px; margin-top: 24px;">Youth Passion Project · This is an automated notification.</p>
+</body>
+</html>`;
+
+/**
+ * Notify admins/chapter leads of a new instructor applicant
+ */
+export async function sendNewApplicationNotification({
+  to,
+  applicantName,
+  reviewUrl,
+}: {
+  to: string | string[];
+  applicantName: string;
+  reviewUrl: string;
+}): Promise<EmailResult> {
+  const subject = `New Instructor Application - ${applicantName}`;
+  const html = emailShell(`
+    <h2 style="margin: 0 0 16px; color: #1c1917;">New Instructor Application</h2>
+    <p><strong>${applicantName}</strong> has submitted an application to become an instructor at Youth Passion Project.</p>
+    <p>Please log in to review their application, check their motivation and experience, and take appropriate action.</p>
+    <div style="text-align: center; margin: 28px 0;">
+      <a href="${reviewUrl}" style="background: #7c3aed; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">Review Application</a>
+    </div>
+    <p style="color: #78716c; font-size: 13px;">You are receiving this because you are an admin or chapter lead.</p>
+  `);
+  return sendEmail({ to, subject, html });
+}
+
+/**
+ * Notify applicant that their application has been approved
+ */
+export async function sendApplicationApprovedEmail({
+  to,
+  applicantName,
+}: {
+  to: string;
+  applicantName: string;
+}): Promise<EmailResult> {
+  const subject = "Your YPP Instructor Application Has Been Approved!";
+  const baseUrl = process.env.NEXTAUTH_URL || "https://portal.youthpassionproject.org";
+  const html = emailShell(`
+    <h2 style="margin: 0 0 16px; color: #1c1917;">Congratulations, ${applicantName}!</h2>
+    <p>We are thrilled to let you know that your application to become an instructor at Youth Passion Project has been <strong>approved</strong>.</p>
+    <p>You can now log in to the portal and begin your instructor training. Once you complete training and your interview, you will be fully certified to teach.</p>
+    <div style="text-align: center; margin: 28px 0;">
+      <a href="${baseUrl}/instructor-training" style="background: #7c3aed; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">Start Instructor Training</a>
+    </div>
+    <p style="color: #78716c; font-size: 13px;">Welcome to the team! We look forward to working with you.</p>
+  `);
+  return sendEmail({ to, subject, html });
+}
+
+/**
+ * Notify applicant that their application has been rejected
+ */
+export async function sendApplicationRejectedEmail({
+  to,
+  applicantName,
+  reason,
+}: {
+  to: string;
+  applicantName: string;
+  reason: string;
+}): Promise<EmailResult> {
+  const subject = "Update on Your YPP Instructor Application";
+  const html = emailShell(`
+    <h2 style="margin: 0 0 16px; color: #1c1917;">Thank You for Applying, ${applicantName}</h2>
+    <p>Thank you for your interest in becoming an instructor at Youth Passion Project. After careful consideration, we are unfortunately not moving forward with your application at this time.</p>
+    <div style="background: #f5f5f4; border-radius: 8px; padding: 16px; margin: 20px 0;">
+      <p style="margin: 0; font-size: 14px; color: #44403c;"><strong>Reviewer notes:</strong> ${reason}</p>
+    </div>
+    <p>We encourage you to reapply in the future as your situation or our needs change. Thank you again for your interest in our mission.</p>
+  `);
+  return sendEmail({ to, subject, html });
+}
+
+/**
+ * Notify applicant that the reviewer has requested more information
+ */
+export async function sendInfoRequestEmail({
+  to,
+  applicantName,
+  message,
+  statusUrl,
+}: {
+  to: string;
+  applicantName: string;
+  message: string;
+  statusUrl: string;
+}): Promise<EmailResult> {
+  const subject = "YPP Needs More Information About Your Application";
+  const html = emailShell(`
+    <h2 style="margin: 0 0 16px; color: #1c1917;">Additional Information Needed</h2>
+    <p>Hi ${applicantName}, a reviewer has reviewed your instructor application and has a follow-up question or request before proceeding.</p>
+    <div style="background: #f5f5f4; border-radius: 8px; padding: 16px; margin: 20px 0;">
+      <p style="margin: 0; font-size: 14px; color: #44403c;"><strong>Message from reviewer:</strong></p>
+      <p style="margin: 8px 0 0; font-size: 14px; color: #1c1917;">${message}</p>
+    </div>
+    <p>Please log in to your application status page to submit your response.</p>
+    <div style="text-align: center; margin: 28px 0;">
+      <a href="${statusUrl}" style="background: #7c3aed; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">Respond to Request</a>
+    </div>
+  `);
+  return sendEmail({ to, subject, html });
+}
+
+/**
+ * Notify applicant that an interview has been scheduled
+ */
+export async function sendInterviewScheduledEmail({
+  to,
+  applicantName,
+  scheduledAt,
+  statusUrl,
+}: {
+  to: string;
+  applicantName: string;
+  scheduledAt: Date;
+  statusUrl: string;
+}): Promise<EmailResult> {
+  const subject = "Your YPP Instructor Interview Has Been Scheduled";
+  const formattedDate = scheduledAt.toLocaleString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+  const html = emailShell(`
+    <h2 style="margin: 0 0 16px; color: #1c1917;">Interview Scheduled, ${applicantName}!</h2>
+    <p>Great news — your instructor interview has been scheduled.</p>
+    <div style="background: #f5f5f4; border-radius: 8px; padding: 16px; margin: 20px 0; text-align: center;">
+      <p style="margin: 0; font-size: 16px; font-weight: 600; color: #1c1917;">${formattedDate}</p>
+    </div>
+    <p>You can view your full application status and any additional details in the portal.</p>
+    <div style="text-align: center; margin: 28px 0;">
+      <a href="${statusUrl}" style="background: #7c3aed; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">View Application Status</a>
+    </div>
+    <p style="color: #78716c; font-size: 13px;">If you have questions, please reach out to your chapter lead or admin.</p>
+  `);
+  return sendEmail({ to, subject, html });
+}
+
 /**
  * Check if email service is configured
  */
