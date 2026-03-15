@@ -5,6 +5,8 @@ import { scoreSubmission } from "@/lib/competition-draft-actions";
 
 type Submission = {
   id: string;
+  competitionId: string;
+  studentId: string;
   title: string;
   description: string | null;
   workUrl: string | null;
@@ -13,7 +15,8 @@ type Submission = {
   communityScore: number | null;
   finalScore: number | null;
   placement: number | null;
-  createdAt: Date;
+  submittedAt: Date;
+  updatedAt: Date;
   student: {
     id: string;
     name: string | null;
