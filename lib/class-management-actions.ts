@@ -1016,6 +1016,12 @@ export async function getClassCatalog(filters?: {
         }),
       },
       instructor: { select: { id: true, name: true, email: true } },
+      sessions: {
+        where: { date: { gte: new Date() }, isCancelled: false },
+        orderBy: { date: "asc" },
+        take: 1,
+        select: { date: true, startTime: true, topic: true },
+      },
       _count: {
         select: {
           enrollments: { where: { status: "ENROLLED" } },
@@ -1111,6 +1117,12 @@ export async function getClassOfferingDetail(offeringId: string) {
         },
         orderBy: { enrolledAt: "asc" },
       },
+      announcements: {
+        include: {
+          author: { select: { id: true, name: true } },
+        },
+        orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+      },
       _count: {
         select: {
           enrollments: { where: { status: "ENROLLED" } },
@@ -1118,4 +1130,120 @@ export async function getClassOfferingDetail(offeringId: string) {
       },
     },
   });
+}
+
+// ============================================
+// ANNOUNCEMENTS
+// ============================================
+
+export async function postClassAnnouncement(formData: FormData) {
+  const session = await requireInstructor();
+  const offeringId = getString(formData, "offeringId");
+  const title = getString(formData, "title");
+  const body = getString(formData, "body");
+  const isPinned = formData.get("isPinned") === "true";
+
+  // Verify the instructor owns this offering (or is admin)
+  const offering = await prisma.classOffering.findUnique({
+    where: { id: offeringId },
+    select: { instructorId: true },
+  });
+  if (!offering) throw new Error("Class not found");
+  const roles = session.user.roles ?? [];
+  if (offering.instructorId !== session.user.id && !roles.includes("ADMIN")) {
+    throw new Error("Unauthorized");
+  }
+
+  await prisma.classAnnouncement.create({
+    data: {
+      offeringId,
+      authorId: session.user.id,
+      title,
+      body,
+      isPinned,
+    },
+  });
+
+  revalidatePath(`/curriculum/${offeringId}`);
+  return { success: true };
+}
+
+export async function deleteClassAnnouncement(announcementId: string) {
+  const session = await requireInstructor();
+
+  const announcement = await prisma.classAnnouncement.findUnique({
+    where: { id: announcementId },
+    include: { offering: { select: { instructorId: true } } },
+  });
+  if (!announcement) throw new Error("Announcement not found");
+  const roles = session.user.roles ?? [];
+  if (announcement.authorId !== session.user.id && announcement.offering.instructorId !== session.user.id && !roles.includes("ADMIN")) {
+    throw new Error("Unauthorized");
+  }
+
+  await prisma.classAnnouncement.delete({ where: { id: announcementId } });
+  revalidatePath(`/curriculum/${announcement.offeringId}`);
+  return { success: true };
+}
+
+export async function generateICalForMyClasses(userId: string): Promise<string> {
+  const enrollments = await prisma.classEnrollment.findMany({
+    where: { studentId: userId, status: "ENROLLED" },
+    include: {
+      offering: {
+        include: {
+          instructor: { select: { name: true } },
+          template: { select: { title: true, description: true } },
+          sessions: {
+            where: { isCancelled: false },
+            orderBy: { date: "asc" },
+          },
+        },
+      },
+    },
+  });
+
+  const lines: string[] = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//YPP Portal//Class Schedule//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    `X-WR-CALNAME:My YPP Classes`,
+    `X-WR-TIMEZONE:America/New_York`,
+  ];
+
+  for (const enrollment of enrollments) {
+    const offering = enrollment.offering;
+    for (const s of offering.sessions) {
+      const startDt = new Date(s.date);
+      const [startH, startM] = s.startTime.split(":").map(Number);
+      startDt.setHours(startH, startM, 0, 0);
+      const endDt = new Date(s.date);
+      const [endH, endM] = s.endTime.split(":").map(Number);
+      endDt.setHours(endH, endM, 0, 0);
+
+      const formatDt = (d: Date) =>
+        d
+          .toISOString()
+          .replace(/[-:]/g, "")
+          .replace(/\.\d{3}/, "");
+
+      lines.push("BEGIN:VEVENT");
+      lines.push(`UID:ypp-session-${s.id}@ypp-portal`);
+      lines.push(`DTSTAMP:${formatDt(new Date())}`);
+      lines.push(`DTSTART:${formatDt(startDt)}`);
+      lines.push(`DTEND:${formatDt(endDt)}`);
+      lines.push(`SUMMARY:${offering.title} - Session ${s.sessionNumber}: ${s.topic}`);
+      lines.push(`DESCRIPTION:Instructor: ${offering.instructor.name}\\n${s.description || ""}`);
+      if (offering.zoomLink) {
+        lines.push(`URL:${offering.zoomLink}`);
+        lines.push(`LOCATION:${offering.zoomLink}`);
+      }
+      lines.push("END:VEVENT");
+    }
+  }
+
+  lines.push("END:VCALENDAR");
+  return lines.join("\r\n");
 }

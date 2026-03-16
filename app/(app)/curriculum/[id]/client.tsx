@@ -11,6 +11,7 @@ export function ClassDetailClient({
   isFull,
   isInstructor,
   enrollmentOpen,
+  waitlistPosition,
 }: {
   offeringId: string;
   isEnrolled: boolean;
@@ -18,6 +19,7 @@ export function ClassDetailClient({
   isFull: boolean;
   isInstructor: boolean;
   enrollmentOpen: boolean;
+  waitlistPosition?: number;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -109,7 +111,7 @@ export function ClassDetailClient({
             marginBottom: 8,
             fontWeight: 600,
           }}>
-            On Waitlist
+            {waitlistPosition ? `Waitlist #${waitlistPosition}` : "On Waitlist"}
           </div>
           <button
             onClick={handleDrop}
