@@ -4,7 +4,7 @@ import AppShell from "@/components/app-shell";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getUnlockedSections, checkAndAutoUnlock } from "@/lib/unlock-manager";
-import { getVisibleNavGroups } from "@/lib/unlock-manager";
+import { getVisibleNavGroups } from "@/lib/unlock-nav-groups";
 import { withPrismaFallback } from "@/lib/prisma-guard";
 
 // Force runtime rendering so `next build` doesn't try to prerender pages that

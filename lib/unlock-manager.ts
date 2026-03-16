@@ -8,9 +8,6 @@ import {
   SECTION_REQUIREMENTS,
 } from "@/lib/unlock-nav-groups";
 
-// Re-export the pure utility so callers don't need to know about the split.
-export { getVisibleNavGroups } from "@/lib/unlock-nav-groups";
-
 // ============================================
 // SECTION UNLOCK MAP
 // ============================================
