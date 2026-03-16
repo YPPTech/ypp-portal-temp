@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "next-auth";
 import { createSystemNotification } from "@/lib/notification-actions";
+import { onProgressEvent } from "@/lib/progress-events";
 
 async function requireAuth() {
   const session = await getServerSession(authOptions);
@@ -249,4 +250,7 @@ export async function markEnrollmentComplete(formData: FormData) {
 
   // Check training completion if applicable
   await checkAndIssueTrainingCompletion(enrollment.userId);
+
+  // Fire progress event for course completion
+  onProgressEvent({ type: "COURSE_COMPLETED", userId: enrollment.userId, metadata: { courseId: enrollment.courseId } }).catch(() => {});
 }

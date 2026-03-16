@@ -392,6 +392,38 @@ main {
   color: var(--ypp-purple-600);
 }
 
+.nav-more-group-toggle.nav-section-locked {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.nav-more-group-toggle.nav-section-locked:hover {
+  background: transparent;
+}
+
+.nav-lock-icon {
+  font-size: 12px;
+  margin-right: 2px;
+}
+
+.nav-new-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ypp-purple-700, #6d28d9);
+  background: var(--ypp-purple-100, #ede9fe);
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  animation: nav-new-pulse 2s ease-in-out infinite;
+}
+
+@keyframes nav-new-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 .nav-section-label {
   flex: 1;
   min-width: 0;

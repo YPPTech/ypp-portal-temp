@@ -13,6 +13,7 @@ import {
   hasAdvancedSequenceBuilderSchema,
   hasPathwayCohortTable,
 } from "@/lib/schema-compat";
+import { onProgressEvent } from "@/lib/progress-events";
 import { assertCanPublishInstructorContent } from "@/lib/instructor-readiness";
 import {
   type SequenceBlueprint,
@@ -394,6 +395,9 @@ export async function manuallyUnlockStep(stepId: string, userId: string) {
     create: { stepId, userId },
     update: {},
   });
+
+  // Fire progress event for pathway step completion
+  onProgressEvent({ type: "PATHWAY_STEP_COMPLETED", userId, metadata: { stepId } }).catch(() => {});
 
   return { success: true };
 }
