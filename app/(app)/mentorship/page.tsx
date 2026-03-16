@@ -9,6 +9,8 @@ import {
 } from "@/lib/mentorship-review-helpers";
 import { prisma } from "@/lib/prisma";
 import { formatEnum } from "@/lib/format-utils";
+import { buildContextTrail } from "@/lib/context-trail";
+import ContextTrail from "@/components/context-trail";
 
 const TONE_STYLES = {
   neutral: { background: "#e2e8f0", color: "#334155" },
@@ -29,6 +31,13 @@ export default async function MentorshipPage() {
   const isMentor =
     roles.includes("MENTOR") || roles.includes("CHAPTER_LEAD") || isAdmin;
   const isStudent = roles.includes("STUDENT");
+
+  let trailItems: Awaited<ReturnType<typeof buildContextTrail>> = [];
+  try {
+    trailItems = await buildContextTrail({ route: "/mentorship", userId });
+  } catch {
+    trailItems = [];
+  }
 
   const currentMonth = new Date();
   const normalizedMonth = new Date(
@@ -236,6 +245,8 @@ export default async function MentorshipPage() {
           )}
         </div>
       </div>
+
+      <ContextTrail items={trailItems} />
 
       <div className="grid two" style={{ marginBottom: 24 }}>
         <div className="card">

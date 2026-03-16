@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { ChallengeCard } from "./client";
 import { isFeatureEnabledForUser } from "@/lib/feature-gates";
+import { buildContextTrail } from "@/lib/context-trail";
+import ContextTrail from "@/components/context-trail";
 
 export default async function ChallengesPage() {
   const session = await getServerSession(authOptions);
@@ -38,6 +40,13 @@ export default async function ChallengesPage() {
         </div>
       </div>
     );
+  }
+
+  let trailItems: Awaited<ReturnType<typeof buildContextTrail>> = [];
+  try {
+    trailItems = await buildContextTrail({ route: "/challenges", userId: session.user.id });
+  } catch {
+    trailItems = [];
   }
 
   const [challenges, myProgress, passionAreas] = await Promise.all([
@@ -90,6 +99,8 @@ export default async function ChallengesPage() {
           </Link>
         </div>
       </div>
+
+      <ContextTrail items={trailItems} />
 
       {/* My Progress Summary */}
       <div className="grid three" style={{ marginBottom: 24 }}>

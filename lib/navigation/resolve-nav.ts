@@ -1,5 +1,6 @@
 import { CORE_NAV_LIMIT, CORE_NAV_MAP, PRIMARY_ROLE_FALLBACK_ORDER } from "@/lib/navigation/core-map";
 import { NAV_CATALOG } from "@/lib/navigation/catalog";
+import { getVisibleNavGroups } from "@/lib/unlock-nav-groups";
 import type { NavGroup, NavLink, NavRole, NavViewModel } from "@/lib/navigation/types";
 
 const AWARD_TIERS = new Set(["BRONZE", "SILVER", "GOLD"]);
@@ -144,6 +145,7 @@ export interface ResolveNavInput {
   awardTier?: string | null;
   pathname: string;
   maxCoreItems?: number;
+  unlockedSections?: Set<string>;
 }
 
 function toNavRole(value: string | null | undefined): NavRole | null {
@@ -243,14 +245,47 @@ function orderGroups(primaryRole: NavRole, groups: NavGroup[]): NavGroup[] {
   });
 }
 
-export function resolveNavModel(input: ResolveNavInput): NavViewModel {
+export function resolveNavModel(input: ResolveNavInput): NavViewModel & { lockedGroups?: Map<NavGroup, string> } {
   const roles = normalizeRoles(input.roles);
   const primaryRole = resolvePrimaryRole(input.primaryRole, roles);
   const hasAward = isAwardTier(input.awardTier);
   const limit = Math.min(input.maxCoreItems ?? CORE_NAV_LIMIT, CORE_NAV_LIMIT);
 
+  // Determine which groups are visible/locked based on unlock status
+  let unlockVisibleGroups: Set<NavGroup> | null = null;
+  let unlockLockedGroups: Map<NavGroup, string> | null = null;
+
+  if (
+    input.unlockedSections &&
+    (primaryRole === "STUDENT" || primaryRole === "PARENT")
+  ) {
+    const { visibleGroups, lockedGroups } = getVisibleNavGroups(
+      primaryRole,
+      input.unlockedSections,
+    );
+    unlockVisibleGroups = visibleGroups;
+    unlockLockedGroups = lockedGroups;
+  }
+
   const visible = sortLinksForRole(
-    NAV_CATALOG.filter((item) => hasRoleAccess(item, roles) && hasAwardAccess(item, roles, hasAward)),
+    NAV_CATALOG.filter((item) => {
+      if (!hasRoleAccess(item, roles)) return false;
+      if (!hasAwardAccess(item, roles, hasAward)) return false;
+
+      // If unlock filtering is active, only include items whose group is visible
+      // or whose group is not in the locked set (i.e. groups not managed by the
+      // unlock system, like Admin groups, pass through unchanged).
+      if (unlockVisibleGroups) {
+        if (unlockVisibleGroups.has(item.group)) return true;
+        if (unlockLockedGroups && unlockLockedGroups.has(item.group)) return false;
+        // Group is neither in visible nor locked — it's not managed by the
+        // unlock system, so let it through (e.g. Admin groups for roles that
+        // have access).
+        return true;
+      }
+
+      return true;
+    }),
     primaryRole,
   );
 
@@ -293,5 +328,6 @@ export function resolveNavModel(input: ResolveNavInput): NavViewModel {
     visible,
     core,
     more,
+    lockedGroups: unlockLockedGroups ?? undefined,
   };
 }

@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { PathwayActionButtons } from "./pathway-actions-client";
+import { buildContextTrail } from "@/lib/context-trail";
+import ContextTrail from "@/components/context-trail";
 
 function formatCourseLabel(format: string, level: string | null) {
   if (format === "LEVELED" && level) return level.replace("LEVEL_", "");
@@ -15,6 +17,13 @@ export default async function PathwaysPage() {
   if (!session?.user?.id) redirect("/login");
 
   const userId = session.user.id;
+
+  let trailItems: Awaited<ReturnType<typeof buildContextTrail>> = [];
+  try {
+    trailItems = await buildContextTrail({ route: "/pathways", userId });
+  } catch {
+    trailItems = [];
+  }
 
   // Load all active pathways with steps
   const allPathways = await prisma.pathway.findMany({
@@ -73,6 +82,8 @@ export default async function PathwaysPage() {
           My Progress
         </Link>
       </div>
+
+      <ContextTrail items={trailItems} />
 
       {/* Info cards */}
       <div className="grid two" style={{ marginBottom: 28 }}>

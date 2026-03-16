@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import AppShell from "@/components/app-shell";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getUnlockedSections, checkAndAutoUnlock } from "@/lib/unlock-manager";
+import { getVisibleNavGroups } from "@/lib/unlock-nav-groups";
+import { withPrismaFallback } from "@/lib/prisma-guard";
 
 // Force runtime rendering so `next build` doesn't try to prerender pages that
 // require auth/database access (which can fail in build environments).
@@ -51,6 +54,8 @@ export default async function AppLayout({
   // Get user's highest award tier + badge counts for navigation
   let awardTier: string | undefined;
   let badges: { notifications?: number; messages?: number; approvals?: number } = {};
+  let unlockedSectionsArray: string[] | undefined;
+  let recentlyUnlockedGroupsArray: string[] | undefined;
   if (session?.user?.id) {
     const userId = session.user.id;
     const [userWithAwards, unreadNotifications, unreadMessages, pendingApprovals] =
@@ -92,10 +97,63 @@ export default async function AppLayout({
       messages: unreadMessages || undefined,
       approvals: pendingApprovals || undefined,
     };
+
+    // Fetch unlock data for progressive nav reveal (STUDENT and PARENT roles)
+    if (primaryRole === "STUDENT" || primaryRole === "PARENT") {
+      try {
+        // Auto-unlock any sections the user has earned
+        await checkAndAutoUnlock(userId);
+
+        // Fetch current unlocked sections
+        const unlockedSections = await getUnlockedSections(userId);
+        unlockedSectionsArray = Array.from(unlockedSections);
+
+        // Find recently unlocked groups (last 7 days) for "New!" badges
+        const recentlyUnlockedSections = await withPrismaFallback(
+          "recentUnlocks",
+          async () => {
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            const recent = await prisma.portalUnlock.findMany({
+              where: {
+                userId,
+                unlockedAt: { gte: sevenDaysAgo },
+              },
+              select: { sectionKey: true },
+            });
+            return recent.map((r) => r.sectionKey);
+          },
+          () => [] as string[],
+        );
+
+        // Map section keys to nav group names for the "New!" badge
+        if (recentlyUnlockedSections.length > 0) {
+          const { visibleGroups } = getVisibleNavGroups(
+            primaryRole,
+            new Set(recentlyUnlockedSections),
+          );
+          recentlyUnlockedGroupsArray = Array.from(visibleGroups).filter(
+            (g) => !["Start Here", "Learning", "Progress", "Profile & Settings", "Family"].includes(g),
+          );
+        }
+      } catch {
+        // If unlock tables don't exist yet, continue with no unlock filtering
+        unlockedSectionsArray = undefined;
+        recentlyUnlockedGroupsArray = undefined;
+      }
+    }
   }
 
   return (
-    <AppShell userName={session?.user?.name} roles={roles} primaryRole={primaryRole} awardTier={awardTier} badges={badges}>
+    <AppShell
+      userName={session?.user?.name}
+      roles={roles}
+      primaryRole={primaryRole}
+      awardTier={awardTier}
+      badges={badges}
+      unlockedSections={unlockedSectionsArray}
+      recentlyUnlockedGroups={recentlyUnlockedGroupsArray}
+    >
       {children}
     </AppShell>
   );

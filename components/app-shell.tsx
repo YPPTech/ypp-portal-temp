@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Image from "next/image";
 import Nav, { type NavBadges } from "@/components/nav";
 import LogoutButton from "@/components/logout-button";
@@ -13,6 +13,8 @@ export default function AppShell({
   primaryRole,
   awardTier,
   badges,
+  unlockedSections,
+  recentlyUnlockedGroups,
 }: {
   children: React.ReactNode;
   userName?: string | null;
@@ -20,9 +22,21 @@ export default function AppShell({
   primaryRole?: string | null;
   awardTier?: string;
   badges?: NavBadges;
+  unlockedSections?: string[];
+  recentlyUnlockedGroups?: string[];
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sidebarId = "portal-sidebar";
+
+  // Convert serialized arrays back to Sets for the Nav component
+  const unlockedSectionsSet = useMemo(
+    () => (unlockedSections ? new Set(unlockedSections) : undefined),
+    [unlockedSections],
+  );
+  const recentlyUnlockedGroupsSet = useMemo(
+    () => (recentlyUnlockedGroups ? new Set(recentlyUnlockedGroups) : undefined),
+    [recentlyUnlockedGroups],
+  );
 
   return (
     <div className="app-shell">
@@ -79,6 +93,8 @@ export default function AppShell({
             awardTier={awardTier}
             badges={badges}
             onNavigate={() => setSidebarOpen(false)}
+            unlockedSections={unlockedSectionsSet}
+            recentlyUnlockedGroups={recentlyUnlockedGroupsSet}
           />
         </div>
 

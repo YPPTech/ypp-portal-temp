@@ -15,6 +15,7 @@ import {
 } from "@prisma/client";
 import { validateEnum } from "@/lib/validate-enum";
 import { logAuditEvent } from "@/lib/audit-log-actions";
+import { onProgressEvent } from "@/lib/progress-events";
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
@@ -240,6 +241,10 @@ export async function updateEnrollmentStatus(formData: FormData) {
     targetId: enrollmentId,
     description: `${status === "ENROLLED" ? "Approved" : "Declined"} enrollment for ${enrollment.user.name} in ${enrollment.course.title}`,
   });
+
+  if (status === "ENROLLED") {
+    onProgressEvent({ type: "COURSE_ENROLLED", userId: enrollment.userId, metadata: { courseId: enrollment.courseId } }).catch(() => {});
+  }
 
   revalidatePath("/admin");
   revalidatePath("/");
