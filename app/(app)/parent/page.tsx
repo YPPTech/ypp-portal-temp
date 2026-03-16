@@ -408,8 +408,8 @@ export default async function ParentPortalPage() {
                                   ? "Progress is slower than expected. Consider discussing with their instructor."
                                   : goal.latestStatus === "ABOVE_AND_BEYOND"
                                   ? "Your child is exceeding expectations. Great work!"
-                                  : goal.latestStatus === "NEEDS_ATTENTION"
-                                  ? "This goal needs attention. Please reach out to the instructor."
+                                  : goal.latestStatus === "GETTING_STARTED"
+                                  ? "Your child is just getting started on this goal. Check in with their instructor."
                                   : ""
                               }
                             >

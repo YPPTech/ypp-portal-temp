@@ -14,8 +14,8 @@ function getGoalPillClass(status: string | null): string {
       return "pill-pending";
     case "ABOVE_AND_BEYOND":
       return "pill-pathway";
-    case "NEEDS_ATTENTION":
-      return "pill-declined";
+    case "GETTING_STARTED":
+      return "pill-pending";
     default:
       return "";
   }
@@ -29,8 +29,8 @@ function getGoalStatusLabel(status: string): string {
       return "Behind schedule — progress is slower than expected. Consider talking to their instructor.";
     case "ABOVE_AND_BEYOND":
       return "Above & beyond — your child is exceeding expectations. Great work!";
-    case "NEEDS_ATTENTION":
-      return "Needs attention — instructor flagged this goal as requiring support.";
+    case "GETTING_STARTED":
+      return "Just getting started — your child is in the early stages of this goal.";
     default:
       return status.replace(/_/g, " ");
   }
