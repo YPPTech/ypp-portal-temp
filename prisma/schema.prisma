@@ -670,6 +670,7 @@ model User {
   classEnrollments         ClassEnrollment[]       @relation("ClassEnrollments")
   classAttendanceRecords   ClassAttendanceRecord[] @relation("ClassAttendanceRecords")
   classRemindersReceived   ClassReminder[]         @relation("ClassRemindersReceived")
+  classAnnouncements       ClassAnnouncement[]     @relation("ClassAnnouncementsAuthored")
   launchTasksCreated       LaunchTask[]            @relation("LaunchTasksCreatedBy")
   launchTasksUpdated       LaunchTask[]            @relation("LaunchTasksUpdatedBy")
   rolloutCampaignsCreated  RolloutCampaign[]       @relation("RolloutCampaignsCreatedBy")
@@ -5267,10 +5268,11 @@ model ClassOffering {
   grandfatheredTrainingExemption Boolean             @default(false)
 
   // Relations
-  sessions    ClassSession[]
-  enrollments ClassEnrollment[]
-  reminders   ClassReminder[]
-  assignments ClassAssignment[]
+  sessions      ClassSession[]
+  enrollments   ClassEnrollment[]
+  reminders     ClassReminder[]
+  assignments   ClassAssignment[]
+  announcements ClassAnnouncement[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -7659,4 +7661,23 @@ model JourneyMilestone {
 
   @@unique([userId, milestoneKey])
   @@index([userId])
+}
+
+// Instructor-posted announcements for a class offering
+model ClassAnnouncement {
+  id         String        @id @default(cuid())
+  offeringId String
+  offering   ClassOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User          @relation("ClassAnnouncementsAuthored", fields: [authorId], references: [id])
+
+  title     String
+  body      String        @db.Text
+  isPinned  Boolean       @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([offeringId, createdAt])
+  @@index([authorId])
 }

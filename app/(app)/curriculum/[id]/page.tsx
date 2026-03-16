@@ -5,6 +5,8 @@ import { getClassOfferingDetail } from "@/lib/class-management-actions";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { ClassDetailClient } from "./client";
+import { SessionManager } from "./session-manager";
+import { AnnouncementsPanel } from "./announcements";
 
 const difficultyLabels: Record<string, string> = {
   LEVEL_101: "101 - Beginner",
@@ -203,6 +205,7 @@ export default async function ClassDetailPage({
               isFull={spotsLeft <= 0}
               isInstructor={isInstructor}
               enrollmentOpen={offering.enrollmentOpen}
+              waitlistPosition={myEnrollment?.waitlistPosition ?? undefined}
             />
 
             {completionPct !== null && isEnrolled && (
@@ -324,6 +327,58 @@ export default async function ClassDetailPage({
         </div>
       )}
 
+      {/* Course Outline / Weekly Topics */}
+      {(() => {
+        const topics = Array.isArray(offering.template.weeklyTopics) ? offering.template.weeklyTopics as { week?: number; topic?: string; milestone?: string; materials?: string }[] : [];
+        return topics.length > 0 ? (
+          <div className="card" style={{ marginBottom: 24 }}>
+            <h3>Course Outline</h3>
+            <div style={{ marginTop: 12 }}>
+              {topics.map((wt, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    gap: 12,
+                    padding: "10px 0",
+                    borderBottom: i < topics.length - 1 ? "1px solid var(--border-light)" : "none",
+                  }}
+                >
+                  <div style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    background: "var(--ypp-purple-100, #ede9fe)",
+                    color: "var(--ypp-purple, #7c3aed)",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}>
+                    {wt.week ?? i + 1}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{wt.topic || `Week ${i + 1}`}</div>
+                    {wt.milestone && (
+                      <div style={{ fontSize: 12, color: "var(--ypp-purple)", marginTop: 2 }}>
+                        Milestone: {wt.milestone}
+                      </div>
+                    )}
+                    {wt.materials && (
+                      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
+                        Materials: {wt.materials}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null;
+      })()}
+
       {/* Class Schedule */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
         {/* Upcoming Sessions */}
@@ -341,8 +396,8 @@ export default async function ClassDetailPage({
                     borderBottom: "1px solid var(--border-light)",
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                    <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>
                         Session {s.sessionNumber}: {s.topic}
                       </div>
@@ -351,17 +406,58 @@ export default async function ClassDetailPage({
                         {" | "}
                         {s.startTime} - {s.endTime}
                       </div>
+                      {s.description && (
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>
+                          {s.description}
+                        </div>
+                      )}
+                      {s.learningOutcomes.length > 0 && (
+                        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>
+                          Goals: {s.learningOutcomes.join(", ")}
+                        </div>
+                      )}
+                      {s.materialsUrl && (
+                        <a
+                          href={s.materialsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: 12, color: "var(--ypp-purple)", marginTop: 4, display: "inline-block" }}
+                        >
+                          📄 Session Materials
+                        </a>
+                      )}
+                      {s.notesUrl && (
+                        <a
+                          href={s.notesUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: 12, color: "var(--ypp-purple)", marginTop: 4, marginLeft: 12, display: "inline-block" }}
+                        >
+                          📝 Notes
+                        </a>
+                      )}
                     </div>
                     {s.milestone && (
-                      <span className="pill" style={{ fontSize: 11 }}>
+                      <span className="pill" style={{ fontSize: 11, flexShrink: 0 }}>
                         {s.milestone}
                       </span>
                     )}
                   </div>
-                  {s.learningOutcomes.length > 0 && (
-                    <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>
-                      Goals: {s.learningOutcomes.join(", ")}
-                    </div>
+                  {isInstructor && (
+                    <SessionManager
+                      session={{
+                        id: s.id,
+                        sessionNumber: s.sessionNumber,
+                        topic: s.topic,
+                        description: s.description ?? "",
+                        materialsUrl: s.materialsUrl ?? "",
+                        notesUrl: s.notesUrl ?? "",
+                        recordingUrl: s.recordingUrl ?? "",
+                        isCancelled: s.isCancelled,
+                        cancelReason: s.cancelReason ?? "",
+                      }}
+                      offeringId={offering.id}
+                    />
                   )}
                 </div>
               ))}
@@ -385,8 +481,8 @@ export default async function ClassDetailPage({
                     opacity: s.isCancelled ? 0.5 : 1,
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                    <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>
                         Session {s.sessionNumber}: {s.topic}
                         {s.isCancelled && <span style={{ color: "#ef4444" }}> (Cancelled)</span>}
@@ -394,20 +490,50 @@ export default async function ClassDetailPage({
                       <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
                         {new Date(s.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
                       </div>
+                      {s.recordingUrl && (
+                        <a
+                          href={s.recordingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: 12, color: "var(--ypp-purple)", marginTop: 4, display: "inline-block" }}
+                        >
+                          ▶ Watch Recording
+                        </a>
+                      )}
+                      {s.materialsUrl && (
+                        <a
+                          href={s.materialsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: 12, color: "var(--ypp-purple)", marginTop: 4, marginLeft: s.recordingUrl ? 12 : 0, display: "inline-block" }}
+                        >
+                          📄 Materials
+                        </a>
+                      )}
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)", flexShrink: 0 }}>
                       {s._count.attendance} attended
                     </div>
                   </div>
-                  {s.recordingUrl && (
-                    <a
-                      href={s.recordingUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ fontSize: 12, color: "var(--ypp-purple)", marginTop: 4, display: "inline-block" }}
-                    >
-                      Watch Recording
-                    </a>
+                  {isInstructor && !s.isCancelled && (
+                    <SessionManager
+                      session={{
+                        id: s.id,
+                        sessionNumber: s.sessionNumber,
+                        topic: s.topic,
+                        description: s.description ?? "",
+                        materialsUrl: s.materialsUrl ?? "",
+                        notesUrl: s.notesUrl ?? "",
+                        recordingUrl: s.recordingUrl ?? "",
+                        isCancelled: s.isCancelled,
+                        cancelReason: s.cancelReason ?? "",
+                      }}
+                      offeringId={offering.id}
+                      enrolledStudents={enrolledStudents.map((e) => ({
+                        id: e.student.id,
+                        name: e.student.name ?? "Unknown",
+                      }))}
+                    />
                   )}
                 </div>
               ))}
@@ -474,6 +600,13 @@ export default async function ClassDetailPage({
           )}
         </div>
       )}
+
+      {/* Announcements */}
+      <AnnouncementsPanel
+        offeringId={offering.id}
+        announcements={(offering as { announcements?: { id: string; title: string; body: string; isPinned: boolean; createdAt: Date; author: { id: string; name: string | null } }[] }).announcements ?? []}
+        isInstructor={isInstructor}
+      />
 
       {/* Class Size Recommendation */}
       <div className="card" style={{ marginBottom: 24 }}>

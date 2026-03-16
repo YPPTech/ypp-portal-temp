@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getClassCatalog } from "@/lib/class-management-actions";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { CurriculumSearchInput } from "./search-input";
 
 const difficultyLabels: Record<string, string> = {
   LEVEL_101: "101 - Beginner",
@@ -37,7 +38,7 @@ export default async function CurriculumPage({
   const roles = session?.user?.roles ?? [];
   const isInstructor = roles.includes("INSTRUCTOR") || roles.includes("ADMIN");
 
-  const [offerings, activePathways] = await Promise.all([
+  const [offerings, activePathways, myEnrollments] = await Promise.all([
     getClassCatalog({
       interestArea: params.interest,
       difficultyLevel: params.level,
@@ -49,7 +50,18 @@ export default async function CurriculumPage({
       where: { isActive: true },
       select: { id: true, name: true, interestArea: true },
     }),
+    prisma.classEnrollment.findMany({
+      where: {
+        studentId: session.user.id,
+        status: { in: ["ENROLLED", "WAITLISTED"] },
+      },
+      select: { offeringId: true, status: true },
+    }),
   ]);
+
+  const enrollmentByOfferingId = new Map(
+    myEnrollments.map((e) => [e.offeringId, e.status])
+  );
 
   // Build a lookup: interestArea → matching pathways
   const pathwayByArea = new Map<string, { id: string; name: string }[]>();
@@ -82,6 +94,8 @@ export default async function CurriculumPage({
       </div>
 
       <div className="card" style={{ marginBottom: 24 }}>
+        <CurriculumSearchInput defaultValue={params.search} />
+
         <div style={{ marginBottom: 12, fontWeight: 600, fontSize: 14 }}>Browse by Level</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Link
@@ -203,6 +217,8 @@ export default async function CurriculumPage({
             const spotsLeft = offering.capacity - enrolledCount;
             const isFull = spotsLeft <= 0;
             const isAlmostFull = spotsLeft > 0 && spotsLeft <= 3;
+            const myStatus = enrollmentByOfferingId.get(offering.id);
+            const nextSession = (offering as { sessions?: { date: Date; startTime: string; topic: string }[] }).sessions?.[0];
 
             return (
               <Link
@@ -281,25 +297,44 @@ export default async function CurriculumPage({
                   <div style={{ marginTop: 4 }}>
                     {offering.meetingDays.join(", ")} | {offering.meetingTime}
                   </div>
+                  {nextSession && (
+                    <div style={{ marginTop: 4, fontSize: 12, color: "var(--ypp-purple)", fontWeight: 500 }}>
+                      Next:{" "}
+                      {new Date(nextSession.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}{" "}
+                      at {nextSession.startTime}
+                    </div>
+                  )}
                 </div>
 
-                <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
                   <span style={{ fontSize: 13 }}>
                     {enrolledCount} / {offering.capacity} enrolled
                   </span>
-                  {isFull ? (
-                    <span className="pill" style={{ background: "#fef2f2", color: "#ef4444", fontWeight: 600 }}>
-                      Full - Waitlist
-                    </span>
-                  ) : isAlmostFull ? (
-                    <span className="pill" style={{ background: "#fffbeb", color: "#f59e0b", fontWeight: 600 }}>
-                      {spotsLeft} spot{spotsLeft !== 1 ? "s" : ""} left
-                    </span>
-                  ) : (
-                    <span className="pill" style={{ background: "#f0fdf4", color: "#16a34a" }}>
-                      Open
-                    </span>
-                  )}
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {myStatus === "ENROLLED" && (
+                      <span className="pill" style={{ background: "#f0fdf4", color: "#16a34a", fontWeight: 600, fontSize: 11 }}>
+                        ✓ Enrolled
+                      </span>
+                    )}
+                    {myStatus === "WAITLISTED" && (
+                      <span className="pill" style={{ background: "#fffbeb", color: "#f59e0b", fontWeight: 600, fontSize: 11 }}>
+                        Waitlisted
+                      </span>
+                    )}
+                    {!myStatus && (isFull ? (
+                      <span className="pill" style={{ background: "#fef2f2", color: "#ef4444", fontWeight: 600 }}>
+                        Full - Waitlist
+                      </span>
+                    ) : isAlmostFull ? (
+                      <span className="pill" style={{ background: "#fffbeb", color: "#f59e0b", fontWeight: 600 }}>
+                        {spotsLeft} spot{spotsLeft !== 1 ? "s" : ""} left
+                      </span>
+                    ) : (
+                      <span className="pill" style={{ background: "#f0fdf4", color: "#16a34a" }}>
+                        Open
+                      </span>
+                    ))}
+                  </div>
                 </div>
 
                 {offering.template.learningOutcomes.length > 0 && (

@@ -122,9 +122,21 @@ export default async function SemesterPlanningCalendarPage() {
           <p className="badge">My Schedule</p>
           <h1 className="page-title">Semester Planner</h1>
         </div>
-        <Link href="/curriculum" className="button primary">
-          Browse Classes
-        </Link>
+        <div style={{ display: "flex", gap: 8 }}>
+          {enrollments.length > 0 && (
+            <a
+              href="/api/classes/export-ical"
+              download="ypp-classes.ics"
+              className="button secondary"
+              style={{ fontSize: 13 }}
+            >
+              📅 Export to Calendar
+            </a>
+          )}
+          <Link href="/curriculum" className="button primary">
+            Browse Classes
+          </Link>
+        </div>
       </div>
 
       {/* Schedule Overview */}
@@ -184,52 +196,80 @@ export default async function SemesterPlanningCalendarPage() {
         <div style={{ marginBottom: 28 }}>
           <div className="section-title">This Week</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {thisWeekSessions.map((s) => (
-              <Link
-                key={s.id}
-                href={`/curriculum/${s.offeringId}`}
-                className="card"
-                style={{
-                  textDecoration: "none",
-                  color: "inherit",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 16,
-                  padding: "12px 16px",
-                }}
-              >
-                <div style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: "var(--radius-sm)",
-                  background: (dayColors[s.date.toLocaleDateString("en-US", { weekday: "long" })] || "var(--ypp-purple)") + "15",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase" }}>
-                    {s.date.toLocaleDateString("en-US", { weekday: "short" })}
-                  </div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>
-                    {s.date.getDate()}
-                  </div>
+            {thisWeekSessions.map((s) => {
+              const gcStart = (() => {
+                const d = new Date(s.date);
+                const [h, m] = s.startTime.split(":").map(Number);
+                d.setHours(h, m, 0, 0);
+                return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+              })();
+              const gcEnd = (() => {
+                const d = new Date(s.date);
+                const [h, m] = s.endTime.split(":").map(Number);
+                d.setHours(h, m, 0, 0);
+                return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+              })();
+              const gcUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`${s.classTitle}: ${s.topic}`)}&dates=${gcStart}/${gcEnd}&details=${encodeURIComponent(`Instructor: ${s.instructorName}`)}${s.zoomLink ? `&location=${encodeURIComponent(s.zoomLink)}` : ""}`;
+
+              return (
+                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Link
+                    href={`/curriculum/${s.offeringId}`}
+                    className="card"
+                    style={{
+                      textDecoration: "none",
+                      color: "inherit",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 16,
+                      padding: "12px 16px",
+                      flex: 1,
+                    }}
+                  >
+                    <div style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: "var(--radius-sm)",
+                      background: (dayColors[s.date.toLocaleDateString("en-US", { weekday: "long" })] || "var(--ypp-purple)") + "15",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase" }}>
+                        {s.date.toLocaleDateString("en-US", { weekday: "short" })}
+                      </div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>
+                        {s.date.getDate()}
+                      </div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{s.classTitle}</div>
+                      <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                        {s.startTime} - {s.endTime} | {s.topic}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      <span className="pill" style={{ fontSize: 11, background: (difficultyColors[s.difficultyLevel] || "#888") + "18", color: difficultyColors[s.difficultyLevel] }}>
+                        {difficultyLabels[s.difficultyLevel]}
+                      </span>
+                      <span className="pill" style={{ fontSize: 11 }}>{s.deliveryMode.replace("_", " ")}</span>
+                    </div>
+                  </Link>
+                  <a
+                    href={gcUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="button secondary"
+                    style={{ fontSize: 11, flexShrink: 0, padding: "6px 10px" }}
+                    title="Add to Google Calendar"
+                  >
+                    +GCal
+                  </a>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{s.classTitle}</div>
-                  <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                    {s.startTime} - {s.endTime} | {s.topic}
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                  <span className="pill" style={{ fontSize: 11, background: (difficultyColors[s.difficultyLevel] || "#888") + "18", color: difficultyColors[s.difficultyLevel] }}>
-                    {difficultyLabels[s.difficultyLevel]}
-                  </span>
-                  <span className="pill" style={{ fontSize: 11 }}>{s.deliveryMode.replace("_", " ")}</span>
-                </div>
-              </Link>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
