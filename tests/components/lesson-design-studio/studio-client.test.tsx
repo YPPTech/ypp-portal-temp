@@ -7,6 +7,12 @@ const actionMocks = vi.hoisted(() => ({
   saveCurriculumDraft: vi.fn(),
   submitCurriculumDraft: vi.fn(),
   markLessonDesignStudioTourComplete: vi.fn(),
+  createWorkingCopyFromCurriculumDraft: vi.fn(),
+}));
+
+const routerMocks = vi.hoisted(() => ({
+  push: vi.fn(),
+  refresh: vi.fn(),
 }));
 
 const exampleWeek = {
@@ -42,6 +48,9 @@ const exampleWeek = {
 } as const;
 
 vi.mock("@/lib/curriculum-draft-actions", () => actionMocks);
+vi.mock("next/navigation", () => ({
+  useRouter: () => routerMocks,
+}));
 
 vi.mock(
   "@/app/(app)/instructor/lesson-design-studio/components/curriculum-builder-panel",
@@ -263,6 +272,11 @@ describe("StudioClient", () => {
     actionMocks.markLessonDesignStudioTourComplete
       .mockReset()
       .mockResolvedValue({ success: true });
+    actionMocks.createWorkingCopyFromCurriculumDraft
+      .mockReset()
+      .mockResolvedValue({ draftId: "draft-2", reusedExisting: false });
+    routerMocks.push.mockReset();
+    routerMocks.refresh.mockReset();
     localStorage.clear();
   });
 
@@ -389,6 +403,9 @@ describe("StudioClient", () => {
 
     await waitFor(() => {
       expect(actionMocks.markLessonDesignStudioTourComplete).toHaveBeenCalledTimes(1);
+      expect(actionMocks.markLessonDesignStudioTourComplete).toHaveBeenCalledWith(
+        "draft-1"
+      );
       expect(actionMocks.saveCurriculumDraft).toHaveBeenCalledTimes(1);
     });
 
@@ -424,6 +441,47 @@ describe("StudioClient", () => {
     expect(screen.getByTestId("examples-error")).toHaveTextContent(
       "That session changed while the library was open. Pick a session again before importing."
     );
+    expect(actionMocks.saveCurriculumDraft).not.toHaveBeenCalled();
+  });
+
+  it("opens a working copy from a read-only submitted draft", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <StudioClient
+        userId="user-1"
+        userName="Instructor"
+        draft={buildReadyDraft({ status: "SUBMITTED" })}
+        currentPhase="REVIEW_LAUNCH"
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Use as starting point" }));
+
+    await waitFor(() => {
+      expect(actionMocks.createWorkingCopyFromCurriculumDraft).toHaveBeenCalledWith(
+        "draft-1"
+      );
+      expect(routerMocks.push).toHaveBeenCalledWith(
+        "/instructor/lesson-design-studio?draftId=draft-2"
+      );
+    });
+  });
+
+  it("does not save when a read-only draft receives an edit event", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <StudioClient
+        userId="user-1"
+        userName="Instructor"
+        draft={buildReadyDraft({ status: "SUBMITTED" })}
+        currentPhase="REVIEW_LAUNCH"
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Update Title" }));
+
     expect(actionMocks.saveCurriculumDraft).not.toHaveBeenCalled();
   });
 });

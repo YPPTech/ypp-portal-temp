@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildLessonDesignStudioHref,
   deriveStudioPhase,
   getCanonicalStudioHref,
   getStudioEntryContextFromSearchParams,
@@ -47,6 +48,25 @@ describe("lesson design studio helpers", () => {
     expect(
       getStudioEntryContextFromSearchParams({ entry: "application_status" })
     ).toBe("APPLICATION_STATUS");
+  });
+
+  it("preserves the selected draft id when canonicalizing studio links", () => {
+    expect(
+      getCanonicalStudioHref({
+        entry: "application_status",
+        draftId: "draft_123",
+      })
+    ).toBe("/instructor/lesson-design-studio?entry=application-status&draftId=draft_123");
+  });
+
+  it("builds chooser and editor links with optional draft ids", () => {
+    expect(
+      buildLessonDesignStudioHref({
+        entryContext: "TRAINING",
+        draftId: "draft_456",
+      })
+    ).toBe("/instructor/lesson-design-studio?entry=training&draftId=draft_456");
+    expect(buildLessonDesignStudioHref()).toBe("/instructor/lesson-design-studio");
   });
 
   it("starts in the starter phase when the draft is blank", () => {

@@ -3,10 +3,12 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
+  createWorkingCopyFromCurriculumDraft,
   markLessonDesignStudioTourComplete,
   saveCurriculumDraft,
   submitCurriculumDraft,
 } from "@/lib/curriculum-draft-actions";
+import { isEditableCurriculumDraftStatus, isReadOnlyCurriculumDraftStatus } from "@/lib/curriculum-draft-lifecycle";
 import {
   MIN_CURRICULUM_OUTCOMES,
   buildSessionLabel,
@@ -22,6 +24,7 @@ import {
 } from "@/lib/curriculum-draft-progress";
 import {
   STUDIO_PHASES,
+  buildLessonDesignStudioHref,
   deriveStudioPhase,
   getStudioPhaseIndex,
   type StudioEntryContext,
@@ -111,6 +114,7 @@ interface StudioClientProps {
   userName: string;
   draft: DraftData;
   entryContext?: StudioEntryContext;
+  notice?: string | null;
   currentPhase?: StudioPhase;
   progress?: CurriculumDraftProgress;
 }
@@ -318,6 +322,7 @@ export function StudioClient({
   userName,
   draft,
   entryContext = "DIRECT",
+  notice = null,
   currentPhase,
   progress: initialProgress,
 }: StudioClientProps) {
@@ -406,6 +411,23 @@ export function StudioClient({
   const reviewRubric: StudioReviewRubric = normalizeReviewRubric(
     draft.reviewRubric
   );
+  const reviewStatus = currentStatus;
+  const isDraftEditable = isEditableCurriculumDraftStatus(reviewStatus);
+  const isDraftReadOnly = isReadOnlyCurriculumDraftStatus(reviewStatus);
+  const isApproved = reviewStatus === "APPROVED";
+  const needsRevision = reviewStatus === "NEEDS_REVISION";
+  const isReviewControlledStatus =
+    reviewStatus === "SUBMITTED" ||
+    reviewStatus === "APPROVED" ||
+    reviewStatus === "NEEDS_REVISION" ||
+    reviewStatus === "REJECTED";
+  const isWorkflowActionPending = isFlushing || isSubmitting || isExporting;
+  const workflowNotice =
+    notice === "active-draft-reused"
+      ? "You already had one editable curriculum open, so the studio reopened that working draft instead of creating a second one."
+      : notice === "draft-unavailable"
+        ? "That draft changed while you were working. We moved you back to the draft list so you can choose the next step safely."
+        : null;
 
   const progress = useMemo(
     () =>
@@ -545,6 +567,7 @@ export function StudioClient({
     async (snapshot: DraftSnapshot) => {
       const runSave = async () => {
         if (!isMountedRef.current) return false;
+        if (!isEditableCurriculumDraftStatus(currentStatus)) return true;
         setSaveStatus("saving");
 
         try {
@@ -600,9 +623,23 @@ export function StudioClient({
           }, 2000);
 
           return true;
-        } catch {
+        } catch (error) {
           if (isMountedRef.current) {
             setSaveStatus("error");
+          }
+
+          const message =
+            error instanceof Error ? error.message : "Failed to save draft";
+          if (
+            message.includes("Draft not found or unauthorized") ||
+            message.includes("locked for review history")
+          ) {
+            router.push(
+              buildLessonDesignStudioHref({
+                entryContext,
+                notice: "draft-unavailable",
+              })
+            );
           }
           return false;
         }
@@ -612,7 +649,14 @@ export function StudioClient({
       saveChainRef.current = queuedSave;
       return queuedSave;
     },
-    [draft.id, getSnapshotSignature, pushToHistory]
+    [
+      currentStatus,
+      draft.id,
+      entryContext,
+      getSnapshotSignature,
+      pushToHistory,
+      router,
+    ]
   );
 
   const triggerAutoSave = useCallback(
@@ -642,6 +686,7 @@ export function StudioClient({
 
   const handleUpdate = useCallback(
     (field: string, value: unknown) => {
+      if (!isDraftEditable) return;
       let nextSnapshot = buildSnapshot();
 
       switch (field) {
@@ -687,11 +732,12 @@ export function StudioClient({
 
       triggerAutoSave(nextSnapshot);
     },
-    [buildSnapshot, normalizePlansForConfig, triggerAutoSave, weeklyPlans]
+    [buildSnapshot, isDraftEditable, normalizePlansForConfig, triggerAutoSave, weeklyPlans]
   );
 
   const handleUpdateWeek = useCallback(
     (weekId: string, field: string, value: unknown) => {
+      if (!isDraftEditable) return;
       setWeeklyPlans((prev) => {
         const next = prev.map((week) =>
           week.id === weekId ? { ...week, [field]: value } : week
@@ -700,10 +746,11 @@ export function StudioClient({
         return next;
       });
     },
-    [buildSnapshot, triggerAutoSave]
+    [buildSnapshot, isDraftEditable, triggerAutoSave]
   );
 
   const handleAddWeek = useCallback(() => {
+    if (!isDraftEditable) return;
     const nextCourseConfig = normalizeCourseConfig({
       ...courseConfig,
       durationWeeks: courseConfig.durationWeeks + 1,
@@ -717,10 +764,18 @@ export function StudioClient({
         weeklyPlans: nextPlans,
       })
     );
-  }, [buildSnapshot, courseConfig, normalizePlansForConfig, triggerAutoSave, weeklyPlans]);
+  }, [
+    buildSnapshot,
+    courseConfig,
+    isDraftEditable,
+    normalizePlansForConfig,
+    triggerAutoSave,
+    weeklyPlans,
+  ]);
 
   const handleRemoveWeek = useCallback(
     (weekId: string) => {
+      if (!isDraftEditable) return;
       setWeeklyPlans((prev) => {
         const next = prev.map((week) =>
           week.id === weekId
@@ -739,11 +794,12 @@ export function StudioClient({
         return next;
       });
     },
-    [buildSnapshot, triggerAutoSave]
+    [buildSnapshot, isDraftEditable, triggerAutoSave]
   );
 
   const handleDuplicateWeek = useCallback(
     (weekId: string) => {
+      if (!isDraftEditable) return;
       setWeeklyPlans((prev) => {
         const sourceIndex = prev.findIndex((week) => week.id === weekId);
         if (sourceIndex === -1) return prev;
@@ -774,11 +830,12 @@ export function StudioClient({
         return next;
       });
     },
-    [buildSnapshot, triggerAutoSave]
+    [buildSnapshot, isDraftEditable, triggerAutoSave]
   );
 
   const handleAddActivity = useCallback(
     (weekId: string, activity: Omit<WeekActivity, "id" | "sortOrder">) => {
+      if (!isDraftEditable) return;
       setWeeklyPlans((prev) => {
         const next = prev.map((week) => {
           if (week.id !== weekId) return week;
@@ -799,11 +856,12 @@ export function StudioClient({
         return next;
       });
     },
-    [buildSnapshot, triggerAutoSave]
+    [buildSnapshot, isDraftEditable, triggerAutoSave]
   );
 
   const handleRemoveActivity = useCallback(
     (weekId: string, activityId: string) => {
+      if (!isDraftEditable) return;
       setWeeklyPlans((prev) => {
         const next = prev.map((week) => {
           if (week.id !== weekId) return week;
@@ -819,11 +877,12 @@ export function StudioClient({
         return next;
       });
     },
-    [buildSnapshot, triggerAutoSave]
+    [buildSnapshot, isDraftEditable, triggerAutoSave]
   );
 
   const handleUpdateActivity = useCallback(
     (weekId: string, activityId: string, fields: Partial<WeekActivity>) => {
+      if (!isDraftEditable) return;
       setWeeklyPlans((prev) => {
         const next = prev.map((week) => {
           if (week.id !== weekId) return week;
@@ -839,11 +898,12 @@ export function StudioClient({
         return next;
       });
     },
-    [buildSnapshot, triggerAutoSave]
+    [buildSnapshot, isDraftEditable, triggerAutoSave]
   );
 
   const handleReorderActivities = useCallback(
     (weekId: string, activeId: string, overId: string) => {
+      if (!isDraftEditable) return;
       setWeeklyPlans((prev) => {
         const next = prev.map((week) => {
           if (week.id !== weekId) return week;
@@ -868,11 +928,12 @@ export function StudioClient({
         return next;
       });
     },
-    [buildSnapshot, triggerAutoSave]
+    [buildSnapshot, isDraftEditable, triggerAutoSave]
   );
 
   const handleMoveActivityToWeek = useCallback(
     (fromWeekId: string, activityId: string, toWeekId: string) => {
+      if (!isDraftEditable) return;
       setWeeklyPlans((prev) => {
         const fromWeek = prev.find((week) => week.id === fromWeekId);
         const activity = fromWeek?.activities.find((item) => item.id === activityId);
@@ -905,11 +966,15 @@ export function StudioClient({
         return next;
       });
     },
-    [buildSnapshot, triggerAutoSave]
+    [buildSnapshot, isDraftEditable, triggerAutoSave]
   );
 
   const handleImportWeek = useCallback(
     (week: ExampleWeek, targetPlanId?: string | null) => {
+      if (!isDraftEditable) {
+        return false;
+      }
+
       let imported = false;
 
       setWeeklyPlans((prev) => {
@@ -991,11 +1056,12 @@ export function StudioClient({
       setActivePhase("SESSIONS");
       return true;
     },
-    [buildSnapshot, courseConfig.classDurationMin, triggerAutoSave]
+    [buildSnapshot, courseConfig.classDurationMin, isDraftEditable, triggerAutoSave]
   );
 
   const handleApplyStarterScaffold = useCallback(
     (seed: SeedCurriculum) => {
+      if (!isDraftEditable) return;
       pushToHistory(buildSnapshot());
 
       const nextCourseConfig = normalizeCourseConfig({
@@ -1060,7 +1126,7 @@ export function StudioClient({
       setActivePhase("COURSE_MAP");
       triggerAutoSave(nextSnapshot);
     },
-    [buildSnapshot, courseConfig, pushToHistory, triggerAutoSave]
+    [buildSnapshot, courseConfig, isDraftEditable, pushToHistory, triggerAutoSave]
   );
 
   const handleExportPdf = useCallback(
@@ -1076,11 +1142,13 @@ export function StudioClient({
       setIsExporting(true);
 
       try {
-        const didSave = await flushDraftNow();
-        if (!didSave) {
-          exportWindow.close();
-          alert("Please fix the save error before exporting.");
-          return false;
+        if (isEditableCurriculumDraftStatus(currentStatus)) {
+          const didSave = await flushDraftNow();
+          if (!didSave) {
+            exportWindow.close();
+            alert("Please fix the save error before exporting.");
+            return false;
+          }
         }
 
         exportWindow.location.href = `/instructor/lesson-design-studio/print?draftId=${draft.id}&type=${type}`;
@@ -1091,10 +1159,11 @@ export function StudioClient({
         }
       }
     },
-    [draft.id, flushDraftNow, isExporting, isFlushing, isSubmitting]
+    [currentStatus, draft.id, flushDraftNow, isExporting, isFlushing, isSubmitting]
   );
 
   const handleSubmit = useCallback(async () => {
+    if (!isDraftEditable) return false;
     if (isSubmitting || isExporting || isFlushing) return false;
 
     setIsSubmitting(true);
@@ -1120,10 +1189,11 @@ export function StudioClient({
         setIsSubmitting(false);
       }
     }
-  }, [draft.id, flushDraftNow, isExporting, isFlushing, isSubmitting, router]);
+  }, [draft.id, flushDraftNow, isDraftEditable, isExporting, isFlushing, isSubmitting, router]);
 
   const handleRestoreVersion = useCallback(
     (version: HistoryVersion) => {
+      if (!isDraftEditable) return;
       const { snapshot } = version;
       const nextUnderstandingChecks = normalizeUnderstandingChecks(
         snapshot.understandingChecks
@@ -1148,15 +1218,16 @@ export function StudioClient({
         understandingChecks: nextUnderstandingChecks,
       });
     },
-    [buildSnapshot, triggerAutoSave]
+    [buildSnapshot, isDraftEditable, triggerAutoSave]
   );
 
   const openExamplesLibrary = useCallback((targetPlanId?: string | null) => {
+    if (!isDraftEditable) return;
     setExamplesLibraryError(null);
     setHasManuallySelectedExampleTab(false);
     setLibraryTargetPlanId(targetPlanId ?? null);
     setShowExamplesLibrary(true);
-  }, []);
+  }, [isDraftEditable]);
 
   const handleExamplesTabChange = useCallback(
     (index: number, source?: "auto" | "user") => {
@@ -1182,6 +1253,7 @@ export function StudioClient({
       durationWeeks: number;
       classDurationMin: number;
     }) => {
+      if (!isDraftEditable) return;
       pushToHistory(buildSnapshot());
 
       const nextCourseConfig = normalizeCourseConfig({
@@ -1212,6 +1284,7 @@ export function StudioClient({
     [
       buildSnapshot,
       courseConfig,
+      isDraftEditable,
       normalizePlansForConfig,
       pushToHistory,
       triggerAutoSave,
@@ -1239,6 +1312,7 @@ export function StudioClient({
         };
       }>
     ) => {
+      if (!isDraftEditable) return;
       setWeeklyPlans((prev) => {
         const next = [...prev];
         let cursor = 0;
@@ -1289,7 +1363,7 @@ export function StudioClient({
       });
       setActivePhase("SESSIONS");
     },
-    [buildSnapshot, triggerAutoSave]
+    [buildSnapshot, isDraftEditable, triggerAutoSave]
   );
 
   const handleTourComplete = useCallback(async () => {
@@ -1300,7 +1374,7 @@ export function StudioClient({
     }
 
     try {
-      await markLessonDesignStudioTourComplete();
+      await markLessonDesignStudioTourComplete(draft.id);
       setManuallyRequestedTour(false);
       router.refresh();
     } catch (error) {
@@ -1310,7 +1384,28 @@ export function StudioClient({
           : "Failed to save tour completion"
       );
     }
-  }, [flushDraftNow, router]);
+  }, [draft.id, flushDraftNow, router]);
+
+  const handleCreateWorkingCopy = useCallback(async () => {
+    if (isWorkflowActionPending) return;
+
+    try {
+      const result = await createWorkingCopyFromCurriculumDraft(draft.id);
+      router.push(
+        buildLessonDesignStudioHref({
+          entryContext,
+          draftId: result.draftId,
+          notice: result.reusedExisting ? "active-draft-reused" : null,
+        })
+      );
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to open a working copy."
+      );
+    }
+  }, [draft.id, entryContext, isWorkflowActionPending, router]);
 
   const restartOnboardingTour = useCallback(() => {
     try {
@@ -1343,15 +1438,7 @@ export function StudioClient({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showHistory]);
 
-  const reviewStatus = currentStatus;
-  const isApproved = reviewStatus === "APPROVED";
-  const needsRevision = reviewStatus === "NEEDS_REVISION";
   const nonEmptyOutcomes = outcomes.filter((outcome) => outcome.trim().length > 0);
-  const isReviewControlledStatus =
-    reviewStatus === "SUBMITTED" ||
-    reviewStatus === "APPROVED" ||
-    reviewStatus === "NEEDS_REVISION" ||
-    reviewStatus === "REJECTED";
   const isDraftBlank =
     title.trim().length === 0 &&
     description.trim().length === 0 &&
@@ -1375,7 +1462,6 @@ export function StudioClient({
     )?.seed ?? SEED_CURRICULA[0];
   const launchActionsReady = Boolean(draft.generatedTemplateId);
   const blockerCount = progress.submissionIssues.length;
-  const isWorkflowActionPending = isFlushing || isSubmitting || isExporting;
   const targetPlanLabel = libraryTargetPlanId
     ? (() => {
         const targetPlan = weeklyPlans.find((plan) => plan.id === libraryTargetPlanId);
@@ -1386,7 +1472,7 @@ export function StudioClient({
     : null;
 
   return (
-    <div className="cbs-studio lds-shell">
+    <div className={`cbs-studio lds-shell${isDraftReadOnly ? " lds-shell-readonly" : ""}`}>
       <section className="card lds-hero-card">
         <div className="lds-hero-top">
           <div>
@@ -1398,13 +1484,13 @@ export function StudioClient({
 
           <div className="lds-hero-statuses">
             <span className={statusPill.className}>{statusPill.label}</span>
-            {saveStatus === "saving" ? (
+            {isDraftEditable && saveStatus === "saving" ? (
               <span className="pill">Saving</span>
             ) : null}
-            {saveStatus === "saved" ? (
+            {isDraftEditable && saveStatus === "saved" ? (
               <span className="pill pill-success">Auto-saved</span>
             ) : null}
-            {saveStatus === "error" ? (
+            {isDraftEditable && saveStatus === "error" ? (
               <span className="pill pill-pending">Save failed</span>
             ) : null}
           </div>
@@ -1438,16 +1524,32 @@ export function StudioClient({
         </div>
 
         <div className="lds-hero-actions">
-          <button
-            type="button"
-            className="button secondary"
-            onClick={() => {
-              openExamplesLibrary(null);
-            }}
-          >
-            Open Examples Library
-          </button>
-          {!isReviewControlledStatus ? (
+          {isDraftEditable ? (
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => {
+                openExamplesLibrary(null);
+              }}
+            >
+              Open Examples Library
+            </button>
+          ) : null}
+          {isDraftReadOnly ? (
+            <button
+              type="button"
+              className="button"
+              onClick={() => void handleCreateWorkingCopy()}
+              disabled={isWorkflowActionPending}
+            >
+              {isApproved
+                ? "Build another from this"
+                : reviewStatus === "REJECTED"
+                  ? "Start over from this draft"
+                  : "Use as starting point"}
+            </button>
+          ) : null}
+          {isDraftEditable ? (
             <button
               type="button"
               className="button secondary"
@@ -1456,7 +1558,7 @@ export function StudioClient({
               Restart Tour
             </button>
           ) : null}
-          {historyVersions.length > 0 ? (
+          {isDraftEditable && historyVersions.length > 0 ? (
             <button
               type="button"
               className="button secondary"
@@ -1470,6 +1572,29 @@ export function StudioClient({
           </span>
         </div>
       </section>
+
+      {workflowNotice ? (
+        <section className="card lds-readonly-banner" role="status">
+          <strong>Studio update</strong>
+          <p>{workflowNotice}</p>
+        </section>
+      ) : null}
+
+      {isDraftReadOnly ? (
+        <section className="card lds-readonly-banner">
+          <strong>
+            {reviewStatus === "SUBMITTED"
+              ? "This curriculum is under review."
+              : reviewStatus === "APPROVED"
+                ? "This curriculum is approved."
+                : "This curriculum is preserved as review history."}
+          </strong>
+          <p>
+            You can review the course, switch phases, and export PDFs here. To keep editing,
+            start a new working draft from this curriculum so the submitted history stays stable.
+          </p>
+        </section>
+      ) : null}
 
       <div className="lds-phase-strip" role="tablist" aria-label="Studio phases">
         {STUDIO_PHASES.map((phase) => {
@@ -1535,6 +1660,7 @@ export function StudioClient({
         onExportPdf={handleExportPdf}
         onSubmit={handleSubmit}
         isActionPending={isWorkflowActionPending}
+        isReadOnly={isDraftReadOnly}
         isSubmitted={reviewStatus === "SUBMITTED" || reviewStatus === "APPROVED"}
         generatedTemplateId={draft.generatedTemplateId}
         launchActionsReady={launchActionsReady}

@@ -12,13 +12,20 @@ import { authOptions } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { TrainingModuleType } from "@prisma/client";
 import {
-  DEFAULT_COURSE_CONFIG,
-  buildUnderstandingChecksState,
-  emptyReviewRubric,
   getCurriculumDraftProgress,
   normalizeCourseConfig,
   normalizeUnderstandingChecks,
 } from "@/lib/curriculum-draft-progress";
+import {
+  buildBlankCurriculumDraftRecord,
+  buildWorkingCopyCurriculumDraftRecord,
+  deriveEditableCurriculumDraftStatus,
+  isEditableCurriculumDraftStatus,
+  isReadOnlyCurriculumDraftStatus,
+  pickPrimaryEditableCurriculumDraft,
+  sortCurriculumDraftsForChooser,
+  type CurriculumDraftSummaryRecord,
+} from "@/lib/curriculum-draft-lifecycle";
 import { syncTrainingAssignmentFromArtifacts } from "@/lib/training-actions";
 
 const LESSON_DESIGN_STUDIO_MODULE_KEY = "academy_lesson_studio_006";
@@ -46,6 +53,57 @@ function revalidateStudioAndTrainingSurfaces(moduleIds: string[] = []) {
   for (const moduleId of moduleIds) {
     revalidatePath(`/training/${moduleId}`);
   }
+}
+
+function buildDraftSummary(draft: {
+  id: string;
+  title: string;
+  status: string;
+  updatedAt: Date;
+  submittedAt: Date | null;
+  approvedAt: Date | null;
+  generatedTemplateId: string | null;
+}) {
+  return {
+    id: draft.id,
+    title: draft.title,
+    status: draft.status,
+    updatedAt: draft.updatedAt.toISOString(),
+    submittedAt: draft.submittedAt?.toISOString() ?? null,
+    approvedAt: draft.approvedAt?.toISOString() ?? null,
+    generatedTemplateId: draft.generatedTemplateId,
+    isEditable: isEditableCurriculumDraftStatus(draft.status),
+    isPrimaryEditable: false,
+  } satisfies CurriculumDraftSummaryRecord;
+}
+
+async function findEditableDraftsForUser(userId: string) {
+  return prisma.curriculumDraft.findMany({
+    where: {
+      authorId: userId,
+      status: {
+        in: ["IN_PROGRESS", "COMPLETED", "NEEDS_REVISION"],
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+}
+
+async function getEditableDraftForUser(userId: string) {
+  const editableDrafts = await findEditableDraftsForUser(userId);
+  return pickPrimaryEditableCurriculumDraft(editableDrafts);
+}
+
+async function getOwnedCurriculumDraftForStudio(userId: string, draftId: string) {
+  const draft = await prisma.curriculumDraft.findUnique({
+    where: { id: draftId },
+  });
+
+  if (!draft || draft.authorId !== userId) {
+    return null;
+  }
+
+  return draft;
 }
 
 async function getLessonDesignStudioModules() {
@@ -194,39 +252,184 @@ async function syncLessonDesignStudioTrainingArtifacts(
     await syncTrainingAssignmentFromArtifacts(userId, trainingModule.id);
   }
 
-  revalidateStudioAndTrainingSurfaces(modules.map((module) => module.id));
+  revalidateStudioAndTrainingSurfaces(
+    modules.map((trainingModule) => trainingModule.id)
+  );
 }
 
 /**
- * Get the user's existing curriculum draft, or create a new one if none exists.
+ * Get the user's active editable curriculum draft, or create a blank one if none exists.
  */
 export async function getOrCreateCurriculumDraft() {
   const session = await requireStudioAccess();
-
-  let draft = await prisma.curriculumDraft.findFirst({
-    where: { authorId: session.user.id },
-    orderBy: { updatedAt: "desc" },
-  });
+  let draft = await getEditableDraftForUser(session.user.id);
 
   if (!draft) {
     draft = await prisma.curriculumDraft.create({
       data: {
         authorId: session.user.id,
-        title: "",
-        description: null,
-        interestArea: "",
-        outcomes: [],
-        courseConfig: DEFAULT_COURSE_CONFIG as any,
-        weeklyPlans: JSON.parse("[]"),
-        understandingChecks: buildUnderstandingChecksState({}) as any,
-        reviewRubric: emptyReviewRubric() as any,
-        status: "IN_PROGRESS",
+        ...(buildBlankCurriculumDraftRecord() as any),
       },
     });
   }
 
   await syncLessonDesignStudioTrainingArtifacts(session.user.id, draft);
   return draft;
+}
+
+export async function listCurriculumDraftSummaries() {
+  const session = await requireStudioAccess();
+  const drafts = await prisma.curriculumDraft.findMany({
+    where: { authorId: session.user.id },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      updatedAt: true,
+      submittedAt: true,
+      approvedAt: true,
+      generatedTemplateId: true,
+    },
+  });
+
+  const primaryEditableDraft = pickPrimaryEditableCurriculumDraft(drafts);
+
+  return sortCurriculumDraftsForChooser(drafts).map((draft) => ({
+    ...buildDraftSummary(draft),
+    isPrimaryEditable: primaryEditableDraft?.id === draft.id,
+  }));
+}
+
+export async function getPreferredCurriculumDraftForStudioSurface() {
+  const session = await requireStudioAccess();
+  const drafts = await prisma.curriculumDraft.findMany({
+    where: { authorId: session.user.id },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  const primaryEditableDraft = pickPrimaryEditableCurriculumDraft(drafts);
+  return primaryEditableDraft ?? drafts[0] ?? null;
+}
+
+export async function getCurriculumDraftForStudio(draftId: string) {
+  const session = await requireStudioAccess();
+  return getOwnedCurriculumDraftForStudio(session.user.id, draftId);
+}
+
+export async function createBlankCurriculumDraft() {
+  const session = await requireStudioAccess();
+
+  const result = await prisma.$transaction(async (tx) => {
+    const editableDrafts = await tx.curriculumDraft.findMany({
+      where: {
+        authorId: session.user.id,
+        status: {
+          in: ["IN_PROGRESS", "COMPLETED", "NEEDS_REVISION"],
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    const existingEditableDraft = pickPrimaryEditableCurriculumDraft(editableDrafts);
+    if (existingEditableDraft) {
+      return {
+        draft: existingEditableDraft,
+        reusedExisting: true,
+      };
+    }
+
+    const createdDraft = await tx.curriculumDraft.create({
+      data: {
+        authorId: session.user.id,
+        ...(buildBlankCurriculumDraftRecord() as any),
+      },
+    });
+
+    return {
+      draft: createdDraft,
+      reusedExisting: false,
+    };
+  });
+
+  await syncLessonDesignStudioTrainingArtifacts(session.user.id, result.draft);
+  revalidateStudioAndTrainingSurfaces();
+
+  return {
+    draftId: result.draft.id,
+    reusedExisting: result.reusedExisting,
+  };
+}
+
+export async function createWorkingCopyFromCurriculumDraft(sourceDraftId: string) {
+  const session = await requireStudioAccess();
+
+  const result = await prisma.$transaction(async (tx) => {
+    const editableDrafts = await tx.curriculumDraft.findMany({
+      where: {
+        authorId: session.user.id,
+        status: {
+          in: ["IN_PROGRESS", "COMPLETED", "NEEDS_REVISION"],
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    const existingEditableDraft = pickPrimaryEditableCurriculumDraft(editableDrafts);
+    if (existingEditableDraft) {
+      return {
+        draft: existingEditableDraft,
+        reusedExisting: true,
+      };
+    }
+
+    const sourceDraft = await tx.curriculumDraft.findUnique({
+      where: { id: sourceDraftId },
+      select: {
+        id: true,
+        authorId: true,
+        title: true,
+        description: true,
+        interestArea: true,
+        outcomes: true,
+        courseConfig: true,
+        weeklyPlans: true,
+        understandingChecks: true,
+        status: true,
+      },
+    });
+
+    if (!sourceDraft || sourceDraft.authorId !== session.user.id) {
+      throw new Error("Draft not found or unauthorized");
+    }
+
+    if (isEditableCurriculumDraftStatus(sourceDraft.status)) {
+      return {
+        draft: sourceDraft,
+        reusedExisting: true,
+      };
+    }
+
+    const createdDraft = await tx.curriculumDraft.create({
+      data: {
+        authorId: session.user.id,
+        ...(buildWorkingCopyCurriculumDraftRecord(sourceDraft) as any),
+      },
+    });
+
+    return {
+      draft: createdDraft,
+      reusedExisting: false,
+    };
+  });
+
+  await syncLessonDesignStudioTrainingArtifacts(session.user.id, result.draft);
+  revalidateStudioAndTrainingSurfaces();
+
+  return {
+    draftId: result.draft.id,
+    reusedExisting: result.reusedExisting,
+  };
 }
 
 /**
@@ -253,24 +456,23 @@ export async function saveCurriculumDraft(data: {
     throw new Error("Draft not found or unauthorized");
   }
 
-  const progress = getCurriculumDraftProgress({
-    title: data.title,
-    interestArea: data.interestArea,
-    outcomes: data.outcomes,
-    courseConfig: data.courseConfig,
-    weeklyPlans: data.weeklyPlans,
-    understandingChecks: data.understandingChecks,
-  });
+  if (isReadOnlyCurriculumDraftStatus(existing.status)) {
+    throw new Error(
+      "This draft is locked for review history. Create a working copy to keep editing."
+    );
+  }
 
   const nextStatus =
-    existing.status === "APPROVED" ||
-    existing.status === "REJECTED" ||
-    existing.status === "SUBMITTED" ||
     existing.status === "NEEDS_REVISION"
       ? existing.status
-      : progress.readyForSubmission
-        ? "COMPLETED"
-        : "IN_PROGRESS";
+      : deriveEditableCurriculumDraftStatus({
+          title: data.title,
+          interestArea: data.interestArea,
+          outcomes: data.outcomes,
+          courseConfig: data.courseConfig,
+          weeklyPlans: data.weeklyPlans,
+          understandingChecks: data.understandingChecks,
+        });
 
   const draft = await prisma.curriculumDraft.update({
     where: { id: data.draftId },
@@ -285,7 +487,7 @@ export async function saveCurriculumDraft(data: {
         data.understandingChecks
       ) as any,
       status: nextStatus,
-      completedAt: nextStatus === "IN_PROGRESS" ? null : new Date(),
+      completedAt: nextStatus === "COMPLETED" ? new Date() : null,
       updatedAt: new Date(),
     },
   });
@@ -322,6 +524,14 @@ export async function submitCurriculumDraft(draftId: string) {
     throw new Error("This curriculum has already been approved and moved into launch.");
   }
 
+  if (existing.status === "SUBMITTED") {
+    throw new Error("This curriculum is already waiting for review.");
+  }
+
+  if (existing.status === "REJECTED") {
+    throw new Error("Create a working copy from this draft before submitting again.");
+  }
+
   const progress = getCurriculumDraftProgress({
     title: existing.title,
     interestArea: existing.interestArea,
@@ -348,9 +558,13 @@ export async function submitCurriculumDraft(draftId: string) {
   return { success: true };
 }
 
-export async function markLessonDesignStudioTourComplete() {
+export async function markLessonDesignStudioTourComplete(draftId: string) {
   const session = await requireStudioAccess();
-  const draft = await getOrCreateCurriculumDraft();
+  const draft = await getOwnedCurriculumDraftForStudio(session.user.id, draftId);
+  if (!draft) {
+    throw new Error("Draft not found or unauthorized");
+  }
+
   await syncLessonDesignStudioTrainingArtifacts(session.user.id, draft, {
     tourCompleted: true,
   });

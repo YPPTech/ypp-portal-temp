@@ -1,13 +1,18 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
-import { getOrCreateCurriculumDraft } from "@/lib/curriculum-draft-actions";
+import {
+  getCurriculumDraftForStudio,
+  listCurriculumDraftSummaries,
+} from "@/lib/curriculum-draft-actions";
 import { getCurriculumDraftProgress } from "@/lib/curriculum-draft-progress";
 import {
   deriveStudioPhase,
   getCanonicalStudioHref,
+  getStudioDraftIdFromSearchParams,
   getStudioEntryContextFromSearchParams,
 } from "@/lib/lesson-design-studio";
+import { DraftChooser } from "./draft-chooser";
 import { StudioClient } from "./studio-client";
 import "./studio.css";
 
@@ -29,12 +34,36 @@ export default async function CurriculumBuilderStudioPage({
   if (!hasAccess) redirect("/");
 
   const params = (await searchParams) ?? {};
+  const entryContext = getStudioEntryContextFromSearchParams(params);
+  const draftId = getStudioDraftIdFromSearchParams(params);
+  const noticeParam = params.notice;
+  const notice =
+    typeof noticeParam === "string"
+      ? noticeParam
+      : Array.isArray(noticeParam)
+        ? noticeParam[0] ?? null
+        : null;
   const canonicalHref = getCanonicalStudioHref(params);
   if (canonicalHref) {
     redirect(canonicalHref);
   }
 
-  const draft = await getOrCreateCurriculumDraft();
+  const [draftSummaries, draft] = await Promise.all([
+    listCurriculumDraftSummaries(),
+    draftId ? getCurriculumDraftForStudio(draftId) : Promise.resolve(null),
+  ]);
+
+  if (!draftId || !draft) {
+    return (
+      <DraftChooser
+        userName={session.user.name ?? "Instructor"}
+        entryContext={entryContext}
+        drafts={draftSummaries}
+        notice={draftId && !draft ? notice ?? "draft-not-found" : notice}
+      />
+    );
+  }
+
   const progress = getCurriculumDraftProgress({
     title: draft.title,
     interestArea: draft.interestArea,
@@ -43,7 +72,6 @@ export default async function CurriculumBuilderStudioPage({
     weeklyPlans: draft.weeklyPlans,
     understandingChecks: draft.understandingChecks,
   });
-  const entryContext = getStudioEntryContextFromSearchParams(params);
   const currentPhase = deriveStudioPhase({
     status: draft.status,
     title: draft.title,
@@ -60,6 +88,7 @@ export default async function CurriculumBuilderStudioPage({
       userId={session.user.id}
       userName={session.user.name ?? "Instructor"}
       entryContext={entryContext}
+      notice={notice}
       currentPhase={currentPhase}
       progress={progress}
       draft={{

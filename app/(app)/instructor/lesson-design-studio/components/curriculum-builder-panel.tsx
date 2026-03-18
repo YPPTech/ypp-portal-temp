@@ -114,6 +114,7 @@ interface CurriculumBuilderPanelProps {
   onExportPdf: (type: "student" | "instructor") => Promise<boolean>;
   onSubmit: () => Promise<boolean>;
   isActionPending: boolean;
+  isReadOnly: boolean;
   isSubmitted: boolean;
   generatedTemplateId: string | null;
   launchActionsReady: boolean;
@@ -260,6 +261,7 @@ function HelpTooltip({ tip }: { tip: string }) {
 interface SortableActivityProps {
   activity: WeekActivity;
   weekId: string;
+  isReadOnly: boolean;
   isExpanded: boolean;
   onToggle: () => void;
   onUpdateActivity: (weekId: string, activityId: string, fields: Partial<WeekActivity>) => void;
@@ -271,6 +273,7 @@ interface SortableActivityProps {
 function SortableActivity({
   activity,
   weekId,
+  isReadOnly,
   isExpanded,
   onToggle,
   onUpdateActivity,
@@ -284,7 +287,7 @@ function SortableActivity({
     setNodeRef,
     transform,
     transition,
-  } = useSortable({ id: activity.id });
+  } = useSortable({ id: activity.id, disabled: isReadOnly });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -296,10 +299,12 @@ function SortableActivity({
   const [customTagInput, setCustomTagInput] = useState("");
 
   function update(fields: Partial<WeekActivity>) {
+    if (isReadOnly) return;
     onUpdateActivity(weekId, activity.id, fields);
   }
 
   function toggleTag(tag: string) {
+    if (isReadOnly) return;
     const current = activity.standardsTags ?? [];
     if (current.includes(tag)) {
       update({ standardsTags: current.filter((t) => t !== tag) });
@@ -309,6 +314,7 @@ function SortableActivity({
   }
 
   function addCustomTag() {
+    if (isReadOnly) return;
     const trimmed = customTagInput.trim();
     if (!trimmed) return;
     const current = activity.standardsTags ?? [];
@@ -331,8 +337,15 @@ function SortableActivity({
         <span
           className="cbs-activity-drag-handle"
           {...attributes}
-          {...listeners}
-          style={{ cursor: "grab", color: "#94a3b8", fontSize: 16, lineHeight: 1, padding: "0 4px" }}
+          {...(isReadOnly ? {} : listeners)}
+          style={{
+            cursor: isReadOnly ? "default" : "grab",
+            color: "#94a3b8",
+            fontSize: 16,
+            lineHeight: 1,
+            padding: "0 4px",
+            opacity: isReadOnly ? 0.55 : 1,
+          }}
         >
           ⠿
         </span>
@@ -384,6 +397,7 @@ function SortableActivity({
           <button
             type="button"
             onClick={() => update({ durationMin: Math.max(1, activity.durationMin - 1) })}
+            disabled={isReadOnly}
             style={{ background: "none", border: "1px solid #334155", borderRadius: 4, width: 20, height: 20, cursor: "pointer", fontSize: 12, lineHeight: 1, color: "#94a3b8", padding: 0 }}
             aria-label="Decrease duration"
           >
@@ -395,6 +409,7 @@ function SortableActivity({
           <button
             type="button"
             onClick={() => update({ durationMin: activity.durationMin + 1 })}
+            disabled={isReadOnly}
             style={{ background: "none", border: "1px solid #334155", borderRadius: 4, width: 20, height: 20, cursor: "pointer", fontSize: 12, lineHeight: 1, color: "#94a3b8", padding: 0 }}
             aria-label="Increase duration"
           >
@@ -406,6 +421,7 @@ function SortableActivity({
           className="cbs-activity-delete-btn"
           onClick={() => onRemoveActivity(weekId, activity.id)}
           type="button"
+          disabled={isReadOnly}
           aria-label="Remove activity"
           style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 16, lineHeight: 1, padding: "0 4px" }}
         >
@@ -422,6 +438,7 @@ function SortableActivity({
             className="cbs-expand-title-input"
             value={activity.title}
             onChange={(e) => update({ title: e.target.value })}
+            readOnly={isReadOnly}
             placeholder="Activity title..."
             style={{ fontSize: 15, fontWeight: 600, padding: "6px 10px", borderRadius: 6, border: "1px solid #334155", background: "#0f172a", color: "#f1f5f9", width: "100%", boxSizing: "border-box" }}
           />
@@ -435,6 +452,7 @@ function SortableActivity({
               rows={4}
               value={activity.description ?? ""}
               onChange={(e) => update({ description: e.target.value })}
+              readOnly={isReadOnly}
               placeholder="Describe what students will do during this activity..."
               style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #334155", background: "#0f172a", color: "#f1f5f9", fontSize: 13, resize: "vertical", boxSizing: "border-box" }}
             />
@@ -449,6 +467,7 @@ function SortableActivity({
               rows={2}
               value={activity.materials ?? ""}
               onChange={(e) => update({ materials: e.target.value })}
+              readOnly={isReadOnly}
               placeholder="e.g., printed worksheets, markers, index cards..."
               style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #334155", background: "#0f172a", color: "#f1f5f9", fontSize: 13, resize: "vertical", boxSizing: "border-box" }}
             />
@@ -468,6 +487,7 @@ function SortableActivity({
                     key={el.value}
                     type="button"
                     onClick={() => update({ energyLevel: isSelected ? null : el.value })}
+                    disabled={isReadOnly}
                     style={{
                       padding: "4px 12px",
                       borderRadius: 16,
@@ -496,6 +516,7 @@ function SortableActivity({
               rows={2}
               value={activity.differentiationTips ?? ""}
               onChange={(e) => update({ differentiationTips: e.target.value })}
+              readOnly={isReadOnly}
               placeholder="How to support struggling students or challenge advanced ones..."
               style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #334155", background: "#0f172a", color: "#f1f5f9", fontSize: 13, resize: "vertical", boxSizing: "border-box" }}
             />
@@ -518,6 +539,7 @@ function SortableActivity({
                       key={tag}
                       type="button"
                       onClick={() => toggleTag(tag)}
+                      disabled={isReadOnly}
                       style={{
                         padding: "2px 8px",
                         borderRadius: 12,
@@ -545,6 +567,7 @@ function SortableActivity({
                       key={tag}
                       type="button"
                       onClick={() => toggleTag(tag)}
+                      disabled={isReadOnly}
                       style={{
                         padding: "2px 8px",
                         borderRadius: 12,
@@ -568,12 +591,14 @@ function SortableActivity({
                 value={customTagInput}
                 onChange={(e) => setCustomTagInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomTag(); } }}
+                readOnly={isReadOnly}
                 placeholder="Add custom tag..."
                 style={{ flex: 1, padding: "4px 8px", borderRadius: 6, border: "1px solid #334155", background: "#0f172a", color: "#f1f5f9", fontSize: 12 }}
               />
               <button
                 type="button"
                 onClick={addCustomTag}
+                disabled={isReadOnly}
                 style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #334155", background: "#1e293b", color: "#94a3b8", fontSize: 12, cursor: "pointer" }}
               >
                 Add
@@ -602,6 +627,7 @@ function SortableActivity({
                     <button
                       type="button"
                       onClick={() => toggleTag(tag)}
+                      disabled={isReadOnly}
                       style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b", fontSize: 12, lineHeight: 1, padding: 0 }}
                       aria-label={`Remove tag ${tag}`}
                     >
@@ -623,6 +649,7 @@ function SortableActivity({
                 rows={3}
                 value={activity.rubric ?? ""}
                 onChange={(e) => update({ rubric: e.target.value })}
+                readOnly={isReadOnly}
                 placeholder="Describe how this will be graded or evaluated..."
                 style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #334155", background: "#0f172a", color: "#f1f5f9", fontSize: 13, resize: "vertical", boxSizing: "border-box" }}
               />
@@ -638,6 +665,7 @@ function SortableActivity({
               rows={2}
               value={activity.resources ?? ""}
               onChange={(e) => update({ resources: e.target.value })}
+              readOnly={isReadOnly}
               placeholder="Links, handouts, or tools for this activity..."
               style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #334155", background: "#0f172a", color: "#f1f5f9", fontSize: 13, resize: "vertical", boxSizing: "border-box" }}
             />
@@ -652,6 +680,7 @@ function SortableActivity({
               rows={2}
               value={activity.notes ?? ""}
               onChange={(e) => update({ notes: e.target.value })}
+              readOnly={isReadOnly}
               placeholder="Private notes for you as the instructor..."
               style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #334155", background: "#0f172a", color: "#f1f5f9", fontSize: 13, resize: "vertical", boxSizing: "border-box" }}
             />
@@ -670,6 +699,7 @@ function SortableActivity({
                     onMoveToWeek(e.target.value);
                   }
                 }}
+                disabled={isReadOnly}
                 style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #334155", background: "#0f172a", color: "#f1f5f9", fontSize: 12 }}
               >
                 <option value="" disabled>Select week...</option>
@@ -691,13 +721,19 @@ function SortableActivity({
 
 interface WeekDetailSectionProps {
   week: WeekPlan;
+  isReadOnly: boolean;
   onUpdateWeek: (weekId: string, field: string, value: any) => void;
 }
 
-function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
+function WeekDetailSection({
+  week,
+  isReadOnly,
+  onUpdateWeek,
+}: WeekDetailSectionProps) {
   const [atHomeEnabled, setAtHomeEnabled] = useState(!!week.atHomeAssignment);
 
   function handleAtHomeToggle(enabled: boolean) {
+    if (isReadOnly) return;
     setAtHomeEnabled(enabled);
     if (!enabled) {
       onUpdateWeek(week.id, "atHomeAssignment", null);
@@ -711,16 +747,19 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
   }
 
   function handleChecklist(index: number, value: string) {
+    if (isReadOnly) return;
     const next = [...(week.materialsChecklist ?? [])];
     next[index] = value;
     onUpdateWeek(week.id, "materialsChecklist", next);
   }
 
   function handleAddChecklistItem() {
+    if (isReadOnly) return;
     onUpdateWeek(week.id, "materialsChecklist", [...(week.materialsChecklist ?? []), ""]);
   }
 
   function handleRemoveChecklistItem(index: number) {
+    if (isReadOnly) return;
     onUpdateWeek(week.id, "materialsChecklist", (week.materialsChecklist ?? []).filter((_, i) => i !== index));
   }
 
@@ -746,6 +785,7 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
         <input
           value={week.objective ?? ""}
           onChange={(e) => onUpdateWeek(week.id, "objective", e.target.value)}
+          readOnly={isReadOnly}
           placeholder="What will students be able to do after this class?"
           style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #d6d3d1", background: "#ffffff", color: "#111827", fontSize: 13, boxSizing: "border-box" }}
         />
@@ -761,6 +801,7 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
           rows={3}
           value={week.teacherPrepNotes ?? ""}
           onChange={(e) => onUpdateWeek(week.id, "teacherPrepNotes", e.target.value)}
+          readOnly={isReadOnly}
           placeholder="What do you need to prepare before class? e.g., print 30 copies of worksheet, set up group tables..."
           style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #d6d3d1", background: "#ffffff", color: "#111827", fontSize: 13, resize: "vertical", boxSizing: "border-box" }}
         />
@@ -776,12 +817,14 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
             <input
               value={item}
               onChange={(e) => handleChecklist(i, e.target.value)}
+              readOnly={isReadOnly}
               placeholder={`Item ${i + 1}...`}
               style={{ flex: 1, padding: "4px 8px", borderRadius: 6, border: "1px solid #d6d3d1", background: "#ffffff", color: "#111827", fontSize: 12 }}
             />
             <button
               type="button"
               onClick={() => handleRemoveChecklistItem(i)}
+              disabled={isReadOnly}
               style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b", fontSize: 16, lineHeight: 1, padding: "0 4px" }}
               aria-label="Remove item"
             >
@@ -792,6 +835,7 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
         <button
           type="button"
           onClick={handleAddChecklistItem}
+          disabled={isReadOnly}
           style={{ fontSize: 12, color: "#b45309", background: "none", border: "none", cursor: "pointer", padding: "2px 0" }}
         >
           + Add Item
@@ -806,6 +850,7 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
               type="checkbox"
               checked={atHomeEnabled}
               onChange={(e) => handleAtHomeToggle(e.target.checked)}
+              disabled={isReadOnly}
               style={{ cursor: "pointer" }}
             />
             At-Home Assignment
@@ -822,6 +867,7 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
                   type: e.target.value as AtHomeAssignmentType,
                 })
               }
+              disabled={isReadOnly}
               style={{ padding: "5px 8px", borderRadius: 6, border: "1px solid #d6d3d1", background: "#ffffff", color: "#111827", fontSize: 13 }}
             >
               {AT_HOME_TYPES.map((t) => (
@@ -838,6 +884,7 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
                   title: e.target.value,
                 })
               }
+              readOnly={isReadOnly}
               placeholder="Assignment title..."
               style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #d6d3d1", background: "#ffffff", color: "#111827", fontSize: 13 }}
             />
@@ -850,6 +897,7 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
                   description: e.target.value,
                 })
               }
+              readOnly={isReadOnly}
               placeholder="Describe the assignment..."
               style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #d6d3d1", background: "#ffffff", color: "#111827", fontSize: 13, resize: "vertical" }}
             />
@@ -1043,11 +1091,13 @@ function ProgressBar({
 
 interface UnderstandingCheckSectionProps {
   understandingChecks: StudioUnderstandingChecks;
+  isReadOnly: boolean;
   onUpdate: (field: string, value: unknown) => void;
 }
 
 function UnderstandingCheckSection({
   understandingChecks,
+  isReadOnly,
   onUpdate,
 }: UnderstandingCheckSectionProps) {
   const answeredCount = Object.keys(understandingChecks.answers).length;
@@ -1057,6 +1107,7 @@ function UnderstandingCheckSection({
       : "Not graded yet";
 
   function handleAnswer(questionId: string, answer: string) {
+    if (isReadOnly) return;
     const nextAnswers = {
       ...understandingChecks.answers,
       [questionId]: answer,
@@ -1146,6 +1197,7 @@ function UnderstandingCheckSection({
                       name={question.id}
                       checked={selected === option}
                       onChange={() => handleAnswer(question.id, option)}
+                      disabled={isReadOnly}
                     />
                     <span>{option}</span>
                   </label>
@@ -1519,6 +1571,7 @@ export function CurriculumBuilderPanel({
   onExportPdf,
   onSubmit,
   isActionPending,
+  isReadOnly,
   isSubmitted,
   generatedTemplateId,
   launchActionsReady,
@@ -1544,20 +1597,24 @@ export function CurriculumBuilderPanel({
   }
 
   function handleOutcomeChange(index: number, value: string) {
+    if (isReadOnly) return;
     const next = [...outcomes];
     next[index] = value;
     onUpdate("outcomes", next);
   }
 
   function handleRemoveOutcome(index: number) {
+    if (isReadOnly) return;
     onUpdate("outcomes", outcomes.filter((_, i) => i !== index));
   }
 
   function handleAddOutcome() {
+    if (isReadOnly) return;
     onUpdate("outcomes", [...outcomes, ""]);
   }
 
   function updateCourseConfig(patch: Partial<StudioCourseConfig>) {
+    if (isReadOnly) return;
     const nextCourseConfig = {
       ...courseConfig,
       ...patch,
@@ -1586,6 +1643,7 @@ export function CurriculumBuilderPanel({
   }
 
   function handleQuickAddActivity(weekId: string, type: ActivityType) {
+    if (isReadOnly) return;
     const config = getActivityConfig(type);
     onAddActivity(weekId, {
       title: config.label,
@@ -1692,6 +1750,7 @@ export function CurriculumBuilderPanel({
                 type="button"
                 className="button secondary"
                 onClick={() => onOpenExamplesLibrary(null)}
+                disabled={isReadOnly}
               >
                 Browse Examples Library
               </button>
@@ -1771,6 +1830,7 @@ export function CurriculumBuilderPanel({
                       type="button"
                       className="button"
                       onClick={() => onApplyStarterScaffold(seed)}
+                      disabled={isReadOnly}
                     >
                       Apply full starter scaffold
                     </button>
@@ -1816,6 +1876,7 @@ export function CurriculumBuilderPanel({
                   type="button"
                   className="button secondary"
                   onClick={() => onApplyStarterScaffold(seed)}
+                  disabled={isReadOnly}
                 >
                   Apply starter scaffold
                 </button>
@@ -1867,6 +1928,7 @@ export function CurriculumBuilderPanel({
                 className="input"
                 value={title}
                 onChange={(e) => onUpdate("title", e.target.value)}
+                readOnly={isReadOnly}
                 placeholder="Name your curriculum"
               />
             </label>
@@ -1876,6 +1938,7 @@ export function CurriculumBuilderPanel({
                 className="input"
                 value={interestArea}
                 onChange={(e) => onUpdate("interestArea", e.target.value)}
+                readOnly={isReadOnly}
                 placeholder="e.g. Finance, Technology, Music"
               />
             </label>
@@ -1887,6 +1950,7 @@ export function CurriculumBuilderPanel({
               className="input"
               value={description}
               onChange={(e) => onUpdate("description", e.target.value)}
+              readOnly={isReadOnly}
               placeholder="What will students learn, and why is this course worth teaching?"
               rows={4}
             />
@@ -1918,6 +1982,7 @@ export function CurriculumBuilderPanel({
                       durationWeeks: Math.max(1, Number(e.target.value) || 1),
                     })
                   }
+                  readOnly={isReadOnly}
                 />
               </label>
               <label className="form-row">
@@ -1932,6 +1997,7 @@ export function CurriculumBuilderPanel({
                       sessionsPerWeek: Math.max(1, Number(e.target.value) || 1),
                     })
                   }
+                  readOnly={isReadOnly}
                 />
               </label>
               <label className="form-row">
@@ -1946,6 +2012,7 @@ export function CurriculumBuilderPanel({
                       classDurationMin: Math.max(1, Number(e.target.value) || 1),
                     })
                   }
+                  readOnly={isReadOnly}
                 />
               </label>
               <label className="form-row">
@@ -1956,6 +2023,7 @@ export function CurriculumBuilderPanel({
                   onChange={(e) =>
                     updateCourseConfig({ targetAgeGroup: e.target.value })
                   }
+                  readOnly={isReadOnly}
                   placeholder="e.g. 12-14 or adults"
                 />
               </label>
@@ -1969,6 +2037,7 @@ export function CurriculumBuilderPanel({
                       difficultyLevel: e.target.value as StudioCourseConfig["difficultyLevel"],
                     })
                   }
+                  disabled={isReadOnly}
                 >
                   {DIFFICULTY_LEVEL_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -1989,6 +2058,7 @@ export function CurriculumBuilderPanel({
                       estimatedHours: Math.max(1, Number(e.target.value) || 1),
                     })
                   }
+                  readOnly={isReadOnly}
                 />
               </label>
               <label className="form-row">
@@ -2003,6 +2073,7 @@ export function CurriculumBuilderPanel({
                       minStudents: Math.max(1, Number(e.target.value) || 1),
                     })
                   }
+                  readOnly={isReadOnly}
                 />
               </label>
               <label className="form-row">
@@ -2017,6 +2088,7 @@ export function CurriculumBuilderPanel({
                       idealSize: Math.max(1, Number(e.target.value) || 1),
                     })
                   }
+                  readOnly={isReadOnly}
                 />
               </label>
               <label className="form-row">
@@ -2031,6 +2103,7 @@ export function CurriculumBuilderPanel({
                       maxStudents: Math.max(1, Number(e.target.value) || 1),
                     })
                   }
+                  readOnly={isReadOnly}
                 />
               </label>
             </div>
@@ -2045,6 +2118,7 @@ export function CurriculumBuilderPanel({
                       key={option.value}
                       type="button"
                       className={`lds-delivery-chip${selected ? " active" : ""}`}
+                      disabled={isReadOnly}
                       onClick={() => {
                         const nextModes = selected
                           ? courseConfig.deliveryModes.filter(
@@ -2092,12 +2166,14 @@ export function CurriculumBuilderPanel({
                   className="cbs-outcome-input"
                   value={outcome}
                   onChange={(e) => handleOutcomeChange(index, e.target.value)}
+                  readOnly={isReadOnly}
                   placeholder={`Outcome ${index + 1}`}
                 />
                 <button
                   className="cbs-outcome-remove-btn"
                   onClick={() => handleRemoveOutcome(index)}
                   type="button"
+                  disabled={isReadOnly}
                   aria-label="Remove outcome"
                 >
                   ×
@@ -2108,6 +2184,7 @@ export function CurriculumBuilderPanel({
               className="cbs-add-outcome-btn"
               onClick={handleAddOutcome}
               type="button"
+              disabled={isReadOnly}
             >
               + Add outcome
             </button>
@@ -2137,6 +2214,7 @@ export function CurriculumBuilderPanel({
                 type="button"
                 className="button secondary"
                 onClick={() => onOpenExamplesLibrary(null)}
+                disabled={isReadOnly}
               >
                 Open Examples Library
               </button>
@@ -2239,6 +2317,7 @@ export function CurriculumBuilderPanel({
                       className="cbs-week-title-input"
                       value={week.title}
                       onChange={(e) => onUpdateWeek(week.id, "title", e.target.value)}
+                      readOnly={isReadOnly}
                       placeholder="Session title..."
                     />
 
@@ -2250,6 +2329,7 @@ export function CurriculumBuilderPanel({
                         onChange={(e) =>
                           onUpdateWeek(week.id, "classDurationMin", Math.max(1, Number(e.target.value)))
                         }
+                        readOnly={isReadOnly}
                         style={{
                           width: 56,
                           padding: "4px 8px",
@@ -2294,6 +2374,7 @@ export function CurriculumBuilderPanel({
                       type="button"
                       className="cbs-week-dup-btn"
                       onClick={() => onDuplicateWeek(week.id)}
+                      disabled={isReadOnly}
                       style={{
                         background: "var(--surface-alt)",
                         border: "1px solid var(--border)",
@@ -2311,6 +2392,7 @@ export function CurriculumBuilderPanel({
                       className="cbs-week-delete-btn"
                       onClick={() => onRemoveWeek(week.id)}
                       type="button"
+                      disabled={isReadOnly}
                       aria-label="Clear session"
                     >
                       ×
@@ -2318,7 +2400,11 @@ export function CurriculumBuilderPanel({
                   </div>
 
                   {isWeekDetailExpanded ? (
-                    <WeekDetailSection week={week} onUpdateWeek={onUpdateWeek} />
+                    <WeekDetailSection
+                      week={week}
+                      isReadOnly={isReadOnly}
+                      onUpdateWeek={onUpdateWeek}
+                    />
                   ) : null}
 
                   <div
@@ -2371,6 +2457,7 @@ export function CurriculumBuilderPanel({
                             key={activity.id}
                             activity={activity}
                             weekId={week.id}
+                            isReadOnly={isReadOnly}
                             isExpanded={expandedActivityIds.has(activity.id)}
                             onToggle={() => toggleActivityExpand(activity.id)}
                             onUpdateActivity={onUpdateActivity}
@@ -2395,13 +2482,14 @@ export function CurriculumBuilderPanel({
                     style={{ padding: "8px 16px 16px", display: "flex", flexWrap: "wrap", gap: 6 }}
                   >
                     {ACTIVITY_TYPES.map((activityType) => (
-                      <button
-                        key={activityType.value}
-                        className="cbs-add-activity-chip"
-                        onClick={() => handleQuickAddActivity(week.id, activityType.value)}
-                        type="button"
-                        style={{ borderColor: `${activityType.color}44`, color: activityType.color }}
-                      >
+                        <button
+                          key={activityType.value}
+                          className="cbs-add-activity-chip"
+                          onClick={() => handleQuickAddActivity(week.id, activityType.value)}
+                          type="button"
+                          disabled={isReadOnly}
+                          style={{ borderColor: `${activityType.color}44`, color: activityType.color }}
+                        >
                         {activityType.icon} + {activityType.label}
                       </button>
                     ))}
@@ -2409,6 +2497,7 @@ export function CurriculumBuilderPanel({
                       className="cbs-templates-btn"
                       onClick={() => onOpenTemplates(week.id)}
                       type="button"
+                      disabled={isReadOnly}
                     >
                       Templates
                     </button>
@@ -2416,6 +2505,7 @@ export function CurriculumBuilderPanel({
                       className="cbs-templates-btn"
                       onClick={() => onOpenExamplesLibrary(week.id)}
                       type="button"
+                      disabled={isReadOnly}
                     >
                       Import from library
                     </button>
@@ -2430,6 +2520,7 @@ export function CurriculumBuilderPanel({
                   className="cbs-btn cbs-btn-secondary"
                   onClick={onAddWeek}
                   type="button"
+                  disabled={isReadOnly}
                 >
                   + Add another week
                 </button>
@@ -2490,6 +2581,7 @@ export function CurriculumBuilderPanel({
 
           <UnderstandingCheckSection
             understandingChecks={understandingChecks}
+            isReadOnly={isReadOnly}
             onUpdate={onUpdate}
           />
 
@@ -2513,12 +2605,14 @@ export function CurriculumBuilderPanel({
               <span className="cbs-submitted-badge">
                 {isApproved ? "✓ Approved" : "✓ Submitted"}
               </span>
+            ) : isReadOnly ? (
+              <span className="cbs-submitted-badge">Read-only history</span>
             ) : (
               <button
                 className="cbs-btn cbs-btn-primary"
                 onClick={() => setShowSubmitModal(true)}
                 type="button"
-                disabled={isActionPending}
+                disabled={isActionPending || isReadOnly}
                 title={
                   progress.readyForSubmission
                     ? "Submit curriculum"

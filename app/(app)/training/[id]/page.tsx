@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withPrismaFallback } from "@/lib/prisma-guard";
-import { getOrCreateCurriculumDraft } from "@/lib/curriculum-draft-actions";
+import { getPreferredCurriculumDraftForStudioSurface } from "@/lib/curriculum-draft-actions";
 import TrainingModuleClient from "./client";
 
 export default async function TrainingModulePage({
@@ -77,7 +77,7 @@ export default async function TrainingModulePage({
 
   const lessonDesignStudioDraft =
     trainingModule.type === "CURRICULUM_REVIEW" && canAccessLessonDesignStudio
-      ? await getOrCreateCurriculumDraft()
+      ? await getPreferredCurriculumDraftForStudioSurface()
       : null;
 
   const [assignment, videoProgress, checkpointCompletions, quizAttempts, evidenceSubmissions, nextModule] =

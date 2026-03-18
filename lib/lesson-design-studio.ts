@@ -75,8 +75,44 @@ export function getStudioEntryContextFromSearchParams(
   return normalizeStudioEntryContext(firstValue(searchParams.entry));
 }
 
+export function getStudioDraftIdFromSearchParams(
+  searchParams: SearchParamsRecord
+) {
+  const draftId = firstValue(searchParams.draftId);
+  return typeof draftId === "string" && draftId.trim().length > 0
+    ? draftId.trim()
+    : null;
+}
+
+export function buildLessonDesignStudioHref(args?: {
+  entryContext?: StudioEntryContext;
+  draftId?: string | null;
+  notice?: string | null;
+}) {
+  const next = new URLSearchParams();
+
+  if (args?.entryContext && args.entryContext !== "DIRECT") {
+    next.set("entry", serializeStudioEntryContext(args.entryContext));
+  }
+
+  if (args?.draftId) {
+    next.set("draftId", args.draftId);
+  }
+
+  if (args?.notice) {
+    next.set("notice", args.notice);
+  }
+
+  const query = next.toString();
+  return query
+    ? `/instructor/lesson-design-studio?${query}`
+    : "/instructor/lesson-design-studio";
+}
+
 export function getCanonicalStudioHref(searchParams: SearchParamsRecord) {
   const entryContext = getStudioEntryContextFromSearchParams(searchParams);
+  const draftId = getStudioDraftIdFromSearchParams(searchParams);
+  const notice = firstValue(searchParams.notice);
   const hasLegacyTemplateId = Boolean(firstValue(searchParams.templateId));
   const hasEntryParam = typeof firstValue(searchParams.entry) === "string";
 
@@ -84,15 +120,11 @@ export function getCanonicalStudioHref(searchParams: SearchParamsRecord) {
     return null;
   }
 
-  const next = new URLSearchParams();
-  if (entryContext !== "DIRECT") {
-    next.set("entry", serializeStudioEntryContext(entryContext));
-  }
-
-  const query = next.toString();
-  return query
-    ? `/instructor/lesson-design-studio?${query}`
-    : "/instructor/lesson-design-studio";
+  return buildLessonDesignStudioHref({
+    entryContext,
+    draftId,
+    notice: typeof notice === "string" ? notice : null,
+  });
 }
 
 export function deriveStudioPhase(input: {
