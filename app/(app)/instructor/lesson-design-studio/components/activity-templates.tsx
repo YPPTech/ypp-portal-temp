@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 type ActivityType =
   | "WARM_UP"
   | "INSTRUCTION"
@@ -105,6 +107,20 @@ const CATEGORIES: Category[] = [
 ];
 
 export function ActivityTemplates({ open, onClose, onInsert }: ActivityTemplatesProps) {
+  useEffect(() => {
+    if (!open) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, open]);
+
   if (!open) return null;
 
   function handleCardClick(template: TemplateData) {
@@ -117,6 +133,9 @@ export function ActivityTemplates({ open, onClose, onInsert }: ActivityTemplates
       <div
         className="cbs-templates-modal"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Activity templates"
       >
         {/* Header */}
         <div className="cbs-templates-header">

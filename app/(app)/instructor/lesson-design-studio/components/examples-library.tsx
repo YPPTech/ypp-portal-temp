@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { ExampleCurriculumPanel } from "./example-curriculum-panel";
 import type { ExampleWeek } from "../examples-data";
 
@@ -8,9 +9,11 @@ interface ExamplesLibraryProps {
   activeTab: number;
   interestArea: string;
   targetLabel?: string | null;
+  errorMessage?: string | null;
+  autoRecommendEnabled?: boolean;
   onClose: () => void;
-  onTabChange: (index: number) => void;
-  onImportWeek: (week: ExampleWeek) => void;
+  onTabChange: (index: number, source?: "auto" | "user") => void;
+  onImportWeek: (week: ExampleWeek) => boolean;
 }
 
 export function ExamplesLibrary({
@@ -18,10 +21,26 @@ export function ExamplesLibrary({
   activeTab,
   interestArea,
   targetLabel,
+  errorMessage,
+  autoRecommendEnabled,
   onClose,
   onTabChange,
   onImportWeek,
 }: ExamplesLibraryProps) {
+  useEffect(() => {
+    if (!open) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, open]);
+
   if (!open) return null;
 
   return (
@@ -29,6 +48,9 @@ export function ExamplesLibrary({
       <div
         className="lds-library-modal"
         onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Examples library"
       >
         <div className="lds-library-header">
           <div>
@@ -41,6 +63,11 @@ export function ExamplesLibrary({
             {targetLabel ? (
               <p className="lds-library-target">
                 Import target: <strong>{targetLabel}</strong>
+              </p>
+            ) : null}
+            {errorMessage ? (
+              <p className="lds-library-error" role="alert">
+                {errorMessage}
               </p>
             ) : null}
           </div>
@@ -58,6 +85,7 @@ export function ExamplesLibrary({
           <ExampleCurriculumPanel
             activeTab={activeTab}
             interestArea={interestArea}
+            autoRecommendEnabled={autoRecommendEnabled}
             onTabChange={onTabChange}
             onImportWeek={onImportWeek}
           />

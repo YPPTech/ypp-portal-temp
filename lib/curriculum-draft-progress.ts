@@ -402,6 +402,26 @@ export function getTotalSessionCount(courseConfig: StudioCourseConfig) {
   return courseConfig.durationWeeks * courseConfig.sessionsPerWeek;
 }
 
+export function getCourseConfigValidationIssues(
+  courseConfig: StudioCourseConfig
+) {
+  const issues: string[] = [];
+
+  if (courseConfig.minStudents > courseConfig.idealSize) {
+    issues.push(
+      "Set the minimum student count so it is not greater than the ideal class size."
+    );
+  }
+
+  if (courseConfig.idealSize > courseConfig.maxStudents) {
+    issues.push(
+      "Set the ideal class size so it is not greater than the maximum student count."
+    );
+  }
+
+  return issues;
+}
+
 export function syncSessionPlansToCourseConfig(
   rawPlans: unknown,
   rawCourseConfig: unknown
@@ -641,6 +661,7 @@ export function getCurriculumDraftProgress(input: {
 
   const submissionIssues: string[] = [];
   const totalSessionsExpected = getTotalSessionCount(courseConfig);
+  const courseConfigIssues = getCourseConfigValidationIssues(courseConfig);
 
   if (!isNonEmptyString(input.title)) {
     submissionIssues.push("Add a curriculum title.");
@@ -655,6 +676,8 @@ export function getCurriculumDraftProgress(input: {
       `Add at least ${MIN_CURRICULUM_OUTCOMES} learning outcomes.`
     );
   }
+
+  submissionIssues.push(...courseConfigIssues);
 
   if (sessionsWithTitles < totalSessionsExpected) {
     submissionIssues.push(

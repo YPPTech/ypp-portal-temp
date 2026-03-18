@@ -10,8 +10,6 @@ import { SEED_CURRICULA, type SeedCurriculum } from "../curriculum-seeds";
 // By the end of the tour they have a fully populated curriculum.
 // ═══════════════════════════════════════════════════════════════
 
-const ONBOARDING_KEY = "lds_onboarding_done";
-
 /* ── Step definitions ──────────────────────────────────────── */
 
 type StepKind =
@@ -122,12 +120,15 @@ const STEPS: TourStep[] = [
 /* ── Component ─────────────────────────────────────────────── */
 
 interface OnboardingTourProps {
+  storageKey: string;
   /** Callback to seed the curriculum header (title, description, etc.) */
   onSeedHeader?: (info: {
     title: string;
     description: string;
     interestArea: string;
     outcomes: string[];
+    durationWeeks: number;
+    classDurationMin: number;
   }) => void;
   /** Callback to seed specific weeks into the curriculum */
   onSeedWeeks?: (
@@ -153,6 +154,7 @@ interface OnboardingTourProps {
 }
 
 export function OnboardingTour({
+  storageKey,
   onSeedHeader,
   onSeedWeeks,
   onComplete,
@@ -163,17 +165,16 @@ export function OnboardingTour({
   // Check if onboarding should show
   useEffect(() => {
     try {
-      const onboardingState = localStorage.getItem(ONBOARDING_KEY);
+      const onboardingState = localStorage.getItem(storageKey);
       if (onboardingState) {
-        if (onboardingState !== "skipped") {
-          void onComplete?.();
-        }
         return;
       }
       const timer = setTimeout(() => setCurrentStep(0), 600);
       return () => clearTimeout(timer);
-    } catch {}
-  }, [onComplete]);
+    } catch {
+      setCurrentStep(0);
+    }
+  }, [storageKey]);
 
   // Fire seed actions when advancing to certain steps
   useEffect(() => {
@@ -186,6 +187,8 @@ export function OnboardingTour({
         description: selectedSeed.description,
         interestArea: selectedSeed.interestArea,
         outcomes: selectedSeed.outcomes,
+        durationWeeks: selectedSeed.weeks.length,
+        classDurationMin: selectedSeed.classDurationMin,
       });
     }
 
@@ -215,18 +218,22 @@ export function OnboardingTour({
       if (prev === null) return null;
       const next = prev + 1;
       if (next >= STEPS.length) {
-        try { localStorage.setItem(ONBOARDING_KEY, "completed"); } catch {}
+        try {
+          localStorage.setItem(storageKey, "completed");
+        } catch {}
         void onComplete?.();
         return null;
       }
       return next;
     });
-  }, [onComplete]);
+  }, [onComplete, storageKey]);
 
   const skip = useCallback(() => {
-    try { localStorage.setItem(ONBOARDING_KEY, "skipped"); } catch {}
+    try {
+      localStorage.setItem(storageKey, "skipped");
+    } catch {}
     setCurrentStep(null);
-  }, []);
+  }, [storageKey]);
 
   const handlePickArea = useCallback(
     (seed: SeedCurriculum) => {

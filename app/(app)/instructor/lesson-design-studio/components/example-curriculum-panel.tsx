@@ -34,8 +34,9 @@ function getActivityConfig(type: ActivityType) {
 interface ExampleCurriculumPanelProps {
   activeTab: number;
   interestArea: string;
-  onTabChange: (index: number) => void;
-  onImportWeek: (week: ExampleWeek) => void;
+  autoRecommendEnabled?: boolean;
+  onTabChange: (index: number, source?: "auto" | "user") => void;
+  onImportWeek: (week: ExampleWeek) => boolean;
 }
 
 function normalizeTopic(value: string) {
@@ -58,6 +59,7 @@ function scoreInterestMatch(exampleInterestArea: string, draftInterestArea: stri
 export function ExampleCurriculumPanel({
   activeTab,
   interestArea,
+  autoRecommendEnabled = true,
   onTabChange,
   onImportWeek,
 }: ExampleCurriculumPanelProps) {
@@ -78,10 +80,10 @@ export function ExampleCurriculumPanel({
   }, [interestArea]);
 
   useEffect(() => {
-    if (interestArea.trim()) {
-      onTabChange(recommendedIndex);
+    if (autoRecommendEnabled && interestArea.trim()) {
+      onTabChange(recommendedIndex, "auto");
     }
-  }, [interestArea, onTabChange, recommendedIndex]);
+  }, [autoRecommendEnabled, interestArea, onTabChange, recommendedIndex]);
 
   const curriculum = EXAMPLE_CURRICULA[activeTab] ?? EXAMPLE_CURRICULA[0];
   const curriculumAnnotations = EXAMPLE_CURRICULUM_ANNOTATIONS[curriculum.id];
@@ -103,7 +105,7 @@ export function ExampleCurriculumPanel({
           <button
             key={c.id}
             className={`cbs-example-tab ${i === activeTab ? "cbs-example-tab-active" : ""}`}
-            onClick={() => onTabChange(i)}
+            onClick={() => onTabChange(i, "user")}
             type="button"
           >
             {c.interestArea}

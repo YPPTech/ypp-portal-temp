@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
+  markLessonDesignStudioTourComplete,
   saveCurriculumDraft,
   submitCurriculumDraft,
 } from "@/lib/curriculum-draft-actions";
@@ -29,6 +30,7 @@ import {
 import { CurriculumBuilderPanel } from "./components/curriculum-builder-panel";
 import { ActivityTemplates } from "./components/activity-templates";
 import { ExamplesLibrary } from "./components/examples-library";
+import { OnboardingTour } from "./components/onboarding-tour";
 import { SEED_CURRICULA, type SeedCurriculum } from "./curriculum-seeds";
 import type { ExampleWeek } from "./examples-data";
 
@@ -122,6 +124,7 @@ interface HistoryVersion {
     outcomes: string[];
     courseConfig: StudioCourseConfig;
     weeklyPlans: WeekPlan[];
+    understandingChecks: StudioUnderstandingChecks;
   };
 }
 
@@ -170,6 +173,17 @@ function normalizeWeek(week: any): WeekPlan {
 
 function normalizeTopic(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function isBlankWeekPlan(week: WeekPlan) {
+  return (
+    !week.title.trim() &&
+    week.activities.length === 0 &&
+    !(week.objective ?? "").trim() &&
+    !(week.teacherPrepNotes ?? "").trim() &&
+    week.materialsChecklist.length === 0 &&
+    week.atHomeAssignment === null
+  );
 }
 
 function scoreSeedMatch(seed: SeedCurriculum, topic: string) {
@@ -308,6 +322,8 @@ export function StudioClient({
   progress: initialProgress,
 }: StudioClientProps) {
   const router = useRouter();
+  const historyStorageKey = `lds_history_${draft.id}`;
+  const onboardingStorageKey = `lds_onboarding_done_${userId}_${draft.id}`;
 
   const [title, setTitle] = useState(draft.title);
   const [description, setDescription] = useState(draft.description);
@@ -330,18 +346,58 @@ export function StudioClient({
   const [saveStatus, setSaveStatus] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
+  const [isFlushing, setIsFlushing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [templatesWeekId, setTemplatesWeekId] = useState<string | null>(null);
   const [showExamplesLibrary, setShowExamplesLibrary] = useState(false);
+  const [examplesLibraryError, setExamplesLibraryError] = useState<string | null>(
+    null
+  );
+  const [hasManuallySelectedExampleTab, setHasManuallySelectedExampleTab] =
+    useState(false);
   const [libraryTargetPlanId, setLibraryTargetPlanId] = useState<string | null>(
     null
   );
+  const [manuallyRequestedTour, setManuallyRequestedTour] = useState(false);
+  const [tourInstanceKey, setTourInstanceKey] = useState(0);
   const [lastSavedAt, setLastSavedAt] = useState(draft.updatedAt);
   const [historyVersions, setHistoryVersions] = useState<HistoryVersion[]>(() => {
     if (typeof window === "undefined") return [];
     try {
-      const stored = localStorage.getItem(`lds_history_${draft.id}`);
-      return stored ? JSON.parse(stored) : [];
+      const stored = localStorage.getItem(historyStorageKey);
+      if (!stored) return [];
+
+      const parsed = JSON.parse(stored) as Array<{
+        savedAt?: string;
+        snapshot?: Partial<HistoryVersion["snapshot"]>;
+      }>;
+
+      if (!Array.isArray(parsed)) return [];
+
+      return parsed
+        .filter((version) => version && typeof version === "object")
+        .map((version) => ({
+          savedAt: String(version.savedAt ?? new Date().toISOString()),
+          snapshot: {
+            title: String(version.snapshot?.title ?? ""),
+            description: String(version.snapshot?.description ?? ""),
+            interestArea: String(version.snapshot?.interestArea ?? ""),
+            outcomes: Array.isArray(version.snapshot?.outcomes)
+              ? version.snapshot.outcomes.filter(
+                  (item): item is string => typeof item === "string"
+                )
+              : [],
+            courseConfig: normalizeCourseConfig(version.snapshot?.courseConfig),
+            weeklyPlans: Array.isArray(version.snapshot?.weeklyPlans)
+              ? version.snapshot.weeklyPlans.map(normalizeWeek)
+              : [],
+            understandingChecks: normalizeUnderstandingChecks(
+              version.snapshot?.understandingChecks
+            ),
+          },
+        }));
     } catch {
       return [];
     }
@@ -380,12 +436,16 @@ export function StudioClient({
   const [activePhase, setActivePhase] = useState<StudioPhase>(initialDerivedPhase);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveChainRef = useRef<Promise<boolean>>(Promise.resolve(true));
+  const lastSavedSnapshotSignatureRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
     };
   }, []);
 
@@ -432,6 +492,10 @@ export function StudioClient({
     understandingChecks: StudioUnderstandingChecks;
   };
 
+  const getSnapshotSignature = useCallback((snapshot: DraftSnapshot) => {
+    return JSON.stringify(snapshot);
+  }, []);
+
   const pushToHistory = useCallback(
     (snapshot: DraftSnapshot) => {
       const version: HistoryVersion = {
@@ -443,18 +507,19 @@ export function StudioClient({
           outcomes: snapshot.outcomes,
           courseConfig: snapshot.courseConfig,
           weeklyPlans: snapshot.weeklyPlans,
+          understandingChecks: snapshot.understandingChecks,
         },
       };
 
       setHistoryVersions((prev) => {
         const next = [version, ...prev].slice(0, 10);
         try {
-          localStorage.setItem(`lds_history_${draft.id}`, JSON.stringify(next));
+          localStorage.setItem(historyStorageKey, JSON.stringify(next));
         } catch {}
         return next;
       });
     },
-    [draft.id]
+    [historyStorageKey]
   );
 
   const buildSnapshot = useCallback(
@@ -471,12 +536,15 @@ export function StudioClient({
     [title, description, interestArea, outcomes, courseConfig, weeklyPlans, understandingChecks]
   );
 
-  const triggerAutoSave = useCallback(
-    (snapshot: DraftSnapshot) => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+  useEffect(() => {
+    if (lastSavedSnapshotSignatureRef.current !== null) return;
+    lastSavedSnapshotSignatureRef.current = getSnapshotSignature(buildSnapshot());
+  }, [buildSnapshot, getSnapshotSignature]);
 
-      saveTimerRef.current = setTimeout(async () => {
-        if (!isMountedRef.current) return;
+  const queueSaveSnapshot = useCallback(
+    async (snapshot: DraftSnapshot) => {
+      const runSave = async () => {
+        if (!isMountedRef.current) return false;
         setSaveStatus("saving");
 
         try {
@@ -491,43 +559,86 @@ export function StudioClient({
             understandingChecks: snapshot.understandingChecks,
           });
 
-          if (isMountedRef.current) {
-            setSaveStatus("saved");
-            setLastSavedAt(new Date().toISOString());
-            pushToHistory(snapshot);
-            setCurrentStatus((previousStatus) => {
-              if (
-                previousStatus === "SUBMITTED" ||
-                previousStatus === "NEEDS_REVISION" ||
-                previousStatus === "APPROVED" ||
-                previousStatus === "REJECTED"
-              ) {
-                return previousStatus;
-              }
+          if (!isMountedRef.current) return true;
 
-              return getCurriculumDraftProgress({
-                title: snapshot.title,
-                interestArea: snapshot.interestArea,
-                outcomes: snapshot.outcomes,
-                courseConfig: snapshot.courseConfig,
-                weeklyPlans: snapshot.weeklyPlans,
-                understandingChecks: snapshot.understandingChecks,
-              }).readyForSubmission
-                ? "COMPLETED"
-                : "IN_PROGRESS";
-            });
+          const signature = getSnapshotSignature(snapshot);
+          if (lastSavedSnapshotSignatureRef.current !== signature) {
+            pushToHistory(snapshot);
+            lastSavedSnapshotSignatureRef.current = signature;
           }
 
-          setTimeout(() => {
+          setSaveStatus("saved");
+          setLastSavedAt(new Date().toISOString());
+          setCurrentStatus((previousStatus) => {
+            if (
+              previousStatus === "SUBMITTED" ||
+              previousStatus === "NEEDS_REVISION" ||
+              previousStatus === "APPROVED" ||
+              previousStatus === "REJECTED"
+            ) {
+              return previousStatus;
+            }
+
+            return getCurriculumDraftProgress({
+              title: snapshot.title,
+              interestArea: snapshot.interestArea,
+              outcomes: snapshot.outcomes,
+              courseConfig: snapshot.courseConfig,
+              weeklyPlans: snapshot.weeklyPlans,
+              understandingChecks: snapshot.understandingChecks,
+            }).readyForSubmission
+              ? "COMPLETED"
+              : "IN_PROGRESS";
+          });
+
+          if (saveStatusTimerRef.current) {
+            clearTimeout(saveStatusTimerRef.current);
+          }
+
+          saveStatusTimerRef.current = setTimeout(() => {
             if (isMountedRef.current) setSaveStatus("idle");
           }, 2000);
+
+          return true;
         } catch {
-          if (isMountedRef.current) setSaveStatus("error");
+          if (isMountedRef.current) {
+            setSaveStatus("error");
+          }
+          return false;
         }
+      };
+
+      const queuedSave = saveChainRef.current.catch(() => true).then(runSave);
+      saveChainRef.current = queuedSave;
+      return queuedSave;
+    },
+    [draft.id, getSnapshotSignature, pushToHistory]
+  );
+
+  const triggerAutoSave = useCallback(
+    (snapshot: DraftSnapshot) => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+
+      saveTimerRef.current = setTimeout(() => {
+        void queueSaveSnapshot(snapshot);
       }, 1500);
     },
-    [draft.id, pushToHistory]
+    [queueSaveSnapshot]
   );
+
+  const flushDraftNow = useCallback(async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+
+    setIsFlushing(true);
+    const didSave = await queueSaveSnapshot(buildSnapshot());
+    if (isMountedRef.current) {
+      setIsFlushing(false);
+    }
+    return didSave;
+  }, [buildSnapshot, queueSaveSnapshot]);
 
   const handleUpdate = useCallback(
     (field: string, value: unknown) => {
@@ -799,17 +910,36 @@ export function StudioClient({
 
   const handleImportWeek = useCallback(
     (week: ExampleWeek, targetPlanId?: string | null) => {
+      let imported = false;
+
       setWeeklyPlans((prev) => {
-        const targetIndex =
+        const explicitTargetIndex =
           targetPlanId != null
             ? prev.findIndex((plan) => plan.id === targetPlanId)
-            : prev.findIndex(
-                (plan) => !plan.title.trim() && plan.activities.length === 0
-              );
-        const resolvedIndex =
-          targetIndex >= 0 ? targetIndex : Math.max(0, prev.length - 1);
+            : -1;
 
-        const target = prev[resolvedIndex];
+        if (targetPlanId != null && explicitTargetIndex === -1) {
+          setExamplesLibraryError(
+            "That session changed while the library was open. Pick a session again before importing."
+          );
+          return prev;
+        }
+
+        const blankTargetIndex =
+          targetPlanId == null
+            ? prev.findIndex((plan) => isBlankWeekPlan(plan))
+            : -1;
+
+        if (targetPlanId == null && blankTargetIndex === -1) {
+          setExamplesLibraryError(
+            "There is no empty session left to import into. Use a session-level import button so you can choose the exact destination."
+          );
+          return prev;
+        }
+
+        const resolvedIndex =
+          explicitTargetIndex >= 0 ? explicitTargetIndex : blankTargetIndex;
+        const target = resolvedIndex >= 0 ? prev[resolvedIndex] : null;
         if (!target) return prev;
 
         const nextWeek: WeekPlan = {
@@ -846,13 +976,20 @@ export function StudioClient({
         const next = prev.map((plan, index) =>
           index === resolvedIndex ? nextWeek : plan
         );
+        imported = true;
+        setExamplesLibraryError(null);
         triggerAutoSave(buildSnapshot({ weeklyPlans: next }));
         return next;
       });
 
+      if (!imported) {
+        return false;
+      }
+
       setShowExamplesLibrary(false);
       setLibraryTargetPlanId(null);
       setActivePhase("SESSIONS");
+      return true;
     },
     [buildSnapshot, courseConfig.classDurationMin, triggerAutoSave]
   );
@@ -927,36 +1064,77 @@ export function StudioClient({
   );
 
   const handleExportPdf = useCallback(
-    (type: "student" | "instructor") => {
-      window.open(
-        `/instructor/lesson-design-studio/print?draftId=${draft.id}&type=${type}`,
-        "_blank"
-      );
+    async (type: "student" | "instructor") => {
+      if (isExporting || isSubmitting || isFlushing) return false;
+
+      const exportWindow = window.open("", "_blank", "noopener,noreferrer");
+      if (!exportWindow) {
+        alert("Allow pop-ups to open the PDF export.");
+        return false;
+      }
+
+      setIsExporting(true);
+
+      try {
+        const didSave = await flushDraftNow();
+        if (!didSave) {
+          exportWindow.close();
+          alert("Please fix the save error before exporting.");
+          return false;
+        }
+
+        exportWindow.location.href = `/instructor/lesson-design-studio/print?draftId=${draft.id}&type=${type}`;
+        return true;
+      } finally {
+        if (isMountedRef.current) {
+          setIsExporting(false);
+        }
+      }
     },
-    [draft.id]
+    [draft.id, flushDraftNow, isExporting, isFlushing, isSubmitting]
   );
 
   const handleSubmit = useCallback(async () => {
+    if (isSubmitting || isExporting || isFlushing) return false;
+
+    setIsSubmitting(true);
+
     try {
+      const didSave = await flushDraftNow();
+      if (!didSave) {
+        alert("Please fix the save error before submitting.");
+        return false;
+      }
+
       await submitCurriculumDraft(draft.id);
       setCurrentStatus("SUBMITTED");
       setLastSavedAt(new Date().toISOString());
       setActivePhase("REVIEW_LAUNCH");
       router.refresh();
+      return true;
     } catch (error) {
       alert(error instanceof Error ? error.message : "Failed to submit");
+      return false;
+    } finally {
+      if (isMountedRef.current) {
+        setIsSubmitting(false);
+      }
     }
-  }, [draft.id, router]);
+  }, [draft.id, flushDraftNow, isExporting, isFlushing, isSubmitting, router]);
 
   const handleRestoreVersion = useCallback(
     (version: HistoryVersion) => {
       const { snapshot } = version;
+      const nextUnderstandingChecks = normalizeUnderstandingChecks(
+        snapshot.understandingChecks
+      );
       setTitle(snapshot.title);
       setDescription(snapshot.description);
       setInterestArea(snapshot.interestArea);
       setOutcomes(snapshot.outcomes);
       setCourseConfig(snapshot.courseConfig);
       setWeeklyPlans(snapshot.weeklyPlans);
+      setUnderstandingChecks(nextUnderstandingChecks);
       setShowHistory(false);
 
       triggerAutoSave({
@@ -967,10 +1145,181 @@ export function StudioClient({
         outcomes: snapshot.outcomes,
         courseConfig: snapshot.courseConfig,
         weeklyPlans: snapshot.weeklyPlans,
+        understandingChecks: nextUnderstandingChecks,
       });
     },
     [buildSnapshot, triggerAutoSave]
   );
+
+  const openExamplesLibrary = useCallback((targetPlanId?: string | null) => {
+    setExamplesLibraryError(null);
+    setHasManuallySelectedExampleTab(false);
+    setLibraryTargetPlanId(targetPlanId ?? null);
+    setShowExamplesLibrary(true);
+  }, []);
+
+  const handleExamplesTabChange = useCallback(
+    (index: number, source?: "auto" | "user") => {
+      if (source === "auto" && hasManuallySelectedExampleTab) {
+        return;
+      }
+
+      if (source === "user") {
+        setHasManuallySelectedExampleTab(true);
+      }
+
+      setActiveExampleTab(index);
+    },
+    [hasManuallySelectedExampleTab]
+  );
+
+  const handleTourSeedHeader = useCallback(
+    (info: {
+      title: string;
+      description: string;
+      interestArea: string;
+      outcomes: string[];
+      durationWeeks: number;
+      classDurationMin: number;
+    }) => {
+      pushToHistory(buildSnapshot());
+
+      const nextCourseConfig = normalizeCourseConfig({
+        ...courseConfig,
+        durationWeeks: info.durationWeeks,
+        sessionsPerWeek: 1,
+        classDurationMin: info.classDurationMin,
+      });
+      const nextPlans = normalizePlansForConfig(weeklyPlans, nextCourseConfig);
+      const nextSnapshot = buildSnapshot({
+        title: info.title,
+        description: info.description,
+        interestArea: info.interestArea,
+        outcomes: info.outcomes,
+        courseConfig: nextCourseConfig,
+        weeklyPlans: nextPlans,
+      });
+
+      setTitle(info.title);
+      setDescription(info.description);
+      setInterestArea(info.interestArea);
+      setOutcomes(info.outcomes);
+      setCourseConfig(nextCourseConfig);
+      setWeeklyPlans(nextPlans);
+      setActivePhase("COURSE_MAP");
+      triggerAutoSave(nextSnapshot);
+    },
+    [
+      buildSnapshot,
+      courseConfig,
+      normalizePlansForConfig,
+      pushToHistory,
+      triggerAutoSave,
+      weeklyPlans,
+    ]
+  );
+
+  const handleTourSeedWeeks = useCallback(
+    (
+      weeks: Array<{
+        title: string;
+        objective: string;
+        teacherPrepNotes: string;
+        classDurationMin: number;
+        activities: Array<{
+          title: string;
+          type: string;
+          durationMin: number;
+          description: string;
+        }>;
+        atHomeAssignment: {
+          type: string;
+          title: string;
+          description: string;
+        };
+      }>
+    ) => {
+      setWeeklyPlans((prev) => {
+        const next = [...prev];
+        let cursor = 0;
+
+        for (const seededWeek of weeks) {
+          while (cursor < next.length && !isBlankWeekPlan(next[cursor])) {
+            cursor += 1;
+          }
+
+          if (cursor >= next.length) break;
+
+          const target = next[cursor];
+          next[cursor] = {
+            ...target,
+            title: seededWeek.title,
+            classDurationMin: seededWeek.classDurationMin,
+            objective: seededWeek.objective,
+            teacherPrepNotes: seededWeek.teacherPrepNotes,
+            materialsChecklist: [],
+            atHomeAssignment: seededWeek.atHomeAssignment
+              ? {
+                  type: seededWeek.atHomeAssignment.type as AtHomeAssignmentType,
+                  title: seededWeek.atHomeAssignment.title,
+                  description: seededWeek.atHomeAssignment.description,
+                }
+              : null,
+            activities: seededWeek.activities.map((activity, activityIndex) => ({
+              id: generateId(),
+              title: activity.title,
+              type: activity.type as ActivityType,
+              durationMin: activity.durationMin,
+              description: activity.description,
+              resources: null,
+              notes: null,
+              sortOrder: activityIndex,
+              materials: null,
+              differentiationTips: null,
+              energyLevel: null,
+              standardsTags: [],
+              rubric: null,
+            })),
+          };
+          cursor += 1;
+        }
+
+        triggerAutoSave(buildSnapshot({ weeklyPlans: next }));
+        return next;
+      });
+      setActivePhase("SESSIONS");
+    },
+    [buildSnapshot, triggerAutoSave]
+  );
+
+  const handleTourComplete = useCallback(async () => {
+    const didSave = await flushDraftNow();
+    if (!didSave) {
+      alert("Please fix the save error before finishing the tour.");
+      return;
+    }
+
+    try {
+      await markLessonDesignStudioTourComplete();
+      setManuallyRequestedTour(false);
+      router.refresh();
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to save tour completion"
+      );
+    }
+  }, [flushDraftNow, router]);
+
+  const restartOnboardingTour = useCallback(() => {
+    try {
+      localStorage.removeItem(onboardingStorageKey);
+    } catch {}
+
+    setManuallyRequestedTour(true);
+    setTourInstanceKey((current) => current + 1);
+  }, [onboardingStorageKey]);
 
   useEffect(() => {
     const normalized = normalizePlansForConfig(weeklyPlans, courseConfig);
@@ -980,10 +1329,37 @@ export function StudioClient({
     }
   }, [courseConfig, normalizePlansForConfig, weeklyPlans]);
 
+  useEffect(() => {
+    if (!showHistory) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setShowHistory(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showHistory]);
+
   const reviewStatus = currentStatus;
   const isApproved = reviewStatus === "APPROVED";
   const needsRevision = reviewStatus === "NEEDS_REVISION";
   const nonEmptyOutcomes = outcomes.filter((outcome) => outcome.trim().length > 0);
+  const isReviewControlledStatus =
+    reviewStatus === "SUBMITTED" ||
+    reviewStatus === "APPROVED" ||
+    reviewStatus === "NEEDS_REVISION" ||
+    reviewStatus === "REJECTED";
+  const isDraftBlank =
+    title.trim().length === 0 &&
+    description.trim().length === 0 &&
+    interestArea.trim().length === 0 &&
+    nonEmptyOutcomes.length === 0 &&
+    weeklyPlans.every((plan) => isBlankWeekPlan(plan));
+  const shouldRenderOnboardingTour =
+    !isReviewControlledStatus && (isDraftBlank || manuallyRequestedTour);
   const entrySummary = getEntrySummary(entryContext, reviewStatus, userName);
   const statusPill = getStatusPill(reviewStatus);
   const recommendedSeed =
@@ -999,6 +1375,7 @@ export function StudioClient({
     )?.seed ?? SEED_CURRICULA[0];
   const launchActionsReady = Boolean(draft.generatedTemplateId);
   const blockerCount = progress.submissionIssues.length;
+  const isWorkflowActionPending = isFlushing || isSubmitting || isExporting;
   const targetPlanLabel = libraryTargetPlanId
     ? (() => {
         const targetPlan = weeklyPlans.find((plan) => plan.id === libraryTargetPlanId);
@@ -1065,12 +1442,20 @@ export function StudioClient({
             type="button"
             className="button secondary"
             onClick={() => {
-              setLibraryTargetPlanId(null);
-              setShowExamplesLibrary(true);
+              openExamplesLibrary(null);
             }}
           >
             Open Examples Library
           </button>
+          {!isReviewControlledStatus ? (
+            <button
+              type="button"
+              className="button secondary"
+              onClick={restartOnboardingTour}
+            >
+              Restart Tour
+            </button>
+          ) : null}
           {historyVersions.length > 0 ? (
             <button
               type="button"
@@ -1144,14 +1529,12 @@ export function StudioClient({
         onReorderActivities={handleReorderActivities}
         onMoveActivityToWeek={handleMoveActivityToWeek}
         onOpenTemplates={setTemplatesWeekId}
-        onOpenExamplesLibrary={(targetPlanId?: string | null) => {
-          setLibraryTargetPlanId(targetPlanId ?? null);
-          setShowExamplesLibrary(true);
-        }}
+        onOpenExamplesLibrary={openExamplesLibrary}
         onApplyStarterScaffold={handleApplyStarterScaffold}
         onPhaseChange={setActivePhase}
         onExportPdf={handleExportPdf}
         onSubmit={handleSubmit}
+        isActionPending={isWorkflowActionPending}
         isSubmitted={reviewStatus === "SUBMITTED" || reviewStatus === "APPROVED"}
         generatedTemplateId={draft.generatedTemplateId}
         launchActionsReady={launchActionsReady}
@@ -1170,11 +1553,14 @@ export function StudioClient({
         activeTab={activeExampleTab}
         interestArea={interestArea}
         targetLabel={targetPlanLabel}
+        errorMessage={examplesLibraryError}
+        autoRecommendEnabled={!hasManuallySelectedExampleTab}
         onClose={() => {
           setShowExamplesLibrary(false);
           setLibraryTargetPlanId(null);
+          setExamplesLibraryError(null);
         }}
-        onTabChange={setActiveExampleTab}
+        onTabChange={handleExamplesTabChange}
         onImportWeek={(week) => handleImportWeek(week, libraryTargetPlanId)}
       />
 
@@ -1183,6 +1569,7 @@ export function StudioClient({
         onClose={() => setTemplatesWeekId(null)}
         onInsert={(template) => {
           if (!templatesWeekId) return;
+          setTemplatesWeekId(null);
           handleAddActivity(templatesWeekId, {
             title: template.title,
             type: template.type,
@@ -1198,6 +1585,16 @@ export function StudioClient({
           });
         }}
       />
+
+      {shouldRenderOnboardingTour ? (
+        <OnboardingTour
+          key={`${onboardingStorageKey}_${tourInstanceKey}`}
+          storageKey={onboardingStorageKey}
+          onSeedHeader={handleTourSeedHeader}
+          onSeedWeeks={handleTourSeedWeeks}
+          onComplete={handleTourComplete}
+        />
+      ) : null}
 
       {showHistory ? (
         <div className="cbs-modal-overlay" onClick={() => setShowHistory(false)}>

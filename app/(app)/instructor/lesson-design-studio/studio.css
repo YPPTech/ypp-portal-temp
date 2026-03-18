@@ -506,6 +506,7 @@
 .cbs-week-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 10px;
 }
@@ -521,6 +522,7 @@
 
 .cbs-week-title-input {
   flex: 1;
+  min-width: 220px;
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--cbs-border);
@@ -1994,12 +1996,13 @@
 .lds-hero-actions {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   align-items: center;
 }
 
 .lds-updated-at {
+  margin-left: auto;
   font-size: 13px;
   color: #64748b;
 }
@@ -2192,6 +2195,27 @@
   margin-top: 18px;
 }
 
+.lds-course-shape-errors {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  background: rgba(254, 242, 242, 0.88);
+  color: #991b1b;
+}
+
+.lds-course-shape-errors strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.lds-course-shape-errors ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
 .lds-delivery-label {
   margin-bottom: 10px;
   font-size: 12px;
@@ -2294,6 +2318,16 @@
   color: #9a3412;
 }
 
+.lds-library-error {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  background: rgba(254, 242, 242, 0.9);
+  color: #991b1b;
+  font-size: 13px;
+}
+
 .lds-library-close {
   width: 40px;
   height: 40px;
@@ -2340,5 +2374,42 @@
 
   .cbs-week-sidebar {
     display: none;
+  }
+
+  .lds-hero-actions {
+    align-items: flex-start;
+  }
+
+  .lds-updated-at {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .lds-phase-pill {
+    border-radius: 20px;
+  }
+
+  .cbs-week-header {
+    align-items: flex-start;
+  }
+
+  .cbs-week-title-input {
+    min-width: 0;
+    flex-basis: 100%;
+    order: 1;
+  }
+}
+
+@media (max-width: 600px) {
+  .lds-phase-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .lds-phase-pill {
+    justify-content: flex-start;
+  }
+
+  .cbs-week-time-stat {
+    order: 2;
   }
 }

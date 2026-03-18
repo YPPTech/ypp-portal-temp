@@ -5,6 +5,7 @@ import {
   UNDERSTANDING_PASS_SCORE_PCT,
   buildUnderstandingChecksState,
   buildWeeklyTopicsFromSessionPlans,
+  getCourseConfigValidationIssues,
   getCurriculumDraftProgress,
   syncSessionPlansToCourseConfig,
 } from "@/lib/curriculum-draft-progress";
@@ -120,6 +121,53 @@ describe("curriculum draft progress", () => {
     );
     expect(progress.submissionIssues).toContain(
       `Pass the curriculum understanding check with at least ${UNDERSTANDING_PASS_SCORE_PCT}%.`
+    );
+  });
+
+  it("reports invalid student count relationships in the course shape", () => {
+    const issues = getCourseConfigValidationIssues({
+      ...courseConfig,
+      minStudents: 14,
+      idealSize: 10,
+      maxStudents: 9,
+    });
+
+    expect(issues).toContain(
+      "Set the minimum student count so it is not greater than the ideal class size."
+    );
+    expect(issues).toContain(
+      "Set the ideal class size so it is not greater than the maximum student count."
+    );
+  });
+
+  it("blocks submission when the course shape has impossible student counts", () => {
+    const weeklyPlans = [
+      buildSession(1, 1),
+      buildSession(1, 2),
+      buildSession(2, 1),
+      buildSession(2, 2),
+    ];
+
+    const progress = getCurriculumDraftProgress({
+      title: "Ready Except for Class Size",
+      interestArea: "Finance",
+      outcomes: ["Budget responsibly", "Set savings goals", "Explain credit basics"],
+      courseConfig: {
+        ...courseConfig,
+        minStudents: 18,
+        idealSize: 12,
+        maxStudents: 10,
+      },
+      weeklyPlans,
+      understandingChecks: buildPassingUnderstandingChecks(),
+    });
+
+    expect(progress.readyForSubmission).toBe(false);
+    expect(progress.submissionIssues).toContain(
+      "Set the minimum student count so it is not greater than the ideal class size."
+    );
+    expect(progress.submissionIssues).toContain(
+      "Set the ideal class size so it is not greater than the maximum student count."
     );
   });
 

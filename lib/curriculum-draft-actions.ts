@@ -158,9 +158,9 @@ async function syncLessonDesignStudioTrainingArtifacts(
     understandingChecks: draft.understandingChecks,
   });
 
-  for (const module of modules) {
+  for (const trainingModule of modules) {
     const checkpointByKey = new Map(
-      module.checkpoints
+      trainingModule.checkpoints
         .filter((checkpoint) => checkpoint.contentKey)
         .map((checkpoint) => [checkpoint.contentKey as string, checkpoint.id])
     );
@@ -186,8 +186,12 @@ async function syncLessonDesignStudioTrainingArtifacts(
     await syncCheckpoint("studio_first_week", progress.hasFirstWeekWithThreeActivities);
     await syncCheckpoint("studio_week_objective", progress.hasAnyObjective);
     await syncCheckpoint("studio_at_home_assignment", progress.hasAnyAtHomeAssignment);
-    await ensureLessonDesignStudioEvidenceSubmission(userId, module.id, draft);
-    await syncTrainingAssignmentFromArtifacts(userId, module.id);
+    await ensureLessonDesignStudioEvidenceSubmission(
+      userId,
+      trainingModule.id,
+      draft
+    );
+    await syncTrainingAssignmentFromArtifacts(userId, trainingModule.id);
   }
 
   revalidateStudioAndTrainingSurfaces(modules.map((module) => module.id));

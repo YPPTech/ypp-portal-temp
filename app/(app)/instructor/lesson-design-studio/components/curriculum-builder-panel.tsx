@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DndContext, closestCenter, DragEndEvent } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -15,6 +15,7 @@ import {
   UNDERSTANDING_PASS_SCORE_PCT,
   buildSessionLabel,
   buildUnderstandingChecksState,
+  getCourseConfigValidationIssues,
   getCurriculumDraftProgress,
   type CurriculumDraftProgress,
   type StudioCourseConfig,
@@ -110,8 +111,9 @@ interface CurriculumBuilderPanelProps {
   onOpenExamplesLibrary: (targetPlanId?: string | null) => void;
   onApplyStarterScaffold: (seed: SeedCurriculum) => void;
   onPhaseChange: (phase: StudioPhase) => void;
-  onExportPdf: (type: "student" | "instructor") => void;
-  onSubmit: () => void;
+  onExportPdf: (type: "student" | "instructor") => Promise<boolean>;
+  onSubmit: () => Promise<boolean>;
+  isActionPending: boolean;
   isSubmitted: boolean;
   generatedTemplateId: string | null;
   launchActionsReady: boolean;
@@ -1190,7 +1192,8 @@ interface SubmitModalProps {
   weeklyPlans: WeekPlan[];
   understandingChecks: StudioUnderstandingChecks;
   onClose: () => void;
-  onSubmit: () => void;
+  onSubmit: () => Promise<boolean>;
+  isPending: boolean;
 }
 
 function SubmitModal({
@@ -1202,6 +1205,7 @@ function SubmitModal({
   understandingChecks,
   onClose,
   onSubmit,
+  isPending,
 }: SubmitModalProps) {
   const progress = getCurriculumDraftProgress({
     title,
@@ -1211,6 +1215,18 @@ function SubmitModal({
     weeklyPlans,
     understandingChecks,
   });
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isPending) {
+        event.preventDefault();
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isPending, onClose]);
 
   return (
     <div
@@ -1225,7 +1241,7 @@ function SubmitModal({
         justifyContent: "center",
       }}
       onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget && !isPending) onClose();
       }}
     >
       <div
@@ -1306,12 +1322,13 @@ function SubmitModal({
         </div>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 8,
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isPending}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 8,
               border: "1px solid #d6d3d1",
               background: "#ffffff",
               color: "#475569",
@@ -1324,10 +1341,13 @@ function SubmitModal({
           {progress.readyForSubmission ? (
             <button
               type="button"
-              onClick={() => {
-                onSubmit();
-                onClose();
+              onClick={async () => {
+                const didSubmit = await onSubmit();
+                if (didSubmit) {
+                  onClose();
+                }
               }}
+              disabled={isPending}
               style={{
                 padding: "8px 16px",
                 borderRadius: 8,
@@ -1351,20 +1371,49 @@ function SubmitModal({
 /* ── ExportPdfDropdown ─────────────────────────────────────── */
 
 interface ExportPdfDropdownProps {
-  onExportPdf: (type: "student" | "instructor") => void;
+  onExportPdf: (type: "student" | "instructor") => Promise<boolean>;
+  disabled?: boolean;
 }
 
-function ExportPdfDropdown({ onExportPdf }: ExportPdfDropdownProps) {
+function ExportPdfDropdown({ onExportPdf, disabled = false }: ExportPdfDropdownProps) {
   const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!dropdownRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
 
   return (
-    <div style={{ position: "relative" }}>
+    <div ref={dropdownRef} style={{ position: "relative" }}>
       <button
         type="button"
         className="cbs-btn cbs-btn-secondary"
         onClick={() => setOpen((v) => !v)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        disabled={disabled}
         style={{ display: "flex", alignItems: "center", gap: 4 }}
+        aria-expanded={open}
+        aria-haspopup="menu"
       >
         Export PDF <span style={{ fontSize: 10 }}>▾</span>
       </button>
@@ -1382,10 +1431,14 @@ function ExportPdfDropdown({ onExportPdf }: ExportPdfDropdownProps) {
             overflow: "hidden",
             zIndex: 100,
           }}
+          role="menu"
         >
           <button
             type="button"
-            onClick={() => { onExportPdf("student"); setOpen(false); }}
+            onClick={async () => {
+              const didExport = await onExportPdf("student");
+              if (didExport) setOpen(false);
+            }}
             style={{
               display: "block",
               width: "100%",
@@ -1404,7 +1457,10 @@ function ExportPdfDropdown({ onExportPdf }: ExportPdfDropdownProps) {
           </button>
           <button
             type="button"
-            onClick={() => { onExportPdf("instructor"); setOpen(false); }}
+            onClick={async () => {
+              const didExport = await onExportPdf("instructor");
+              if (didExport) setOpen(false);
+            }}
             style={{
               display: "block",
               width: "100%",
@@ -1462,6 +1518,7 @@ export function CurriculumBuilderPanel({
   onPhaseChange,
   onExportPdf,
   onSubmit,
+  isActionPending,
   isSubmitted,
   generatedTemplateId,
   launchActionsReady,
@@ -1570,6 +1627,7 @@ export function CurriculumBuilderPanel({
   }
 
   const deliveryModeSet = new Set(courseConfig.deliveryModes);
+  const courseShapeIssues = getCourseConfigValidationIssues(courseConfig);
   const rubricScores = reviewRubric.scores;
   const showReviewSummary =
     needsRevision ||
@@ -1834,7 +1892,7 @@ export function CurriculumBuilderPanel({
             />
           </label>
 
-          <div className="lds-course-shape-card">
+            <div className="lds-course-shape-card">
             <div className="lds-course-shape-header">
               <div>
                 <h3>Course shape</h3>
@@ -2005,6 +2063,17 @@ export function CurriculumBuilderPanel({
                 })}
               </div>
             </div>
+
+            {courseShapeIssues.length > 0 ? (
+              <div className="lds-course-shape-errors" role="alert">
+                <strong>Course shape still needs one quick fix:</strong>
+                <ul>
+                  {courseShapeIssues.map((issue) => (
+                    <li key={issue}>{issue}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
             <SectionNote
               label="Reviewer note on course shape"
@@ -2436,7 +2505,10 @@ export function CurriculumBuilderPanel({
           ) : null}
 
           <div className="lds-readiness-actions">
-            <ExportPdfDropdown onExportPdf={onExportPdf} />
+            <ExportPdfDropdown
+              onExportPdf={onExportPdf}
+              disabled={isActionPending}
+            />
             {isSubmitted ? (
               <span className="cbs-submitted-badge">
                 {isApproved ? "✓ Approved" : "✓ Submitted"}
@@ -2446,6 +2518,7 @@ export function CurriculumBuilderPanel({
                 className="cbs-btn cbs-btn-primary"
                 onClick={() => setShowSubmitModal(true)}
                 type="button"
+                disabled={isActionPending}
                 title={
                   progress.readyForSubmission
                     ? "Submit curriculum"
@@ -2548,11 +2621,15 @@ export function CurriculumBuilderPanel({
 
           {reviewStatus === "COMPLETED" && !isSubmitted ? (
             <div className="lds-review-actions">
-              <ExportPdfDropdown onExportPdf={onExportPdf} />
+              <ExportPdfDropdown
+                onExportPdf={onExportPdf}
+                disabled={isActionPending}
+              />
               <button
                 className="cbs-btn cbs-btn-primary"
                 onClick={() => setShowSubmitModal(true)}
                 type="button"
+                disabled={isActionPending}
               >
                 Submit curriculum for review
               </button>
@@ -2644,6 +2721,7 @@ export function CurriculumBuilderPanel({
           understandingChecks={understandingChecks}
           onClose={() => setShowSubmitModal(false)}
           onSubmit={onSubmit}
+          isPending={isActionPending}
         />
       )}
       {phaseContent}
