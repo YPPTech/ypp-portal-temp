@@ -1592,6 +1592,186 @@
   border-color: #fcd34d;
 }
 
+/* ── Onboarding Tour ──────────────────────────────────────────── */
+
+.lds-tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: cbsFadeIn 0.3s ease;
+}
+
+.lds-tour-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 9001;
+  cursor: pointer;
+}
+
+.lds-tour-card {
+  position: relative;
+  z-index: 9002;
+  background: linear-gradient(145deg, #1a1030 0%, #0f0e17 100%);
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  border-radius: 16px;
+  padding: 28px 32px 24px;
+  width: 420px;
+  max-width: 92vw;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(124, 58, 237, 0.15),
+    0 0 60px rgba(124, 58, 237, 0.1);
+  text-align: center;
+  animation: ldsTourSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes ldsTourSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.lds-tour-progress {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.lds-tour-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7c3aed, #a78bfa);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.lds-tour-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+  line-height: 1;
+}
+
+.lds-tour-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 0 0 8px;
+  letter-spacing: -0.01em;
+}
+
+.lds-tour-body {
+  font-size: 13px;
+  color: rgba(241, 245, 249, 0.7);
+  line-height: 1.7;
+  margin: 0 0 20px;
+}
+
+.lds-tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lds-tour-skip {
+  background: none;
+  border: none;
+  color: rgba(241, 245, 249, 0.35);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-family: inherit;
+  transition: color 0.2s ease;
+}
+
+.lds-tour-skip:hover {
+  color: rgba(241, 245, 249, 0.7);
+}
+
+.lds-tour-next {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  color: #fff;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.4);
+  transition: all 0.2s ease;
+}
+
+.lds-tour-next:hover {
+  background: linear-gradient(135deg, #6d28d9, #5b21b6);
+  box-shadow: 0 6px 24px rgba(124, 58, 237, 0.5);
+  transform: translateY(-1px);
+}
+
+.lds-tour-next:active {
+  transform: translateY(0);
+}
+
+.lds-tour-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.lds-tour-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  transition: all 0.2s ease;
+}
+
+.lds-tour-dot-active {
+  background: #7c3aed;
+  width: 20px;
+  border-radius: 3px;
+}
+
+.lds-tour-dot-done {
+  background: rgba(124, 58, 237, 0.5);
+}
+
+.lds-tour-counter {
+  font-size: 11px;
+  color: rgba(241, 245, 249, 0.25);
+  margin-top: 8px;
+}
+
+/* Restart tour button in menubar */
+.cbs-menubar-tour-btn {
+  background: none;
+  border: 1px solid var(--cbs-border-bright);
+  border-radius: 6px;
+  color: var(--cbs-text-dim);
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all var(--cbs-transition);
+}
+
+.cbs-menubar-tour-btn:hover {
+  color: var(--cbs-accent);
+  border-color: var(--cbs-accent);
+}
+
 /* ── Responsive adjustments for new layout ───────────────────── */
 
 @media (max-width: 900px) {

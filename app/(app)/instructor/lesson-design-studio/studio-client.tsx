@@ -7,6 +7,7 @@ import { CurriculumBuilderPanel } from "./components/curriculum-builder-panel";
 import { ActivityDetailDrawer } from "./components/activity-detail-drawer";
 import { ActivityTemplates } from "./components/activity-templates";
 import type { ExampleWeek } from "./examples-data";
+import { OnboardingTour } from "./components/onboarding-tour";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -168,6 +169,9 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
 
   // Mobile tab state
   const [mobileView, setMobileView] = useState<"examples" | "builder">("builder");
+
+  // Onboarding tour state
+  const [tourKey, setTourKey] = useState(0);
 
   // Version history state
   const [showHistory, setShowHistory] = useState(false);
@@ -598,6 +602,16 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
           {saveStatus === "saved" && <span className="cbs-status-saved">✓ Auto-saved</span>}
           {saveStatus === "error" && <span className="cbs-status-error">Save failed</span>}
           {isSubmitted && <span className="cbs-status-submitted">✓ Submitted</span>}
+          <button
+            className="cbs-menubar-tour-btn"
+            onClick={() => {
+              try { localStorage.removeItem("lds_onboarding_done"); } catch {}
+              setTourKey((k) => k + 1);
+            }}
+            type="button"
+          >
+            ? Tour
+          </button>
           {historyVersions.length > 0 && (
             <button
               className="cbs-menubar-history-btn"
@@ -680,6 +694,9 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
         onClose={() => setTemplatesWeekId(null)}
         onInsert={handleInsertTemplate}
       />
+
+      {/* Onboarding tour */}
+      <OnboardingTour key={tourKey} />
 
       {/* Version history modal */}
       {showHistory && (
