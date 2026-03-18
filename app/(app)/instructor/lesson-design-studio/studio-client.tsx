@@ -500,6 +500,85 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
     [title, description, interestArea, outcomes, triggerAutoSave]
   );
 
+  // ── Tour seed handlers ─────────────────────────────────────
+
+  const handleTourSeedHeader = useCallback(
+    (info: { title: string; description: string; interestArea: string; outcomes: string[] }) => {
+      setTitle(info.title);
+      setDescription(info.description);
+      setInterestArea(info.interestArea);
+      setOutcomes(info.outcomes);
+      // Clear existing default empty week so seed weeks start fresh
+      setWeeklyPlans((prev) => {
+        // Only clear if there's just 1 empty untitled week
+        if (prev.length === 1 && !prev[0].title && prev[0].activities.length === 0) {
+          return [];
+        }
+        return prev;
+      });
+      triggerAutoSave(info.title, info.description, info.interestArea, info.outcomes, weeklyPlans);
+    },
+    [weeklyPlans, triggerAutoSave]
+  );
+
+  const handleTourSeedWeeks = useCallback(
+    (
+      weeks: Array<{
+        title: string;
+        objective: string;
+        teacherPrepNotes: string;
+        classDurationMin: number;
+        activities: Array<{
+          title: string;
+          type: string;
+          durationMin: number;
+          description: string;
+        }>;
+        atHomeAssignment: {
+          type: string;
+          title: string;
+          description: string;
+        };
+      }>
+    ) => {
+      setWeeklyPlans((prev) => {
+        const newWeeks: WeekPlan[] = weeks.map((w, idx) => ({
+          id: generateId(),
+          weekNumber: prev.length + idx + 1,
+          title: w.title,
+          classDurationMin: w.classDurationMin,
+          activities: w.activities.map((a, ai) => ({
+            id: generateId(),
+            title: a.title,
+            type: a.type as ActivityType,
+            durationMin: a.durationMin,
+            description: a.description,
+            resources: null,
+            notes: null,
+            sortOrder: ai,
+            materials: null,
+            differentiationTips: null,
+            energyLevel: null,
+            standardsTags: [],
+            rubric: null,
+          })),
+          objective: w.objective,
+          teacherPrepNotes: w.teacherPrepNotes,
+          materialsChecklist: [],
+          atHomeAssignment: {
+            type: w.atHomeAssignment.type as AtHomeAssignmentType,
+            title: w.atHomeAssignment.title,
+            description: w.atHomeAssignment.description,
+          },
+        }));
+        const next = [...prev, ...newWeeks];
+        triggerAutoSave(title, description, interestArea, outcomes, next);
+        return next;
+      });
+    },
+    [title, description, interestArea, outcomes, triggerAutoSave]
+  );
+
   // ── Drawer ───────────────────────────────────────────────
 
   const handleOpenDrawer = useCallback((weekId: string, activityId: string) => {
@@ -696,7 +775,11 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
       />
 
       {/* Onboarding tour */}
-      <OnboardingTour key={tourKey} />
+      <OnboardingTour
+        key={tourKey}
+        onSeedHeader={handleTourSeedHeader}
+        onSeedWeeks={handleTourSeedWeeks}
+      />
 
       {/* Version history modal */}
       {showHistory && (
