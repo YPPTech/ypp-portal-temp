@@ -43,6 +43,19 @@ export interface ExampleCurriculum {
   weeks: ExampleWeek[];
 }
 
+export interface ExampleCurriculumAnnotations {
+  whyThisCurriculumWorks: string[];
+  studentExperienceHighlights: string[];
+  adaptationMoves: string[];
+  reviewerLens: string[];
+}
+
+export interface ExampleWeekAnnotations {
+  whyThisWeekWorks: string;
+  watchOutFor: string;
+  adaptIt: string;
+}
+
 // ── Finance Curriculum ─────────────────────────────────────
 
 const financeCurriculum: ExampleCurriculum = {
@@ -546,3 +559,282 @@ export const EXAMPLE_CURRICULA: ExampleCurriculum[] = [
   bakingCurriculum,
   mathCurriculum,
 ];
+
+export const EXAMPLE_CURRICULUM_ANNOTATIONS: Record<
+  ExampleCurriculum["id"],
+  ExampleCurriculumAnnotations
+> = {
+  "example-finance": {
+    whyThisCurriculumWorks: [
+      "The sequence starts with habits students already recognize, then gradually introduces harder systems like credit, banking, and investing after trust is built.",
+      "Each week asks students to make a judgment, not just memorize a term, so the course builds financial decision-making instead of trivia recall.",
+      "The capstone is a synthesis task, not a disconnected final. Students must pull their budgeting, savings, and spending learning into one personal plan.",
+      "Homework keeps the course anchored in real life by asking students to observe, track, compare, and reflect on actual money behavior outside class.",
+    ],
+    studentExperienceHighlights: [
+      "Students see that there is not always one perfect money choice, which lowers fear and creates space for real discussion.",
+      "The arc alternates between direct teaching and practical application, so students do not sit in abstraction for too long.",
+      "Reflection keeps the course personal and identity-based: students are not only learning about money, they are learning how they want to act with money.",
+    ],
+    adaptationMoves: [
+      "Swap the sample numbers, costs, and scenarios so they match the local context and what your students really encounter.",
+      "If learners are younger, keep the same decision points but use allowance, gift money, school events, or snack budgets instead of paychecks and rent.",
+      "If learners are older, increase authenticity by using phone plans, debit cards, starter jobs, transportation, and short-term savings goals.",
+    ],
+    reviewerLens: [
+      "Does the course build financial judgment, not just vocabulary?",
+      "Do the scenarios feel realistic for the students this instructor wants to teach?",
+      "Do the assignments extend class learning without shaming students for what resources they do or do not have?",
+    ],
+  },
+  "example-baking": {
+    whyThisCurriculumWorks: [
+      "The course starts with safety and measurement before asking students to attempt higher-skill baking work, which protects both confidence and quality.",
+      "Technique and science are taught side by side, so students understand not only what to do but why the result changes when they change a process.",
+      "Each week ends with a concrete product or visible result, which makes progress tangible and motivating for beginners.",
+      "The showcase project works because students have already practiced safety, precision, technique, and presentation in smaller pieces beforehand.",
+    ],
+    studentExperienceHighlights: [
+      "Students experience quick sensory feedback, which makes the class feel lively and memorable.",
+      "The course includes repeated critique, tasting, and comparison moments so students learn to notice quality, not just finish a recipe.",
+      "Confidence grows because the curriculum moves from tightly scaffolded practice to more original creation over time.",
+    ],
+    adaptationMoves: [
+      "If equipment is limited, keep the conceptual goals but rotate stations or use demos plus smaller production tasks.",
+      "If the class is younger, simplify the production complexity but keep the language of science, observation, and reflection.",
+      "If ingredients are expensive, substitute lower-cost recipes while preserving the same skill focus: measuring, leavening, temperature, presentation, or costing.",
+    ],
+    reviewerLens: [
+      "Is the hands-on workload realistic for the time and setup available?",
+      "Does each session connect culinary action to an understandable scientific idea?",
+      "Are the final project expectations earned by what students practiced earlier in the course?",
+    ],
+  },
+  "example-math": {
+    whyThisCurriculumWorks: [
+      "The course keeps algebra attached to recognizable situations, which helps students see symbols as tools for thinking instead of random school rules.",
+      "Concepts build in a sensible order: patterns and expressions first, then equations, then inequalities, functions, and systems.",
+      "Students repeatedly move between words, symbols, graphs, and explanations, which develops flexible understanding instead of one narrow procedure.",
+      "The final project asks students to create and solve a real-world problem, proving they can transfer algebra beyond a worksheet.",
+    ],
+    studentExperienceHighlights: [
+      "Students are invited to explain their reasoning often, so the class values thinking out loud, not only getting the answer first.",
+      "Error analysis and peer teaching reduce shame around mistakes and turn mistakes into part of the learning process.",
+      "The course balances procedural fluency with interpretation, so students keep seeing what the math means in context.",
+    ],
+    adaptationMoves: [
+      "For students with math anxiety, slow down the symbolic load but keep the real-world interpretation work strong.",
+      "For advanced groups, keep the same contexts and add challenge through complexity, comparison, and explanation rather than racing ahead carelessly.",
+      "Use contexts your students already care about, like sports, music, transportation, gaming, or jobs, while preserving the same algebraic structure.",
+    ],
+    reviewerLens: [
+      "Do students get enough chances to explain what an answer means, not just compute it?",
+      "Is the jump from one concept to the next earned, or does the pacing outrun understanding?",
+      "Do the final applications genuinely require algebraic thinking rather than decorative word problems?",
+    ],
+  },
+};
+
+export const EXAMPLE_WEEK_ANNOTATIONS: Record<
+  ExampleCurriculum["id"],
+  Record<number, ExampleWeekAnnotations>
+> = {
+  "example-finance": {
+    1: {
+      whyThisWeekWorks:
+        "It starts with everyday spending language before introducing budgeting vocabulary, so students enter through lived experience instead of finance jargon.",
+      watchOutFor:
+        "If examples assume every student has a paycheck, some learners may disconnect. Ground the lesson in any money flow students actually know.",
+      adaptIt:
+        "Use allowance, family shopping, school events, transportation, or snack budgets if job-based examples feel too distant.",
+    },
+    2: {
+      whyThisWeekWorks:
+        "The gray-area conversation is the point. Students learn that good financial decisions require judgment, not just sorting cards mechanically.",
+      watchOutFor:
+        "Do not rush to resolve every disagreement. If you over-correct too quickly, students miss the thinking work.",
+      adaptIt:
+        "Swap in local or age-relevant expense examples so the debate feels real to your group.",
+    },
+    3: {
+      whyThisWeekWorks:
+        "Students connect math to a goal they personally care about, which makes saving feel purposeful instead of abstract.",
+      watchOutFor:
+        "If the goals are too unrealistic or embarrassing to share, students may disengage. Offer private or teacher-provided options.",
+      adaptIt:
+        "Let students choose between a personal goal, a fictional goal, or a shared class scenario.",
+    },
+    4: {
+      whyThisWeekWorks:
+        "The myth-or-fact entry point surfaces misconceptions early, so the rest of the lesson can directly confront the wrong mental models students already hold.",
+      watchOutFor:
+        "Credit can quickly become a fear-based lecture. Keep the tone practical and empowering rather than moralizing.",
+      adaptIt:
+        "If the group is younger, focus more on what credit is and how behavior affects trust before diving deeply into score systems.",
+    },
+    5: {
+      whyThisWeekWorks:
+        "Students compare real options, which turns banking from a label-memorization topic into a decision-making exercise.",
+      watchOutFor:
+        "The lesson can drift into information overload if too many account types or fee details are introduced at once.",
+      adaptIt:
+        "Choose fewer account types or pre-screen comparison options if students need a narrower decision set.",
+    },
+    6: {
+      whyThisWeekWorks:
+        "The mock portfolio and calculator activities make risk, return, and time visible in a way lecture alone cannot.",
+      watchOutFor:
+        "Students may hear 'investing' and assume guaranteed wealth. Keep uncertainty and time horizon in the conversation.",
+      adaptIt:
+        "Simplify the product choices but keep the core comparison between lower-risk and higher-risk paths.",
+    },
+    7: {
+      whyThisWeekWorks:
+        "Students apply critical thinking to persuasive messages they already consume every day, which makes the lesson immediately relevant.",
+      watchOutFor:
+        "If you stay too theoretical, students may not transfer the concept. Use real ads they actually encounter.",
+      adaptIt:
+        "Bring in local flyers, app promotions, influencer posts, or school-related pricing examples.",
+    },
+    8: {
+      whyThisWeekWorks:
+        "The capstone asks for synthesis. Students have to combine multiple habits and concepts into one coherent personal plan.",
+      watchOutFor:
+        "Do not crowd out planning time with too much presentation structure. The written build time is what makes the showcase meaningful.",
+      adaptIt:
+        "If presentations feel too high-stakes, use small-group presentations or gallery walks while keeping the final plan intact.",
+    },
+  },
+  "example-baking": {
+    1: {
+      whyThisWeekWorks:
+        "Safety is treated as part of craft, not as a boring preamble, which sets the tone that professionalism begins before any recipe does.",
+      watchOutFor:
+        "If this becomes a lecture-heavy rules session, students may tune out. Keep them moving, spotting, and practicing.",
+      adaptIt:
+        "Use photo-based hazard hunts or role-play if you cannot access the full kitchen environment right away.",
+    },
+    2: {
+      whyThisWeekWorks:
+        "Precision becomes visible because students can compare their own measurements and see the variation, not just hear that accuracy matters.",
+      watchOutFor:
+        "Students often think measuring is easy and may rush. Build in the compare-and-repeat moment so the lesson changes their assumptions.",
+      adaptIt:
+        "If ingredient access is limited, use water, rice, or beans for measurement practice before the real bake.",
+    },
+    3: {
+      whyThisWeekWorks:
+        "The science and the physical sensation of the dough reinforce each other, helping students connect explanation to touch and observation.",
+      watchOutFor:
+        "Bread takes patience. If the pacing feels rushed, students may miss the point of proofing and kneading changes.",
+      adaptIt:
+        "Use one demo dough alongside student dough so you can show later-stage changes even if time is tight.",
+    },
+    4: {
+      whyThisWeekWorks:
+        "The break is part of the pedagogy. Students experience that pastry quality depends on rest, temperature, and timing, not just effort.",
+      watchOutFor:
+        "Without strong setup, this can become chaotic because chilling time and butter management require precision.",
+      adaptIt:
+        "If full pastry production is too ambitious, keep the same concept focus with a smaller rough-puff or comparison demo.",
+    },
+    5: {
+      whyThisWeekWorks:
+        "Students compare different mixing methods on the same product, which helps them see that process changes texture and rise.",
+      watchOutFor:
+        "If groups use wildly different ingredient amounts or oven conditions, they may confuse method effects with execution errors.",
+      adaptIt:
+        "Standardize the ingredients tightly and vary only the method if you want cleaner comparisons.",
+    },
+    6: {
+      whyThisWeekWorks:
+        "Presentation is treated as a real skill rather than an optional extra, so students learn that craft includes how the final product meets the viewer.",
+      watchOutFor:
+        "Decoration can slide into surface-level play unless students are pushed to connect choices back to design intention and control.",
+      adaptIt:
+        "If supplies are limited, use parchment practice boards longer and move to final products only after repetition.",
+    },
+    7: {
+      whyThisWeekWorks:
+        "Students discover that baking quality and business viability are linked, which expands the course beyond hobby-level technique.",
+      watchOutFor:
+        "The numbers can feel dry if the products do not matter to students. Use items they actually know or want to sell.",
+      adaptIt:
+        "Let students cost school bake sale items, local favorites, or their own signature recipe ideas.",
+    },
+    8: {
+      whyThisWeekWorks:
+        "The final project feels earned because students are now combining safety, measurement, science, design, and feedback into one original product.",
+      watchOutFor:
+        "Showcase sessions can become stressful if every student hits a production issue at once. Pre-stage materials and leave recovery time.",
+      adaptIt:
+        "If full original recipes are too ambitious, let students modify a base recipe while still requiring clear technique choices.",
+    },
+  },
+  "example-math": {
+    1: {
+      whyThisWeekWorks:
+        "Students begin by noticing patterns before naming algebra, which lowers resistance and helps variables emerge as useful tools.",
+      watchOutFor:
+        "If you jump to symbolic language too quickly, students may memorize notation without understanding what the variable stands for.",
+      adaptIt:
+        "Use visual, verbal, and physical patterns first if students need more concrete entry points.",
+    },
+    2: {
+      whyThisWeekWorks:
+        "Combining like terms becomes understandable because students see why some terms combine and others do not, instead of being told a rule to obey.",
+      watchOutFor:
+        "Fast students may shortcut with answer-getting language that leaves others behind. Keep the explanation visible.",
+      adaptIt:
+        "Use tiles, colors, or physical sorting for longer before moving to quicker symbolic practice.",
+    },
+    3: {
+      whyThisWeekWorks:
+        "The balance analogy gives students a durable mental model for solving equations, so inverse operations feel logical instead of magical.",
+      watchOutFor:
+        "Some students will guess answers mentally and skip the process. That can hide weak transfer later.",
+      adaptIt:
+        "Require the balance story or inverse-operation sentence aloud before students write the final answer.",
+    },
+    4: {
+      whyThisWeekWorks:
+        "Error analysis helps students slow down and learn from structure, which is especially important once equations have more steps.",
+      watchOutFor:
+        "Multi-step work can overwhelm students if simplification and collecting terms were shaky in the previous week.",
+      adaptIt:
+        "Pull one or two common moves back into mini-review before asking for full independent solving.",
+    },
+    5: {
+      whyThisWeekWorks:
+        "The lesson keeps inequalities connected to real limits and thresholds, so the symbols carry meaning instead of becoming a new isolated topic.",
+      watchOutFor:
+        "The sign-flip rule can become a memorized trick if students do not test values from the solution set.",
+      adaptIt:
+        "Build in substitution checks so students can see why a graph or solution region makes sense.",
+    },
+    6: {
+      whyThisWeekWorks:
+        "Tables, graphs, and slope interpretation reinforce one another, which helps students see functions as relationships, not just graphing chores.",
+      watchOutFor:
+        "If domain, range, and rate of change are rushed, later graph work may look fluent but stay shallow.",
+      adaptIt:
+        "Use one strong context, like hourly pay or distance, and revisit it across multiple representations.",
+    },
+    7: {
+      whyThisWeekWorks:
+        "Students meet systems through a comparison problem first, so the intersection point feels like an answer to a question rather than a new unit label.",
+      watchOutFor:
+        "If graphing accuracy is weak, students may misread the idea of a shared solution even when their reasoning is strong.",
+      adaptIt:
+        "Use larger graph scales, digital graphing, or teacher-plotted examples before independent work.",
+    },
+    8: {
+      whyThisWeekWorks:
+        "Students are asked to generate a real problem of their own, which reveals whether they can transfer algebraic thinking beyond teacher-written prompts.",
+      watchOutFor:
+        "If the project becomes only decorative storytelling, students may avoid the actual algebra. Keep the concept requirement explicit.",
+      adaptIt:
+        "Provide project stems or context menus for students who need support inventing a scenario without weakening the algebra.",
+    },
+  },
+};

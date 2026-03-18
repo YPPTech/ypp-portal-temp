@@ -20,6 +20,14 @@ function formatDate(value: Date | string | null | undefined) {
   return new Date(value).toLocaleString();
 }
 
+function getDraftIdFromEvidenceUrl(fileUrl: string) {
+  try {
+    return new URL(fileUrl, "https://studio.local").searchParams.get("draftId");
+  } catch {
+    return null;
+  }
+}
+
 export default async function ChapterLeadInstructorReadinessPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -255,36 +263,128 @@ export default async function ChapterLeadInstructorReadinessPage() {
           ) : (
             <div style={{ display: "grid", gap: 10 }}>
               {evidenceQueue.map((submission) => (
-                <div key={submission.id} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12 }}>
-                  <p style={{ margin: 0, fontWeight: 600 }}>{submission.user.name} - {submission.module.title}</p>
-                  <p style={{ margin: "6px 0", fontSize: 13, color: "var(--muted)" }}>
-                    {submission.status.replace(/_/g, " ")} • {formatDate(submission.createdAt)}
-                  </p>
-                  <p style={{ margin: "0 0 8px" }}>
-                    <a href={submission.fileUrl} target="_blank" rel="noreferrer" className="link">
-                      Open evidence file
-                    </a>
-                  </p>
+                (() => {
+                  const draftId = getDraftIdFromEvidenceUrl(submission.fileUrl);
+                  return (
+                    <div key={submission.id} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12 }}>
+                      <p style={{ margin: 0, fontWeight: 600 }}>{submission.user.name} - {submission.module.title}</p>
+                      <p style={{ margin: "6px 0", fontSize: 13, color: "var(--muted)" }}>
+                        {submission.status.replace(/_/g, " ")} • {formatDate(submission.createdAt)}
+                      </p>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "0 0 10px" }}>
+                        <a href={submission.fileUrl} target="_blank" rel="noreferrer" className="link">
+                          Open evidence file
+                        </a>
+                        {draftId ? (
+                          <>
+                            <a
+                              href={`/instructor/lesson-design-studio/print?draftId=${draftId}&type=student`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="link"
+                            >
+                              Student preview
+                            </a>
+                            <a
+                              href={`/instructor/lesson-design-studio/print?draftId=${draftId}&type=instructor`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="link"
+                            >
+                              Instructor preview
+                            </a>
+                          </>
+                        ) : null}
+                      </div>
 
-                  <form action={reviewTrainingEvidence} className="form-grid">
-                    <input type="hidden" name="submissionId" value={submission.id} />
-                    <div className="grid two">
-                      <label className="form-row">
-                        Decision
-                        <select name="status" className="input" defaultValue="APPROVED">
-                          <option value="APPROVED">Approve</option>
-                          <option value="REVISION_REQUESTED">Request revision</option>
-                          <option value="REJECTED">Reject</option>
-                        </select>
-                      </label>
-                      <label className="form-row">
-                        Review notes
-                        <input name="reviewNotes" className="input" placeholder="Optional reviewer note" />
-                      </label>
+                      <form action={reviewTrainingEvidence} className="form-grid">
+                        <input type="hidden" name="submissionId" value={submission.id} />
+                        <div className="grid two">
+                          <label className="form-row">
+                            Decision
+                            <select name="status" className="input" defaultValue="APPROVED">
+                              <option value="APPROVED">Approve</option>
+                              <option value="REVISION_REQUESTED">Request revision</option>
+                              <option value="REJECTED">Reject</option>
+                            </select>
+                          </label>
+                          <label className="form-row">
+                            Review notes
+                            <input name="reviewNotes" className="input" placeholder="Short reviewer note" />
+                          </label>
+                        </div>
+
+                        {draftId ? (
+                          <>
+                            <p style={{ margin: "0 0 8px", fontSize: 12, color: "var(--muted)" }}>
+                              Score guide: `0` missing, `1` emerging, `2` partly working, `3` strong, `4` launch-ready.
+                            </p>
+                            <div className="grid four">
+                              <label className="form-row">
+                                Clarity
+                                <select name="rubricClarity" className="input" defaultValue="3">
+                                  {[0, 1, 2, 3, 4].map((score) => (
+                                    <option key={score} value={score}>{score}</option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="form-row">
+                                Sequencing
+                                <select name="rubricSequencing" className="input" defaultValue="3">
+                                  {[0, 1, 2, 3, 4].map((score) => (
+                                    <option key={score} value={score}>{score}</option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="form-row">
+                                Student Experience
+                                <select name="rubricStudentExperience" className="input" defaultValue="3">
+                                  {[0, 1, 2, 3, 4].map((score) => (
+                                    <option key={score} value={score}>{score}</option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="form-row">
+                                Launch Readiness
+                                <select name="rubricLaunchReadiness" className="input" defaultValue="3">
+                                  {[0, 1, 2, 3, 4].map((score) => (
+                                    <option key={score} value={score}>{score}</option>
+                                  ))}
+                                </select>
+                              </label>
+                            </div>
+                            <div className="grid two">
+                              <label className="form-row">
+                                Overview note
+                                <textarea name="rubricOverviewNote" className="input" rows={2} placeholder="How clear is the course purpose and promise?" />
+                              </label>
+                              <label className="form-row">
+                                Course structure note
+                                <textarea name="rubricCourseStructureNote" className="input" rows={2} placeholder="Comment on weeks, pacing, session count, or class shape." />
+                              </label>
+                            </div>
+                            <div className="grid two">
+                              <label className="form-row">
+                                Session plans note
+                                <textarea name="rubricSessionPlansNote" className="input" rows={2} placeholder="Comment on objectives, activity sequence, and pacing." />
+                              </label>
+                              <label className="form-row">
+                                Student assignments note
+                                <textarea name="rubricStudentAssignmentsNote" className="input" rows={2} placeholder="Comment on at-home assignments and reinforcement." />
+                              </label>
+                            </div>
+                            <label className="form-row">
+                              Rubric summary
+                              <textarea name="rubricSummary" className="input" rows={2} placeholder="What should the instructor keep, fix, or do next?" />
+                            </label>
+                          </>
+                        ) : null}
+
+                        <button type="submit" className="button small">Submit evidence review</button>
+                      </form>
                     </div>
-                    <button type="submit" className="button small">Submit evidence review</button>
-                  </form>
-                </div>
+                  );
+                })()
               ))}
             </div>
           )}

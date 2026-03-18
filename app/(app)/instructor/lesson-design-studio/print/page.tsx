@@ -2,6 +2,11 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { getCurriculumDraftById } from "@/lib/curriculum-draft-actions";
+import {
+  buildSessionLabel,
+  normalizeCourseConfig,
+  syncSessionPlansToCourseConfig,
+} from "@/lib/curriculum-draft-progress";
 import { EXAMPLE_CURRICULA } from "../examples-data";
 import { PrintContent } from "./print-content";
 
@@ -36,6 +41,8 @@ interface PrintActivity {
 
 interface PrintWeek {
   weekNumber: number;
+  sessionNumber: number;
+  label: string;
   title: string;
   goal: string;
   objective: string | null;
@@ -51,6 +58,15 @@ interface PrintData {
   interestArea: string;
   description: string;
   outcomes: string[];
+  courseSummary: {
+    durationWeeks: number;
+    sessionsPerWeek: number;
+    classDurationMin: number;
+    targetAgeGroup: string;
+    difficultyLevel: string;
+    deliveryModes: string[];
+    estimatedHours: number;
+  };
   weeks: PrintWeek[];
 }
 
@@ -78,8 +94,22 @@ export default async function PrintPage({
         interestArea: example.interestArea,
         description: example.description,
         outcomes: example.outcomes,
+        courseSummary: {
+          durationWeeks: example.weeks.length,
+          sessionsPerWeek: 1,
+          classDurationMin: example.classDurationMin,
+          targetAgeGroup: "",
+          difficultyLevel: "LEVEL_101",
+          deliveryModes: ["VIRTUAL"],
+          estimatedHours: Math.max(
+            1,
+            Math.round((example.weeks.length * example.classDurationMin) / 60)
+          ),
+        },
         weeks: example.weeks.map((w) => ({
           weekNumber: w.weekNumber,
+          sessionNumber: 1,
+          label: `Week ${w.weekNumber}`,
           title: w.title,
           goal: w.goal,
           objective: null,
@@ -102,31 +132,51 @@ export default async function PrintPage({
   } else if (draftId) {
     const draft = await getCurriculumDraftById(draftId);
     if (draft) {
-      const weeklyPlans = (draft.weeklyPlans as any[]) || [];
+      const courseConfig = normalizeCourseConfig(draft.courseConfig);
+      const weeklyPlans = syncSessionPlansToCourseConfig(
+        draft.weeklyPlans,
+        courseConfig
+      );
       printData = {
         title: draft.title || "Untitled Curriculum",
         authorName: draft.author?.name || session.user.name || "Instructor",
         interestArea: draft.interestArea || "",
         description: draft.description || "",
         outcomes: draft.outcomes || [],
-        weeks: weeklyPlans.map((w: any) => ({
+        courseSummary: {
+          durationWeeks: courseConfig.durationWeeks,
+          sessionsPerWeek: courseConfig.sessionsPerWeek,
+          classDurationMin: courseConfig.classDurationMin,
+          targetAgeGroup: courseConfig.targetAgeGroup,
+          difficultyLevel: courseConfig.difficultyLevel,
+          deliveryModes: courseConfig.deliveryModes,
+          estimatedHours: courseConfig.estimatedHours,
+        },
+        weeks: weeklyPlans.map((w) => ({
           weekNumber: w.weekNumber || 0,
+          sessionNumber: w.sessionNumber || 1,
+          label: buildSessionLabel(w, courseConfig),
           title: w.title || "",
           goal: w.objective || "",
           objective: w.objective || null,
           teacherPrepNotes: w.teacherPrepNotes || null,
           materialsChecklist: Array.isArray(w.materialsChecklist) ? w.materialsChecklist : [],
           atHomeAssignment: w.atHomeAssignment || null,
-          activities: (w.activities || []).map((a: any) => ({
-            title: a.title || "",
-            type: ACTIVITY_LABELS[a.type] || a.type || "",
-            durationMin: a.durationMin || 0,
-            description: a.description || null,
-            materials: a.materials || null,
-            differentiationTips: a.differentiationTips || null,
-            energyLevel: a.energyLevel || null,
-            rubric: a.rubric || null,
-          })),
+          activities: (w.activities || []).map((a) => {
+            const activityType =
+              typeof a.type === "string" ? a.type : "";
+
+            return {
+              title: a.title || "",
+              type: ACTIVITY_LABELS[activityType] || activityType || "",
+              durationMin: a.durationMin || 0,
+              description: a.description || null,
+              materials: a.materials || null,
+              differentiationTips: a.differentiationTips || null,
+              energyLevel: a.energyLevel || null,
+              rubric: a.rubric || null,
+            };
+          }),
         })),
       };
     }
@@ -184,17 +234,37 @@ export default async function PrintPage({
         </div>
       )}
 
+      <div className="cbs-print-section">
+        <h2>Course Shape</h2>
+        <p>
+          {printData.courseSummary.durationWeeks} week
+          {printData.courseSummary.durationWeeks === 1 ? "" : "s"} ·{" "}
+          {printData.courseSummary.sessionsPerWeek} session
+          {printData.courseSummary.sessionsPerWeek === 1 ? "" : "s"} per week ·{" "}
+          {printData.courseSummary.classDurationMin} min per session ·{" "}
+          {printData.courseSummary.estimatedHours} estimated learning hours
+        </p>
+        <p>
+          Delivery: {printData.courseSummary.deliveryModes.join(", ")}
+          {printData.courseSummary.targetAgeGroup
+            ? ` · Target age group: ${printData.courseSummary.targetAgeGroup}`
+            : ""}
+          {" · "}
+          {printData.courseSummary.difficultyLevel.replace("_", " ")}
+        </p>
+      </div>
+
       {/* Weekly Plans */}
       {printData.weeks.length > 0 && (
         <div className="cbs-print-section">
-          <h2>Weekly Lesson Plans</h2>
+          <h2>Session Plans</h2>
           {printData.weeks.map((week) => {
             const totalMin = week.activities.reduce((s, a) => s + a.durationMin, 0);
             return (
-              <div key={week.weekNumber} className="cbs-print-week">
+              <div key={`${week.weekNumber}-${week.sessionNumber}`} className="cbs-print-week">
                 <div className="cbs-print-week-header">
                   <h3>
-                    Week {week.weekNumber}
+                    {week.label}
                     {week.title ? `: ${week.title}` : ""}
                   </h3>
                   <span>{totalMin} min</span>

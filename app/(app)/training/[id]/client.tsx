@@ -5,6 +5,12 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { VideoPlayer } from "@/components/video-player";
 import FileUpload from "@/components/file-upload";
+import { StudioClient } from "@/app/(app)/instructor/lesson-design-studio/studio-client";
+import {
+  getCurriculumDraftProgress,
+  MIN_ACTIVITIES_PER_SESSION,
+  UNDERSTANDING_PASS_SCORE_PCT,
+} from "@/lib/curriculum-draft-progress";
 import {
   setTrainingCheckpointCompletion,
   submitTrainingEvidence,
@@ -128,6 +134,29 @@ type EvidenceSubmissionData = {
   createdAt: string;
 };
 
+type LessonDesignStudioData = {
+  userId: string;
+  userName: string;
+  draft: {
+    id: string;
+    title: string;
+    description: string;
+    interestArea: string;
+    outcomes: string[];
+    courseConfig: unknown;
+    weeklyPlans: unknown[];
+    understandingChecks: unknown;
+    reviewRubric: unknown;
+    reviewNotes: string;
+    reviewedAt: string | null;
+    submittedAt: string | null;
+    approvedAt: string | null;
+    generatedTemplateId: string | null;
+    status: string;
+    updatedAt: string;
+  };
+} | null;
+
 export default function TrainingModuleClient({
   module,
   assignment,
@@ -137,6 +166,7 @@ export default function TrainingModuleClient({
   nextModule,
   academyHref,
   academyLabel,
+  lessonDesignStudio,
 }: {
   module: ModuleData;
   assignment: AssignmentData;
@@ -146,6 +176,7 @@ export default function TrainingModuleClient({
   nextModule: { id: string; title: string } | null;
   academyHref: string;
   academyLabel: string;
+  lessonDesignStudio: LessonDesignStudioData;
 }) {
   const [activeVideoId, setActiveVideoId] = useState<string | null>(
     module.videos.length > 0 ? module.videos.find((v) => !v.isSupplementary)?.id ?? module.videos[0]?.id ?? null : null
@@ -180,6 +211,20 @@ export default function TrainingModuleClient({
   const quizReady = !module.requiresQuiz || hasPassedQuiz;
   const evidenceReady = !module.requiresEvidence || hasApprovedEvidence;
   const moduleReady = videoReady && checkpointsReady && quizReady && evidenceReady;
+  const studioProgress = useMemo(
+    () =>
+      lessonDesignStudio
+        ? getCurriculumDraftProgress({
+            title: lessonDesignStudio.draft.title,
+            interestArea: lessonDesignStudio.draft.interestArea,
+            outcomes: lessonDesignStudio.draft.outcomes,
+            courseConfig: lessonDesignStudio.draft.courseConfig,
+            weeklyPlans: lessonDesignStudio.draft.weeklyPlans,
+            understandingChecks: lessonDesignStudio.draft.understandingChecks,
+          })
+        : null,
+    [lessonDesignStudio]
+  );
 
   function setQuizAnswer(questionId: string, answer: string) {
     setQuizAnswers((prev) => ({ ...prev, [questionId]: answer }));
@@ -286,6 +331,11 @@ export default function TrainingModuleClient({
           <a href="#section-checkpoints" className="button small outline" style={{ textDecoration: "none" }}>
             Go to checkpoints
           </a>
+          {lessonDesignStudio ? (
+            <a href="#section-studio" className="button small outline" style={{ textDecoration: "none" }}>
+              Go to studio
+            </a>
+          ) : null}
           {module.requiresQuiz ? (
             <a href="#section-quiz" className="button small outline" style={{ textDecoration: "none" }}>
               Go to quiz
@@ -298,6 +348,51 @@ export default function TrainingModuleClient({
           ) : null}
         </div>
       </div>
+
+      {lessonDesignStudio && studioProgress ? (
+        <div
+          className="card"
+          style={{ marginBottom: 18, border: "1px solid #c4b5fd", background: "#faf5ff" }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start", flexWrap: "wrap" }}>
+            <div>
+              <h3 style={{ marginBottom: 6 }}>Capstone Studio</h3>
+              <p style={{ marginTop: 0, color: "var(--muted)", fontSize: 13 }}>
+                This final module now includes the Lesson Design Studio below. Study the examples, complete the guided tour, and build the curriculum applicants should leave training with.
+              </p>
+            </div>
+            <Link href="/instructor/lesson-design-studio" className="button small outline" style={{ textDecoration: "none" }}>
+              Open Full Studio
+            </Link>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+            <span className="pill pill-small">
+              Sessions fully built {studioProgress.fullyBuiltSessions}/{studioProgress.totalSessionsExpected}
+            </span>
+            <span className="pill pill-small">
+              Sessions with {MIN_ACTIVITIES_PER_SESSION}+ activities {studioProgress.sessionsWithThreeActivities}
+            </span>
+            <span className="pill pill-small">
+              Objectives {studioProgress.sessionsWithObjectives}
+            </span>
+            <span className="pill pill-small">
+              At-home assignments {studioProgress.sessionsWithAtHomeAssignments}
+            </span>
+            <span className="pill pill-small">
+              Understanding check {studioProgress.understandingChecksPassed ? "passed" : `needs ${UNDERSTANDING_PASS_SCORE_PCT}%`}
+            </span>
+          </div>
+          {studioProgress.submissionIssues.length > 0 ? (
+            <p style={{ marginBottom: 0, marginTop: 10, fontSize: 13, color: "var(--muted)" }}>
+              To submit this capstone, keep building until every configured session is complete, stays inside its time budget, and the understanding check is passed.
+            </p>
+          ) : (
+            <p style={{ marginBottom: 0, marginTop: 10, fontSize: 13, color: "#166534", fontWeight: 600 }}>
+              Your curriculum meets the capstone build requirements. Submit it from the studio when you are ready for review.
+            </p>
+          )}
+        </div>
+      ) : null}
 
       {/* Multi-video section (v2.0.0) */}
       {module.videos.length > 0 ? (
@@ -455,6 +550,16 @@ export default function TrainingModuleClient({
         </div>
       ) : null}
 
+      {lessonDesignStudio ? (
+        <div id="section-studio" style={{ marginBottom: 18 }}>
+          <StudioClient
+            userId={lessonDesignStudio.userId}
+            userName={lessonDesignStudio.userName}
+            draft={lessonDesignStudio.draft}
+          />
+        </div>
+      ) : null}
+
       <div id="section-checkpoints" className="card" style={{ marginBottom: 18 }}>
         <h3>Checkpoints</h3>
         {module.checkpoints.length === 0 ? (
@@ -604,28 +709,63 @@ export default function TrainingModuleClient({
       {module.requiresEvidence ? (
         <div id="section-evidence" className="card" style={{ marginBottom: 18 }}>
           <h3>Evidence Submission</h3>
-          <p style={{ marginTop: 0, color: "var(--muted)", fontSize: 13 }}>
-            Upload required evidence for reviewer approval.
-          </p>
+          {lessonDesignStudio ? (
+            <>
+              <p style={{ marginTop: 0, color: "var(--muted)", fontSize: 13 }}>
+                For this capstone module, the curriculum you submit from the Lesson Design Studio becomes the review evidence automatically. There is no separate file upload step.
+              </p>
+              <div
+                style={{
+                  border: "1px solid var(--border)",
+                  borderRadius: 10,
+                  padding: 12,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  alignItems: "start",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div>
+                  <p style={{ margin: 0, fontWeight: 600 }}>Current studio draft</p>
+                  <p style={{ margin: "6px 0 0", fontSize: 13, color: "var(--muted)" }}>
+                    {lessonDesignStudio.draft.title || "Untitled curriculum"} · {lessonDesignStudio.draft.status.replace(/_/g, " ")}
+                  </p>
+                  <p style={{ margin: "6px 0 0", fontSize: 13, color: "var(--muted)" }}>
+                    Last updated {new Date(lessonDesignStudio.draft.updatedAt).toLocaleString()}
+                  </p>
+                </div>
+                <a href="#section-studio" className="button small outline" style={{ textDecoration: "none" }}>
+                  Jump to Studio
+                </a>
+              </div>
+            </>
+          ) : (
+            <>
+              <p style={{ marginTop: 0, color: "var(--muted)", fontSize: 13 }}>
+                Upload required evidence for reviewer approval.
+              </p>
 
-          <form action={submitTrainingEvidence} className="form-grid">
-            <input type="hidden" name="moduleId" value={module.id} />
-            <label className="form-row">
-              Evidence file
-              <FileUpload
-                category="TRAINING_EVIDENCE"
-                entityType="training_module"
-                entityId={module.id}
-                maxSizeMB={10}
-                label="Upload evidence"
-              />
-            </label>
-            <label className="form-row">
-              Notes (optional)
-              <textarea name="notes" className="input" rows={2} />
-            </label>
-            <button type="submit" className="button small">Submit evidence</button>
-          </form>
+              <form action={submitTrainingEvidence} className="form-grid">
+                <input type="hidden" name="moduleId" value={module.id} />
+                <label className="form-row">
+                  Evidence file
+                  <FileUpload
+                    category="TRAINING_EVIDENCE"
+                    entityType="training_module"
+                    entityId={module.id}
+                    maxSizeMB={10}
+                    label="Upload evidence"
+                  />
+                </label>
+                <label className="form-row">
+                  Notes (optional)
+                  <textarea name="notes" className="input" rows={2} />
+                </label>
+                <button type="submit" className="button small">Submit evidence</button>
+              </form>
+            </>
+          )}
 
           {evidenceSubmissions.length > 0 ? (
             <div style={{ marginTop: 12, display: "grid", gap: 8 }}>

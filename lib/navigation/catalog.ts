@@ -5,6 +5,7 @@ type CatalogInput = Omit<NavLink, "group" | "priority" | "coreEligible"> & {
 };
 
 const INSTRUCTOR_ROLES: NavRole[] = ["INSTRUCTOR", "ADMIN", "CHAPTER_LEAD"];
+const INSTRUCTOR_AND_APPLICANT_ROLES: NavRole[] = ["APPLICANT", "INSTRUCTOR", "ADMIN", "CHAPTER_LEAD"];
 const MENTOR_ROLES: NavRole[] = ["MENTOR", "CHAPTER_LEAD", "ADMIN"];
 const APPLICANT_ROLES: NavRole[] = ["STUDENT", "INSTRUCTOR", "STAFF", "ADMIN"];
 const INTERVIEW_ROLES: NavRole[] = ["STUDENT", "INSTRUCTOR", "STAFF", "ADMIN", "CHAPTER_LEAD"];
@@ -196,8 +197,8 @@ export const NAV_CATALOG: NavLink[] = [
       href: "/instructor-training",
       label: "Instructor Training",
       icon: "🎓",
-      roles: INSTRUCTOR_ROLES,
-      dashboardDescription: "Complete academy modules, interview readiness, and approvals.",
+      roles: INSTRUCTOR_AND_APPLICANT_ROLES,
+      dashboardDescription: "Complete academy modules and finish with a fully built curriculum capstone.",
       dashboardPriority: 4,
       dashboardBadgeKey: "training_incomplete",
     },
@@ -205,9 +206,9 @@ export const NAV_CATALOG: NavLink[] = [
       href: "/instructor/lesson-design-studio",
       label: "Lesson Design Studio",
       icon: "🎨",
-      roles: INSTRUCTOR_ROLES,
+      roles: INSTRUCTOR_AND_APPLICANT_ROLES,
       featureKey: "INSTRUCTOR_TEACHING_TOOLS",
-      dashboardDescription: "Learn lesson design through examples, then build all your lesson plans in one guided session.",
+      dashboardDescription: "Browse examples, complete the guided tour, and build a full curriculum in one studio.",
       dashboardPriority: 17,
     },
     {

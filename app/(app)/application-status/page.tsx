@@ -3,7 +3,11 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { submitInfoResponse } from "@/lib/instructor-application-actions";
-import { InstructorApplicationStatus, ChapterPresidentApplicationStatus } from "@prisma/client";
+import {
+  InstructorApplicationStatus,
+  ChapterPresidentApplicationStatus,
+  TrainingModuleType,
+} from "@prisma/client";
 import InfoResponseForm from "./info-response-form";
 import CPInfoResponseForm from "./cp-info-response-form";
 import Link from "next/link";
@@ -91,7 +95,7 @@ export default async function ApplicationStatusPage() {
   const primaryRole = session.user.primaryRole;
 
   // Fetch both application types
-  const [instructorApp, cpApp] = await Promise.all([
+  const [instructorApp, cpApp, capstoneModule] = await Promise.all([
     prisma.instructorApplication.findUnique({
       where: { applicantId: session.user.id },
       include: { reviewer: { select: { name: true } } },
@@ -102,6 +106,10 @@ export default async function ApplicationStatusPage() {
         reviewer: { select: { name: true } },
         chapter: { select: { name: true } },
       },
+    }),
+    prisma.trainingModule.findFirst({
+      where: { type: TrainingModuleType.CURRICULUM_REVIEW },
+      select: { id: true, title: true },
     }),
   ]);
 
@@ -138,6 +146,39 @@ export default async function ApplicationStatusPage() {
           <ProgressStepper status={instructorApp.status} />
 
           <div className="card" style={{ marginBottom: 16 }}>
+            {capstoneModule && instructorApp.status !== "REJECTED" ? (
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: "14px 16px",
+                  borderRadius: 12,
+                  background: "var(--surface-2)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <h3 className="section-title" style={{ marginTop: 0 }}>Build Your First Curriculum</h3>
+                <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 0 }}>
+                  The goal is to leave the instructor pathway with a full curriculum in hand. You can continue the capstone module or jump straight into the Lesson Design Studio.
+                </p>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <Link
+                    href={`/training/${capstoneModule.id}`}
+                    className="button"
+                    style={{ display: "inline-block", textDecoration: "none" }}
+                  >
+                    Open {capstoneModule.title}
+                  </Link>
+                  <Link
+                    href="/instructor/lesson-design-studio"
+                    className="button secondary"
+                    style={{ display: "inline-block", textDecoration: "none" }}
+                  >
+                    Open Lesson Design Studio
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+
             {instructorApp.status === "SUBMITTED" && (
               <>
                 <h3 className="section-title">Application Received</h3>

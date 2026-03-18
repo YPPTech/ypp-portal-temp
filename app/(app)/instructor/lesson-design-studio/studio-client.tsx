@@ -1,7 +1,21 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { saveCurriculumDraft, submitCurriculumDraft } from "@/lib/curriculum-draft-actions";
+import { useRouter } from "next/navigation";
+import {
+  markLessonDesignStudioTourComplete,
+  saveCurriculumDraft,
+  submitCurriculumDraft,
+} from "@/lib/curriculum-draft-actions";
+import {
+  normalizeCourseConfig,
+  normalizeReviewRubric,
+  normalizeUnderstandingChecks,
+  syncSessionPlansToCourseConfig,
+  type StudioCourseConfig,
+  type StudioReviewRubric,
+  type StudioUnderstandingChecks,
+} from "@/lib/curriculum-draft-progress";
 import { ExampleCurriculumPanel } from "./components/example-curriculum-panel";
 import { CurriculumBuilderPanel } from "./components/curriculum-builder-panel";
 import { ActivityDetailDrawer } from "./components/activity-detail-drawer";
@@ -55,6 +69,7 @@ export interface WeekActivity {
 export interface WeekPlan {
   id: string;
   weekNumber: number;
+  sessionNumber: number;
   title: string;
   classDurationMin: number;
   activities: WeekActivity[];
@@ -71,7 +86,15 @@ interface DraftData {
   description: string;
   interestArea: string;
   outcomes: string[];
+  courseConfig: unknown;
   weeklyPlans: unknown[];
+  understandingChecks: unknown;
+  reviewRubric: unknown;
+  reviewNotes: string;
+  reviewedAt: string | null;
+  submittedAt: string | null;
+  approvedAt: string | null;
+  generatedTemplateId: string | null;
   status: string;
   updatedAt: string;
 }
@@ -89,6 +112,7 @@ interface HistoryVersion {
     description: string;
     interestArea: string;
     outcomes: string[];
+    courseConfig: StudioCourseConfig;
     weeklyPlans: WeekPlan[];
   };
 }
@@ -119,6 +143,7 @@ function normalizeWeek(w: any): WeekPlan {
   return {
     id: w.id ?? generateId(),
     weekNumber: w.weekNumber ?? 1,
+    sessionNumber: w.sessionNumber ?? 1,
     title: w.title ?? "",
     classDurationMin: w.classDurationMin ?? 60,
     activities: Array.isArray(w.activities) ? w.activities.map(normalizeActivity) : [],
@@ -133,32 +158,33 @@ function normalizeWeek(w: any): WeekPlan {
 
 export function StudioClient({ userId, userName, draft }: StudioClientProps) {
   // ── State ────────────────────────────────────────────────
+  const router = useRouter();
   const [title, setTitle] = useState(draft.title);
   const [description, setDescription] = useState(draft.description);
   const [interestArea, setInterestArea] = useState(draft.interestArea);
   const [outcomes, setOutcomes] = useState<string[]>(draft.outcomes);
+  const [courseConfig, setCourseConfig] = useState<StudioCourseConfig>(() =>
+    normalizeCourseConfig(draft.courseConfig)
+  );
   const [weeklyPlans, setWeeklyPlans] = useState<WeekPlan[]>(() => {
-    const plans = draft.weeklyPlans as any[];
-    return Array.isArray(plans) && plans.length > 0
-      ? plans.map(normalizeWeek)
-      : [
-          {
-            id: generateId(),
-            weekNumber: 1,
-            title: "",
-            classDurationMin: 60,
-            activities: [],
-            objective: null,
-            teacherPrepNotes: null,
-            materialsChecklist: [],
-            atHomeAssignment: null,
-          },
-        ];
+    return syncSessionPlansToCourseConfig(
+      draft.weeklyPlans,
+      draft.courseConfig
+    ).map(normalizeWeek);
   });
+  const [understandingChecks, setUnderstandingChecks] =
+    useState<StudioUnderstandingChecks>(() =>
+      normalizeUnderstandingChecks(draft.understandingChecks)
+    );
 
   const [activeExampleTab, setActiveExampleTab] = useState(0);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [isSubmitted, setIsSubmitted] = useState(draft.status === "SUBMITTED");
+  const [isSubmitted, setIsSubmitted] = useState(
+    draft.status === "SUBMITTED" || draft.status === "APPROVED"
+  );
+  const reviewRubric: StudioReviewRubric = normalizeReviewRubric(draft.reviewRubric);
+  const isApproved = draft.status === "APPROVED";
+  const needsRevision = draft.status === "NEEDS_REVISION";
 
   // Activity drawer state (kept for mobile fallback)
   const [drawerWeekId, setDrawerWeekId] = useState<string | null>(null);
@@ -196,11 +222,34 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
     };
   }, []);
 
+  const normalizePlansForConfig = useCallback(
+    (plans: unknown, config: StudioCourseConfig) =>
+      syncSessionPlansToCourseConfig(plans, config).map(normalizeWeek),
+    []
+  );
+
+  type DraftSnapshot = {
+    title: string;
+    description: string;
+    interestArea: string;
+    outcomes: string[];
+    courseConfig: StudioCourseConfig;
+    weeklyPlans: WeekPlan[];
+    understandingChecks: StudioUnderstandingChecks;
+  };
+
   const pushToHistory = useCallback(
-    (t: string, d: string, ia: string, oc: string[], wp: WeekPlan[]) => {
+    (snapshot: DraftSnapshot) => {
       const version: HistoryVersion = {
         savedAt: new Date().toISOString(),
-        snapshot: { title: t, description: d, interestArea: ia, outcomes: oc, weeklyPlans: wp },
+        snapshot: {
+          title: snapshot.title,
+          description: snapshot.description,
+          interestArea: snapshot.interestArea,
+          outcomes: snapshot.outcomes,
+          courseConfig: snapshot.courseConfig,
+          weeklyPlans: snapshot.weeklyPlans,
+        },
       };
       setHistoryVersions((prev) => {
         const next = [version, ...prev].slice(0, 10);
@@ -213,8 +262,22 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
     [draft.id]
   );
 
+  const buildSnapshot = useCallback(
+    (overrides: Partial<DraftSnapshot> = {}): DraftSnapshot => ({
+      title,
+      description,
+      interestArea,
+      outcomes,
+      courseConfig,
+      weeklyPlans,
+      understandingChecks,
+      ...overrides,
+    }),
+    [title, description, interestArea, outcomes, courseConfig, weeklyPlans, understandingChecks]
+  );
+
   const triggerAutoSave = useCallback(
-    (t: string, d: string, ia: string, oc: string[], wp: WeekPlan[]) => {
+    (snapshot: DraftSnapshot) => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(async () => {
         if (!isMountedRef.current) return;
@@ -222,15 +285,17 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
         try {
           await saveCurriculumDraft({
             draftId: draft.id,
-            title: t,
-            description: d,
-            interestArea: ia,
-            outcomes: oc,
-            weeklyPlans: wp,
+            title: snapshot.title,
+            description: snapshot.description,
+            interestArea: snapshot.interestArea,
+            outcomes: snapshot.outcomes,
+            courseConfig: snapshot.courseConfig,
+            weeklyPlans: snapshot.weeklyPlans,
+            understandingChecks: snapshot.understandingChecks,
           });
           if (isMountedRef.current) {
             setSaveStatus("saved");
-            pushToHistory(t, d, ia, oc, wp);
+            pushToHistory(snapshot);
           }
           setTimeout(() => {
             if (isMountedRef.current) setSaveStatus("idle");
@@ -247,32 +312,50 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
 
   const handleUpdate = useCallback(
     (field: string, value: unknown) => {
-      let nextTitle = title;
-      let nextDesc = description;
-      let nextIA = interestArea;
-      let nextOC = outcomes;
-
+      let nextSnapshot = buildSnapshot();
       switch (field) {
         case "title":
-          nextTitle = value as string;
-          setTitle(nextTitle);
+          nextSnapshot = { ...nextSnapshot, title: value as string };
+          setTitle(nextSnapshot.title);
           break;
         case "description":
-          nextDesc = value as string;
-          setDescription(nextDesc);
+          nextSnapshot = { ...nextSnapshot, description: value as string };
+          setDescription(nextSnapshot.description);
           break;
         case "interestArea":
-          nextIA = value as string;
-          setInterestArea(nextIA);
+          nextSnapshot = { ...nextSnapshot, interestArea: value as string };
+          setInterestArea(nextSnapshot.interestArea);
           break;
         case "outcomes":
-          nextOC = value as string[];
-          setOutcomes(nextOC);
+          nextSnapshot = { ...nextSnapshot, outcomes: value as string[] };
+          setOutcomes(nextSnapshot.outcomes);
+          break;
+        case "courseConfig": {
+          const normalizedCourseConfig = normalizeCourseConfig(value);
+          const syncedPlans = normalizePlansForConfig(
+            weeklyPlans,
+            normalizedCourseConfig
+          );
+          nextSnapshot = {
+            ...nextSnapshot,
+            courseConfig: normalizedCourseConfig,
+            weeklyPlans: syncedPlans,
+          };
+          setCourseConfig(normalizedCourseConfig);
+          setWeeklyPlans(syncedPlans);
+          break;
+        }
+        case "understandingChecks":
+          nextSnapshot = {
+            ...nextSnapshot,
+            understandingChecks: normalizeUnderstandingChecks(value),
+          };
+          setUnderstandingChecks(nextSnapshot.understandingChecks);
           break;
       }
-      triggerAutoSave(nextTitle, nextDesc, nextIA, nextOC, weeklyPlans);
+      triggerAutoSave(nextSnapshot);
     },
-    [title, description, interestArea, outcomes, weeklyPlans, triggerAutoSave]
+    [buildSnapshot, normalizePlansForConfig, triggerAutoSave, weeklyPlans]
   );
 
   const handleUpdateWeek = useCallback(
@@ -281,45 +364,50 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
         const next = prev.map((w) =>
           w.id === weekId ? { ...w, [field]: value } : w
         );
-        triggerAutoSave(title, description, interestArea, outcomes, next);
+        triggerAutoSave(buildSnapshot({ weeklyPlans: next }));
         return next;
       });
     },
-    [title, description, interestArea, outcomes, triggerAutoSave]
+    [buildSnapshot, triggerAutoSave]
   );
 
   const handleAddWeek = useCallback(() => {
-    setWeeklyPlans((prev) => {
-      const next = [
-        ...prev,
-        {
-          id: generateId(),
-          weekNumber: prev.length + 1,
-          title: "",
-          classDurationMin: 60,
-          activities: [],
-          objective: null,
-          teacherPrepNotes: null,
-          materialsChecklist: [],
-          atHomeAssignment: null,
-        },
-      ];
-      triggerAutoSave(title, description, interestArea, outcomes, next);
-      return next;
+    const nextCourseConfig = normalizeCourseConfig({
+      ...courseConfig,
+      durationWeeks: courseConfig.durationWeeks + 1,
     });
-  }, [title, description, interestArea, outcomes, triggerAutoSave]);
+    const nextPlans = normalizePlansForConfig(weeklyPlans, nextCourseConfig);
+    setCourseConfig(nextCourseConfig);
+    setWeeklyPlans(nextPlans);
+    triggerAutoSave(
+      buildSnapshot({
+        courseConfig: nextCourseConfig,
+        weeklyPlans: nextPlans,
+      })
+    );
+  }, [buildSnapshot, courseConfig, normalizePlansForConfig, triggerAutoSave, weeklyPlans]);
 
   const handleRemoveWeek = useCallback(
     (weekId: string) => {
       setWeeklyPlans((prev) => {
-        const next = prev
-          .filter((w) => w.id !== weekId)
-          .map((w, i) => ({ ...w, weekNumber: i + 1 }));
-        triggerAutoSave(title, description, interestArea, outcomes, next);
+        const next = prev.map((w) =>
+          w.id === weekId
+            ? {
+                ...w,
+                title: "",
+                activities: [],
+                objective: null,
+                teacherPrepNotes: null,
+                materialsChecklist: [],
+                atHomeAssignment: null,
+              }
+            : w
+        );
+        triggerAutoSave(buildSnapshot({ weeklyPlans: next }));
         return next;
       });
     },
-    [title, description, interestArea, outcomes, triggerAutoSave]
+    [buildSnapshot, triggerAutoSave]
   );
 
   const handleDuplicateWeek = useCallback(
@@ -327,24 +415,32 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
       setWeeklyPlans((prev) => {
         const sourceIndex = prev.findIndex((w) => w.id === weekId);
         if (sourceIndex === -1) return prev;
+        const targetIndex =
+          sourceIndex + 1 < prev.length ? sourceIndex + 1 : sourceIndex;
         const source = prev[sourceIndex];
-        const duplicate: WeekPlan = {
-          ...source,
-          id: generateId(),
-          title: source.title ? `${source.title} (Copy)` : "Copy",
-          activities: source.activities.map((a) => ({ ...a, id: generateId() })),
-          weekNumber: sourceIndex + 2,
-        };
-        const next = [
-          ...prev.slice(0, sourceIndex + 1),
-          duplicate,
-          ...prev.slice(sourceIndex + 1),
-        ].map((w, i) => ({ ...w, weekNumber: i + 1 }));
-        triggerAutoSave(title, description, interestArea, outcomes, next);
+        const next = prev.map((plan, index) =>
+          index === targetIndex
+            ? {
+                ...plan,
+                title: source.title ? `${source.title} (Copy)` : "Copy",
+                activities: source.activities.map((activity) => ({
+                  ...activity,
+                  id: generateId(),
+                })),
+                objective: source.objective,
+                teacherPrepNotes: source.teacherPrepNotes,
+                materialsChecklist: [...source.materialsChecklist],
+                atHomeAssignment: source.atHomeAssignment
+                  ? { ...source.atHomeAssignment }
+                  : null,
+              }
+            : plan
+        );
+        triggerAutoSave(buildSnapshot({ weeklyPlans: next }));
         return next;
       });
     },
-    [title, description, interestArea, outcomes, triggerAutoSave]
+    [buildSnapshot, triggerAutoSave]
   );
 
   const handleAddActivity = useCallback(
@@ -359,11 +455,11 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
           };
           return { ...w, activities: [...w.activities, newActivity] };
         });
-        triggerAutoSave(title, description, interestArea, outcomes, next);
+        triggerAutoSave(buildSnapshot({ weeklyPlans: next }));
         return next;
       });
     },
-    [title, description, interestArea, outcomes, triggerAutoSave]
+    [buildSnapshot, triggerAutoSave]
   );
 
   const handleRemoveActivity = useCallback(
@@ -378,7 +474,7 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
               .map((a, i) => ({ ...a, sortOrder: i })),
           };
         });
-        triggerAutoSave(title, description, interestArea, outcomes, next);
+        triggerAutoSave(buildSnapshot({ weeklyPlans: next }));
         return next;
       });
       if (drawerActivityId === activityId) {
@@ -386,7 +482,7 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
         setDrawerActivityId(null);
       }
     },
-    [title, description, interestArea, outcomes, triggerAutoSave, drawerActivityId]
+    [buildSnapshot, triggerAutoSave, drawerActivityId]
   );
 
   const handleUpdateActivity = useCallback(
@@ -401,11 +497,11 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
             ),
           };
         });
-        triggerAutoSave(title, description, interestArea, outcomes, next);
+        triggerAutoSave(buildSnapshot({ weeklyPlans: next }));
         return next;
       });
     },
-    [title, description, interestArea, outcomes, triggerAutoSave]
+    [buildSnapshot, triggerAutoSave]
   );
 
   const handleReorderActivities = useCallback(
@@ -421,11 +517,11 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
           items.splice(newIndex, 0, moved);
           return { ...w, activities: items.map((a, i) => ({ ...a, sortOrder: i })) };
         });
-        triggerAutoSave(title, description, interestArea, outcomes, next);
+        triggerAutoSave(buildSnapshot({ weeklyPlans: next }));
         return next;
       });
     },
-    [title, description, interestArea, outcomes, triggerAutoSave]
+    [buildSnapshot, triggerAutoSave]
   );
 
   const handleMoveActivityToWeek = useCallback(
@@ -451,21 +547,27 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
           }
           return w;
         });
-        triggerAutoSave(title, description, interestArea, outcomes, next);
+        triggerAutoSave(buildSnapshot({ weeklyPlans: next }));
         return next;
       });
     },
-    [title, description, interestArea, outcomes, triggerAutoSave]
+    [buildSnapshot, triggerAutoSave]
   );
 
   const handleImportWeek = useCallback(
     (week: ExampleWeek) => {
       setWeeklyPlans((prev) => {
+        const targetIndex = prev.findIndex(
+          (plan) => !plan.title.trim() && plan.activities.length === 0
+        );
+        const resolvedIndex = targetIndex >= 0 ? targetIndex : prev.length - 1;
         const newWeek: WeekPlan = {
-          id: generateId(),
-          weekNumber: prev.length + 1,
+          ...prev[resolvedIndex],
+          id: prev[resolvedIndex]?.id ?? generateId(),
+          weekNumber: prev[resolvedIndex]?.weekNumber ?? 1,
+          sessionNumber: prev[resolvedIndex]?.sessionNumber ?? 1,
           title: week.title,
-          classDurationMin: 60,
+          classDurationMin: courseConfig.classDurationMin,
           activities: week.activities.map((a, i) => ({
             id: generateId(),
             title: a.title,
@@ -492,12 +594,14 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
               }
             : null,
         };
-        const next = [...prev, newWeek];
-        triggerAutoSave(title, description, interestArea, outcomes, next);
+        const next = prev.map((plan, index) =>
+          index === resolvedIndex ? newWeek : plan
+        );
+        triggerAutoSave(buildSnapshot({ weeklyPlans: next }));
         return next;
       });
     },
-    [title, description, interestArea, outcomes, triggerAutoSave]
+    [buildSnapshot, courseConfig.classDurationMin, triggerAutoSave]
   );
 
   // ── Tour seed handlers ─────────────────────────────────────
@@ -508,17 +612,16 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
       setDescription(info.description);
       setInterestArea(info.interestArea);
       setOutcomes(info.outcomes);
-      // Clear existing default empty week so seed weeks start fresh
-      setWeeklyPlans((prev) => {
-        // Only clear if there's just 1 empty untitled week
-        if (prev.length === 1 && !prev[0].title && prev[0].activities.length === 0) {
-          return [];
-        }
-        return prev;
-      });
-      triggerAutoSave(info.title, info.description, info.interestArea, info.outcomes, weeklyPlans);
+      triggerAutoSave(
+        buildSnapshot({
+          title: info.title,
+          description: info.description,
+          interestArea: info.interestArea,
+          outcomes: info.outcomes,
+        })
+      );
     },
-    [weeklyPlans, triggerAutoSave]
+    [buildSnapshot, triggerAutoSave]
   );
 
   const handleTourSeedWeeks = useCallback(
@@ -542,41 +645,51 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
       }>
     ) => {
       setWeeklyPlans((prev) => {
-        const newWeeks: WeekPlan[] = weeks.map((w, idx) => ({
-          id: generateId(),
-          weekNumber: prev.length + idx + 1,
-          title: w.title,
-          classDurationMin: w.classDurationMin,
-          activities: w.activities.map((a, ai) => ({
-            id: generateId(),
-            title: a.title,
-            type: a.type as ActivityType,
-            durationMin: a.durationMin,
-            description: a.description,
-            resources: null,
-            notes: null,
-            sortOrder: ai,
-            materials: null,
-            differentiationTips: null,
-            energyLevel: null,
-            standardsTags: [],
-            rubric: null,
-          })),
-          objective: w.objective,
-          teacherPrepNotes: w.teacherPrepNotes,
-          materialsChecklist: [],
-          atHomeAssignment: {
-            type: w.atHomeAssignment.type as AtHomeAssignmentType,
-            title: w.atHomeAssignment.title,
-            description: w.atHomeAssignment.description,
-          },
-        }));
-        const next = [...prev, ...newWeeks];
-        triggerAutoSave(title, description, interestArea, outcomes, next);
+        let cursor = 0;
+        const next = prev.map((plan) => {
+          if (
+            cursor >= weeks.length ||
+            (plan.title.trim().length > 0 && plan.activities.length > 0)
+          ) {
+            return plan;
+          }
+
+          const source = weeks[cursor];
+          cursor += 1;
+          return {
+            ...plan,
+            title: source.title,
+            classDurationMin: source.classDurationMin,
+            activities: source.activities.map((a, ai) => ({
+              id: generateId(),
+              title: a.title,
+              type: a.type as ActivityType,
+              durationMin: a.durationMin,
+              description: a.description,
+              resources: null,
+              notes: null,
+              sortOrder: ai,
+              materials: null,
+              differentiationTips: null,
+              energyLevel: null,
+              standardsTags: [],
+              rubric: null,
+            })),
+            objective: source.objective,
+            teacherPrepNotes: source.teacherPrepNotes,
+            materialsChecklist: [],
+            atHomeAssignment: {
+              type: source.atHomeAssignment.type as AtHomeAssignmentType,
+              title: source.atHomeAssignment.title,
+              description: source.atHomeAssignment.description,
+            },
+          };
+        });
+        triggerAutoSave(buildSnapshot({ weeklyPlans: next }));
         return next;
       });
     },
-    [title, description, interestArea, outcomes, triggerAutoSave]
+    [buildSnapshot, triggerAutoSave]
   );
 
   // ── Drawer ───────────────────────────────────────────────
@@ -638,10 +751,11 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
     try {
       await submitCurriculumDraft(draft.id);
       setIsSubmitted(true);
+      router.refresh();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to submit");
     }
-  }, [draft.id]);
+  }, [draft.id, router]);
 
   // ── Version history restore ──────────────────────────────
 
@@ -652,18 +766,33 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
       setDescription(snapshot.description);
       setInterestArea(snapshot.interestArea);
       setOutcomes(snapshot.outcomes);
+      setCourseConfig(snapshot.courseConfig);
       setWeeklyPlans(snapshot.weeklyPlans);
       setShowHistory(false);
-      triggerAutoSave(
-        snapshot.title,
-        snapshot.description,
-        snapshot.interestArea,
-        snapshot.outcomes,
-        snapshot.weeklyPlans
-      );
+      triggerAutoSave({
+        ...buildSnapshot(),
+        title: snapshot.title,
+        description: snapshot.description,
+        interestArea: snapshot.interestArea,
+        outcomes: snapshot.outcomes,
+        courseConfig: snapshot.courseConfig,
+        weeklyPlans: snapshot.weeklyPlans,
+      });
     },
-    [triggerAutoSave]
+    [buildSnapshot, triggerAutoSave]
   );
+
+  const handleTourComplete = useCallback(() => {
+    void markLessonDesignStudioTourComplete().catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const normalized = normalizePlansForConfig(weeklyPlans, courseConfig);
+    const changed = JSON.stringify(normalized) !== JSON.stringify(weeklyPlans);
+    if (changed) {
+      setWeeklyPlans(normalized);
+    }
+  }, [courseConfig, normalizePlansForConfig, weeklyPlans]);
 
   // ── Render ───────────────────────────────────────────────
 
@@ -681,6 +810,8 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
           {saveStatus === "saved" && <span className="cbs-status-saved">✓ Auto-saved</span>}
           {saveStatus === "error" && <span className="cbs-status-error">Save failed</span>}
           {isSubmitted && <span className="cbs-status-submitted">✓ Submitted</span>}
+          {isApproved && <span className="cbs-status-submitted">Launch Ready</span>}
+          {needsRevision && <span className="cbs-status-error">Revision Requested</span>}
           <button
             className="cbs-menubar-tour-btn"
             onClick={() => {
@@ -722,10 +853,63 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
       </div>
 
       {/* Split screen */}
+      {(needsRevision || isApproved || draft.generatedTemplateId) && (
+        <div
+          className="card"
+          style={{
+            margin: "16px 0 12px",
+            background: isApproved ? "#ecfdf5" : "#fff7ed",
+            border: `1px solid ${isApproved ? "#86efac" : "#fdba74"}`,
+          }}
+        >
+          <h3 style={{ marginTop: 0, marginBottom: 8 }}>
+            {isApproved ? "Teaching Launch Hub" : "Reviewer Feedback"}
+          </h3>
+          <p style={{ marginTop: 0, fontSize: 14, color: "var(--muted)" }}>
+            {isApproved
+              ? "Your first curriculum has been approved. The launch package below is now the stable version that feeds the rest of the instructor workflow."
+              : draft.reviewNotes || "A reviewer asked for revisions. Use the notes below to tighten the curriculum before resubmitting."}
+          </p>
+
+          {reviewRubric.summary ? (
+            <p style={{ marginTop: 0, fontSize: 14 }}>{reviewRubric.summary}</p>
+          ) : null}
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+            {draft.generatedTemplateId ? (
+              <>
+                <a
+                  href={`/instructor/curriculum-builder#edit-${draft.generatedTemplateId}`}
+                  className="button secondary"
+                  style={{ textDecoration: "none" }}
+                >
+                  Open Curriculum Template
+                </a>
+                <a
+                  href={`/lesson-plans?templateId=${draft.generatedTemplateId}`}
+                  className="button secondary"
+                  style={{ textDecoration: "none" }}
+                >
+                  Open Generated Lesson Plans
+                </a>
+                <a
+                  href={`/instructor/class-settings?template=${draft.generatedTemplateId}`}
+                  className="button primary"
+                  style={{ textDecoration: "none" }}
+                >
+                  Create First Offering
+                </a>
+              </>
+            ) : null}
+          </div>
+        </div>
+      )}
+
       <div className="cbs-split">
         <div className={`cbs-split-left ${mobileView === "examples" ? "cbs-mobile-visible" : "cbs-mobile-hidden"}`}>
           <ExampleCurriculumPanel
             activeTab={activeExampleTab}
+            interestArea={interestArea}
             onTabChange={setActiveExampleTab}
             onImportWeek={handleImportWeek}
           />
@@ -737,7 +921,12 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
             description={description}
             interestArea={interestArea}
             outcomes={outcomes}
+            courseConfig={courseConfig}
             weeklyPlans={weeklyPlans}
+            understandingChecks={understandingChecks}
+            reviewRubric={reviewRubric}
+            reviewStatus={draft.status}
+            reviewNotes={draft.reviewNotes}
             onUpdate={handleUpdate}
             onUpdateWeek={handleUpdateWeek}
             onAddWeek={handleAddWeek}
@@ -754,6 +943,7 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
             onExportPdf={handleExportPdf}
             onSubmit={handleSubmit}
             isSubmitted={isSubmitted}
+            generatedTemplateId={draft.generatedTemplateId}
           />
         </div>
       </div>
@@ -779,6 +969,7 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
         key={tourKey}
         onSeedHeader={handleTourSeedHeader}
         onSeedWeeks={handleTourSeedWeeks}
+        onComplete={handleTourComplete}
       />
 
       {/* Version history modal */}
@@ -801,7 +992,7 @@ export function StudioClient({ userId, userName, draft }: StudioClientProps) {
                         {new Date(v.savedAt).toLocaleString()}
                       </span>
                       <span className="cbs-history-item-meta">
-                        {v.snapshot.weeklyPlans.length} week{v.snapshot.weeklyPlans.length !== 1 ? "s" : ""}
+                        {v.snapshot.weeklyPlans.length} session{v.snapshot.weeklyPlans.length !== 1 ? "s" : ""}
                       </span>
                     </div>
                     <button

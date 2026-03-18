@@ -8,6 +8,18 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import {
+  LESSON_DESIGN_UNDERSTANDING_QUESTIONS,
+  MIN_ACTIVITIES_PER_SESSION,
+  MIN_CURRICULUM_OUTCOMES,
+  UNDERSTANDING_PASS_SCORE_PCT,
+  buildSessionLabel,
+  buildUnderstandingChecksState,
+  getCurriculumDraftProgress,
+  type StudioCourseConfig,
+  type StudioReviewRubric,
+  type StudioUnderstandingChecks,
+} from "@/lib/curriculum-draft-progress";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -54,6 +66,7 @@ interface WeekActivity {
 interface WeekPlan {
   id: string;
   weekNumber: number;
+  sessionNumber: number;
   title: string;
   classDurationMin: number;
   activities: WeekActivity[];
@@ -68,7 +81,12 @@ interface CurriculumBuilderPanelProps {
   description: string;
   interestArea: string;
   outcomes: string[];
+  courseConfig: StudioCourseConfig;
   weeklyPlans: WeekPlan[];
+  understandingChecks: StudioUnderstandingChecks;
+  reviewRubric: StudioReviewRubric;
+  reviewStatus: string;
+  reviewNotes: string;
   onUpdate: (field: string, value: any) => void;
   onUpdateWeek: (weekId: string, field: string, value: any) => void;
   onAddWeek: () => void;
@@ -85,6 +103,7 @@ interface CurriculumBuilderPanelProps {
   onExportPdf: (type: "student" | "instructor") => void;
   onSubmit: () => void;
   isSubmitted: boolean;
+  generatedTemplateId: string | null;
 }
 
 /* ── Constants ─────────────────────────────────────────────── */
@@ -137,6 +156,19 @@ const SEL_TAGS = [
   "Self-Awareness", "Self-Management", "Social Awareness",
   "Relationship Skills", "Decision Making",
 ];
+
+const DELIVERY_MODE_OPTIONS = [
+  { value: "VIRTUAL", label: "Virtual" },
+  { value: "IN_PERSON", label: "In Person" },
+  { value: "HYBRID", label: "Hybrid" },
+] as const;
+
+const DIFFICULTY_LEVEL_OPTIONS = [
+  { value: "LEVEL_101", label: "Level 101" },
+  { value: "LEVEL_201", label: "Level 201" },
+  { value: "LEVEL_301", label: "Level 301" },
+  { value: "LEVEL_401", label: "Level 401" },
+] as const;
 
 /* ── Helpers ───────────────────────────────────────────────── */
 
@@ -611,7 +643,7 @@ function SortableActivity({
           {otherWeeks.length > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <label style={{ fontSize: 12, color: "#94a3b8", whiteSpace: "nowrap" }}>
-                Move to Week:
+                Move to Session:
               </label>
               <select
                 defaultValue=""
@@ -677,10 +709,10 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
   return (
     <div className="cbs-week-detail-section" style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 12, borderTop: "1px solid #1e293b" }}>
 
-      {/* Week Objective */}
+      {/* Session Objective */}
       <div>
         <label style={{ display: "flex", alignItems: "center", fontSize: 12, color: "#94a3b8", marginBottom: 4 }}>
-          Week Objective
+          Session Objective
           <HelpTooltip tip="A specific, measurable goal for this single class session" />
         </label>
         <input
@@ -800,70 +832,324 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
   );
 }
 
-/* ── ProgressBar ───────────────────────────────────────────── */
+/* ── Progress + Teaching Support ───────────────────────────── */
+
+function SectionNote({ label, note }: { label: string; note: string }) {
+  if (!note.trim()) return null;
+
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        padding: "10px 12px",
+        borderRadius: 8,
+        background: "#1e293b",
+        border: "1px solid #334155",
+        fontSize: 12,
+        color: "#cbd5e1",
+      }}
+    >
+      <strong style={{ color: "#f8fafc" }}>{label}:</strong> {note}
+    </div>
+  );
+}
 
 interface ProgressBarProps {
   title: string;
+  interestArea: string;
   outcomes: string[];
+  courseConfig: StudioCourseConfig;
   weeklyPlans: WeekPlan[];
+  understandingChecks: StudioUnderstandingChecks;
 }
 
-function ProgressBar({ title, outcomes, weeklyPlans }: ProgressBarProps) {
+function ProgressBar({
+  title,
+  interestArea,
+  outcomes,
+  courseConfig,
+  weeklyPlans,
+  understandingChecks,
+}: ProgressBarProps) {
+  const progress = getCurriculumDraftProgress({
+    title,
+    interestArea,
+    outcomes,
+    courseConfig,
+    weeklyPlans,
+    understandingChecks,
+  });
+
   const checks = [
     {
-      label: "Curriculum has a title",
-      pass: title.trim().length > 0,
+      label: "Overview is filled out",
+      pass: title.trim().length > 0 && interestArea.trim().length > 0,
     },
     {
-      label: "At least one learning outcome",
-      pass: outcomes.filter((o) => o.trim()).length >= 1,
+      label: `At least ${MIN_CURRICULUM_OUTCOMES} learning outcomes`,
+      pass: outcomes.filter((o) => o.trim()).length >= MIN_CURRICULUM_OUTCOMES,
     },
     {
-      label: "All weeks have activities",
-      pass: weeklyPlans.length > 0 && weeklyPlans.every((w) => w.activities.length > 0),
+      label: "Every session has a title",
+      pass: progress.sessionsWithTitles === progress.totalSessionsExpected,
     },
     {
-      label: "At least one week has an objective",
-      pass: weeklyPlans.some((w) => w.objective?.trim()),
+      label: "Every session has an objective",
+      pass: progress.sessionsWithObjectives === progress.totalSessionsExpected,
+    },
+    {
+      label: `Every session has ${MIN_ACTIVITIES_PER_SESSION}+ activities`,
+      pass:
+        progress.sessionsWithThreeActivities === progress.totalSessionsExpected,
+    },
+    {
+      label: "Every session includes at-home work",
+      pass:
+        progress.sessionsWithAtHomeAssignments ===
+        progress.totalSessionsExpected,
+    },
+    {
+      label: "Every session fits the time budget",
+      pass:
+        progress.sessionsWithinTimeBudget === progress.totalSessionsExpected,
+    },
+    {
+      label: `Understanding check passed (${UNDERSTANDING_PASS_SCORE_PCT}%+)`,
+      pass: progress.understandingChecksPassed,
     },
   ];
 
-  const passCount = checks.filter((c) => c.pass).length;
-  const pct = (passCount / 4) * 100;
+  const passCount = checks.filter((check) => check.pass).length;
+  const pct = Math.round((passCount / checks.length) * 100);
 
   return (
-    <div className="cbs-progress-section" style={{ marginTop: 12 }}>
-      <div style={{ height: 6, background: "#1e293b", borderRadius: 3, overflow: "hidden", marginBottom: 8 }}>
+    <div className="cbs-progress-section" style={{ marginTop: 16 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "center",
+          flexWrap: "wrap",
+          marginBottom: 8,
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 4 }}>
+            Ready-to-teach progress
+          </div>
+          <div style={{ fontSize: 13, color: "#f8fafc", fontWeight: 600 }}>
+            {progress.fullyBuiltSessions}/{progress.totalSessionsExpected} session
+            {progress.totalSessionsExpected === 1 ? "" : "s"} fully built
+          </div>
+        </div>
+        <span
+          style={{
+            fontSize: 12,
+            color: progress.readyForSubmission ? "#22c55e" : "#f59e0b",
+            fontWeight: 700,
+          }}
+        >
+          {progress.readyForSubmission ? "Ready to submit" : `${pct}% complete`}
+        </span>
+      </div>
+      <div
+        style={{
+          height: 8,
+          background: "#1e293b",
+          borderRadius: 999,
+          overflow: "hidden",
+          marginBottom: 10,
+        }}
+      >
         <div
           style={{
             width: `${pct}%`,
             height: "100%",
-            background: "#22c55e",
-            borderRadius: 3,
+            background: progress.readyForSubmission ? "#22c55e" : "#38bdf8",
+            borderRadius: 999,
             transition: "width 0.3s ease",
           }}
         />
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {checks.map((c) => (
+        {checks.map((check) => (
           <span
-            key={c.label}
+            key={check.label}
             style={{
               display: "inline-flex",
               alignItems: "center",
               gap: 4,
               fontSize: 11,
-              padding: "2px 8px",
-              borderRadius: 12,
-              border: `1px solid ${c.pass ? "#22c55e44" : "#334155"}`,
-              background: c.pass ? "#22c55e11" : "transparent",
-              color: c.pass ? "#22c55e" : "#64748b",
+              padding: "3px 8px",
+              borderRadius: 999,
+              border: `1px solid ${check.pass ? "#22c55e44" : "#334155"}`,
+              background: check.pass ? "#22c55e11" : "transparent",
+              color: check.pass ? "#22c55e" : "#94a3b8",
             }}
           >
-            {c.pass ? "✓" : "○"} {c.label}
+            {check.pass ? "✓" : "○"} {check.label}
           </span>
         ))}
       </div>
+      {!progress.readyForSubmission && progress.submissionIssues.length > 0 ? (
+        <div
+          style={{
+            marginTop: 12,
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: "#172554",
+            border: "1px solid #1d4ed8",
+            fontSize: 12,
+            color: "#bfdbfe",
+          }}
+        >
+          This studio is meant to leave applicants with a full curriculum they
+          can really teach. Keep going until every session is complete and the
+          understanding check is passed.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+interface UnderstandingCheckSectionProps {
+  understandingChecks: StudioUnderstandingChecks;
+  onUpdate: (field: string, value: unknown) => void;
+}
+
+function UnderstandingCheckSection({
+  understandingChecks,
+  onUpdate,
+}: UnderstandingCheckSectionProps) {
+  const answeredCount = Object.keys(understandingChecks.answers).length;
+  const scoreLabel =
+    typeof understandingChecks.lastScorePct === "number"
+      ? `${understandingChecks.lastScorePct}%`
+      : "Not graded yet";
+
+  function handleAnswer(questionId: string, answer: string) {
+    const nextAnswers = {
+      ...understandingChecks.answers,
+      [questionId]: answer,
+    };
+    onUpdate("understandingChecks", buildUnderstandingChecksState(nextAnswers));
+  }
+
+  return (
+    <div
+      style={{
+        marginTop: 16,
+        padding: 16,
+        borderRadius: 12,
+        border: "1px solid #334155",
+        background: "#0f172a",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "start",
+          flexWrap: "wrap",
+          marginBottom: 12,
+        }}
+      >
+        <div>
+          <h3 style={{ margin: 0, color: "#f8fafc" }}>Why this works check</h3>
+          <p style={{ margin: "6px 0 0", color: "#94a3b8", fontSize: 13 }}>
+            These quick questions make sure the builder is teaching curriculum
+            design, not just collecting fields.
+          </p>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 12, color: "#94a3b8" }}>
+            {answeredCount}/{LESSON_DESIGN_UNDERSTANDING_QUESTIONS.length} answered
+          </div>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: understandingChecks.passed ? "#22c55e" : "#f59e0b",
+            }}
+          >
+            {understandingChecks.passed
+              ? `Passed at ${scoreLabel}`
+              : `Current score: ${scoreLabel}`}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: 12 }}>
+        {LESSON_DESIGN_UNDERSTANDING_QUESTIONS.map((question, questionIndex) => {
+          const selected = understandingChecks.answers[question.id] ?? "";
+          const answered = selected.length > 0;
+          const correct = answered && selected === question.correctAnswer;
+
+          return (
+            <div
+              key={question.id}
+              style={{
+                border: "1px solid #1e293b",
+                borderRadius: 10,
+                padding: 14,
+                background: "#111827",
+              }}
+            >
+              <p style={{ margin: "0 0 10px", color: "#f8fafc", fontWeight: 600 }}>
+                {questionIndex + 1}. {question.prompt}
+              </p>
+              <div style={{ display: "grid", gap: 8 }}>
+                {question.options.map((option) => (
+                  <label
+                    key={option}
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "start",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      color: "#cbd5e1",
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name={question.id}
+                      checked={selected === option}
+                      onChange={() => handleAnswer(question.id, option)}
+                    />
+                    <span>{option}</span>
+                  </label>
+                ))}
+              </div>
+
+              {answered ? (
+                <div
+                  style={{
+                    marginTop: 10,
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    background: correct ? "#052e16" : "#3f1d1d",
+                    border: `1px solid ${correct ? "#166534" : "#7f1d1d"}`,
+                    color: correct ? "#bbf7d0" : "#fecaca",
+                    fontSize: 12,
+                  }}
+                >
+                  <strong>{correct ? "Right idea." : "Not quite yet."}</strong>{" "}
+                  {question.explanation}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+
+      {!understandingChecks.passed ? (
+        <p style={{ margin: "12px 0 0", fontSize: 12, color: "#fbbf24" }}>
+          Submission unlocks after this check is passed at {UNDERSTANDING_PASS_SCORE_PCT}% or higher.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -872,33 +1158,33 @@ function ProgressBar({ title, outcomes, weeklyPlans }: ProgressBarProps) {
 
 interface SubmitModalProps {
   title: string;
+  interestArea: string;
   outcomes: string[];
+  courseConfig: StudioCourseConfig;
   weeklyPlans: WeekPlan[];
+  understandingChecks: StudioUnderstandingChecks;
   onClose: () => void;
   onSubmit: () => void;
 }
 
-function SubmitModal({ title, outcomes, weeklyPlans, onClose, onSubmit }: SubmitModalProps) {
-  const checks = [
-    {
-      label: "Curriculum has a title",
-      pass: title.trim().length > 0,
-    },
-    {
-      label: "At least 2 learning outcomes",
-      pass: outcomes.filter((o) => o.trim()).length >= 2,
-    },
-    {
-      label: "At least 2 weeks planned",
-      pass: weeklyPlans.length >= 2,
-    },
-    {
-      label: "All weeks have at least one activity",
-      pass: weeklyPlans.length > 0 && weeklyPlans.every((w) => w.activities.length > 0),
-    },
-  ];
-
-  const allPass = checks.every((c) => c.pass);
+function SubmitModal({
+  title,
+  interestArea,
+  outcomes,
+  courseConfig,
+  weeklyPlans,
+  understandingChecks,
+  onClose,
+  onSubmit,
+}: SubmitModalProps) {
+  const progress = getCurriculumDraftProgress({
+    title,
+    interestArea,
+    outcomes,
+    courseConfig,
+    weeklyPlans,
+    understandingChecks,
+  });
 
   return (
     <div
@@ -912,7 +1198,9 @@ function SubmitModal({ title, outcomes, weeklyPlans, onClose, onSubmit }: Submit
         alignItems: "center",
         justifyContent: "center",
       }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
     >
       <div
         className="cbs-modal"
@@ -922,39 +1210,73 @@ function SubmitModal({ title, outcomes, weeklyPlans, onClose, onSubmit }: Submit
           borderRadius: 12,
           padding: 28,
           width: "100%",
-          maxWidth: 440,
+          maxWidth: 540,
           boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
         }}
       >
         <h3 style={{ margin: "0 0 8px", fontSize: 18, color: "#f1f5f9", fontWeight: 700 }}>
-          Submit Curriculum
+          Submit full curriculum
         </h3>
-        <p style={{ margin: "0 0 20px", fontSize: 13, color: "#64748b" }}>
-          Check that your curriculum meets all requirements before submitting.
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#94a3b8" }}>
+          The goal here is not just finishing a form. It is leaving with a full,
+          teachable curriculum package.
         </p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
-          {checks.map((c) => (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: progress.readyForSubmission ? "#052e16" : "#172554",
+            border: `1px solid ${progress.readyForSubmission ? "#166534" : "#1d4ed8"}`,
+            color: progress.readyForSubmission ? "#bbf7d0" : "#bfdbfe",
+            fontSize: 13,
+          }}
+        >
+          {progress.readyForSubmission
+            ? `Everything is ready. ${progress.fullyBuiltSessions} of ${progress.totalSessionsExpected} sessions are fully built.`
+            : `${progress.fullyBuiltSessions} of ${progress.totalSessionsExpected} sessions are fully built so far.`}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 22 }}>
+          {progress.submissionIssues.length === 0 ? (
             <div
-              key={c.label}
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
-                padding: "8px 12px",
+                padding: "10px 12px",
                 borderRadius: 8,
-                background: c.pass ? "#22c55e11" : "#ef444411",
-                border: `1px solid ${c.pass ? "#22c55e33" : "#ef444433"}`,
+                background: "#22c55e11",
+                border: "1px solid #22c55e33",
+                color: "#86efac",
+                fontSize: 13,
               }}
             >
-              <span style={{ fontSize: 16, color: c.pass ? "#22c55e" : "#ef4444" }}>
-                {c.pass ? "✓" : "✗"}
-              </span>
-              <span style={{ fontSize: 13, color: c.pass ? "#86efac" : "#fca5a5" }}>
-                {c.label}
-              </span>
+              <span style={{ fontSize: 16 }}>✓</span>
+              Ready for curriculum review.
             </div>
-          ))}
+          ) : (
+            progress.submissionIssues.map((issue) => (
+              <div
+                key={issue}
+                style={{
+                  display: "flex",
+                  alignItems: "start",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  background: "#ef444411",
+                  border: "1px solid #ef444433",
+                  color: "#fecaca",
+                  fontSize: 13,
+                }}
+              >
+                <span style={{ fontSize: 16, lineHeight: 1 }}>✗</span>
+                <span>{issue}</span>
+              </div>
+            ))
+          )}
         </div>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
@@ -971,12 +1293,15 @@ function SubmitModal({ title, outcomes, weeklyPlans, onClose, onSubmit }: Submit
               cursor: "pointer",
             }}
           >
-            {allPass ? "Cancel" : "Go back and fix"}
+            {progress.readyForSubmission ? "Cancel" : "Keep building"}
           </button>
-          {allPass && (
+          {progress.readyForSubmission ? (
             <button
               type="button"
-              onClick={() => { onSubmit(); onClose(); }}
+              onClick={() => {
+                onSubmit();
+                onClose();
+              }}
               style={{
                 padding: "8px 16px",
                 borderRadius: 8,
@@ -988,9 +1313,9 @@ function SubmitModal({ title, outcomes, weeklyPlans, onClose, onSubmit }: Submit
                 cursor: "pointer",
               }}
             >
-              Everything looks good! Submit Curriculum
+              Submit curriculum for review
             </button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
@@ -1083,7 +1408,12 @@ export function CurriculumBuilderPanel({
   description,
   interestArea,
   outcomes,
+  courseConfig,
   weeklyPlans,
+  understandingChecks,
+  reviewRubric,
+  reviewStatus,
+  reviewNotes,
   onUpdate,
   onUpdateWeek,
   onAddWeek,
@@ -1100,6 +1430,7 @@ export function CurriculumBuilderPanel({
   onExportPdf,
   onSubmit,
   isSubmitted,
+  generatedTemplateId,
 }: CurriculumBuilderPanelProps) {
   /* ── Local state ───────────────────────────────────────────── */
   const [expandedActivityIds, setExpandedActivityIds] = useState<Set<string>>(new Set());
@@ -1129,6 +1460,34 @@ export function CurriculumBuilderPanel({
 
   function handleAddOutcome() {
     onUpdate("outcomes", [...outcomes, ""]);
+  }
+
+  function updateCourseConfig(patch: Partial<StudioCourseConfig>) {
+    const nextCourseConfig = {
+      ...courseConfig,
+      ...patch,
+    };
+    const recomputeEstimatedHours =
+      patch.durationWeeks !== undefined ||
+      patch.sessionsPerWeek !== undefined ||
+      patch.classDurationMin !== undefined;
+
+    const estimatedHours = recomputeEstimatedHours
+      ? Math.max(
+          1,
+          Math.round(
+            (nextCourseConfig.durationWeeks *
+              nextCourseConfig.sessionsPerWeek *
+              nextCourseConfig.classDurationMin) /
+              60
+          )
+        )
+      : nextCourseConfig.estimatedHours;
+
+    onUpdate("courseConfig", {
+      ...nextCourseConfig,
+      estimatedHours,
+    });
   }
 
   function handleQuickAddActivity(weekId: string, type: ActivityType) {
@@ -1172,6 +1531,24 @@ export function CurriculumBuilderPanel({
     });
   }
 
+  const progress = getCurriculumDraftProgress({
+    title,
+    interestArea,
+    outcomes,
+    courseConfig,
+    weeklyPlans,
+    understandingChecks,
+  });
+
+  const deliveryModeSet = new Set(courseConfig.deliveryModes);
+  const rubricScores = reviewRubric.scores;
+  const showReviewSummary =
+    reviewStatus === "NEEDS_REVISION" ||
+    reviewStatus === "APPROVED" ||
+    reviewStatus === "REJECTED" ||
+    reviewRubric.summary.trim().length > 0 ||
+    reviewNotes.trim().length > 0;
+
   /* ── Render ────────────────────────────────────────────────── */
 
   return (
@@ -1179,8 +1556,11 @@ export function CurriculumBuilderPanel({
       {showSubmitModal && (
         <SubmitModal
           title={title}
+          interestArea={interestArea}
           outcomes={outcomes}
+          courseConfig={courseConfig}
           weeklyPlans={weeklyPlans}
+          understandingChecks={understandingChecks}
           onClose={() => setShowSubmitModal(false)}
           onSubmit={onSubmit}
         />
@@ -1218,7 +1598,7 @@ export function CurriculumBuilderPanel({
                 border: "1px solid #334155",
                 background: "#1e293b",
                 color: "#94a3b8",
-                fontSize: 11,
+                fontSize: courseConfig.sessionsPerWeek > 1 ? 9 : 11,
                 fontWeight: 700,
                 cursor: "pointer",
                 display: "flex",
@@ -1226,9 +1606,11 @@ export function CurriculumBuilderPanel({
                 justifyContent: "center",
                 padding: 0,
               }}
-              title={`Week ${week.weekNumber}: ${week.title}`}
+              title={buildSessionLabel(week, courseConfig)}
             >
-              W{week.weekNumber}
+              {courseConfig.sessionsPerWeek > 1
+                ? `W${week.weekNumber}.${week.sessionNumber}`
+                : `W${week.weekNumber}`}
             </button>
           ))}
         </div>
@@ -1238,6 +1620,44 @@ export function CurriculumBuilderPanel({
 
           {/* ── Header ─────────────────────────────────────── */}
           <div className="cbs-builder-header" style={{ padding: "20px 20px 0" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                alignItems: "start",
+                flexWrap: "wrap",
+                marginBottom: 12,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 4 }}>
+                  Build your first ready-to-teach curriculum
+                </div>
+                <div style={{ fontSize: 13, color: "#64748b" }}>
+                  Use the examples on the left, learn why they work, and turn the moves into your own plan.
+                </div>
+              </div>
+              {generatedTemplateId ? (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    background: "#052e16",
+                    border: "1px solid #166534",
+                    color: "#86efac",
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  Stable launch version created
+                </span>
+              ) : null}
+            </div>
+
             <input
               className="cbs-title-input"
               value={title}
@@ -1249,7 +1669,7 @@ export function CurriculumBuilderPanel({
               className="cbs-desc-input"
               value={description}
               onChange={(e) => onUpdate("description", e.target.value)}
-              placeholder="What will students learn?"
+              placeholder="What will students learn and why does this course matter?"
               rows={3}
             />
 
@@ -1260,9 +1680,245 @@ export function CurriculumBuilderPanel({
               placeholder="e.g., Finance, Technology, Cooking..."
             />
 
+            <SectionNote
+              label="Reviewer note on overview"
+              note={
+                reviewRubric.sectionNotes.overview ||
+                (showReviewSummary ? reviewNotes : "")
+              }
+            />
+
+            <div
+              style={{
+                marginTop: 18,
+                padding: 16,
+                borderRadius: 12,
+                border: "1px solid #334155",
+                background: "#0f172a",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  alignItems: "start",
+                  flexWrap: "wrap",
+                  marginBottom: 14,
+                }}
+              >
+                <div>
+                  <h3 style={{ margin: 0, color: "#f8fafc" }}>Course shape</h3>
+                  <p style={{ margin: "6px 0 0", color: "#94a3b8", fontSize: 13 }}>
+                    Decide what the real course looks like before polishing each session.
+                  </p>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    flexWrap: "wrap",
+                    fontSize: 12,
+                    color: "#cbd5e1",
+                  }}
+                >
+                  <span>{courseConfig.durationWeeks} week{courseConfig.durationWeeks === 1 ? "" : "s"}</span>
+                  <span>·</span>
+                  <span>{courseConfig.sessionsPerWeek} session{courseConfig.sessionsPerWeek === 1 ? "" : "s"}/week</span>
+                  <span>·</span>
+                  <span>{courseConfig.classDurationMin} min/session</span>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
+                  Weeks
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    value={courseConfig.durationWeeks}
+                    onChange={(e) =>
+                      updateCourseConfig({
+                        durationWeeks: Math.max(1, Number(e.target.value) || 1),
+                      })
+                    }
+                  />
+                </label>
+                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
+                  Sessions per week
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    value={courseConfig.sessionsPerWeek}
+                    onChange={(e) =>
+                      updateCourseConfig({
+                        sessionsPerWeek: Math.max(1, Number(e.target.value) || 1),
+                      })
+                    }
+                  />
+                </label>
+                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
+                  Minutes per session
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    value={courseConfig.classDurationMin}
+                    onChange={(e) =>
+                      updateCourseConfig({
+                        classDurationMin: Math.max(1, Number(e.target.value) || 1),
+                      })
+                    }
+                  />
+                </label>
+                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
+                  Target age group
+                  <input
+                    className="input"
+                    value={courseConfig.targetAgeGroup}
+                    onChange={(e) =>
+                      updateCourseConfig({ targetAgeGroup: e.target.value })
+                    }
+                    placeholder="e.g. 12-14 or adults"
+                  />
+                </label>
+                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
+                  Difficulty level
+                  <select
+                    className="input"
+                    value={courseConfig.difficultyLevel}
+                    onChange={(e) =>
+                      updateCourseConfig({
+                        difficultyLevel: e.target.value as StudioCourseConfig["difficultyLevel"],
+                      })
+                    }
+                  >
+                    {DIFFICULTY_LEVEL_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
+                  Estimated learning hours
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    value={courseConfig.estimatedHours}
+                    onChange={(e) =>
+                      updateCourseConfig({
+                        estimatedHours: Math.max(1, Number(e.target.value) || 1),
+                      })
+                    }
+                  />
+                </label>
+                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
+                  Minimum students
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    value={courseConfig.minStudents}
+                    onChange={(e) =>
+                      updateCourseConfig({
+                        minStudents: Math.max(1, Number(e.target.value) || 1),
+                      })
+                    }
+                  />
+                </label>
+                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
+                  Ideal students
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    value={courseConfig.idealSize}
+                    onChange={(e) =>
+                      updateCourseConfig({
+                        idealSize: Math.max(1, Number(e.target.value) || 1),
+                      })
+                    }
+                  />
+                </label>
+                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
+                  Maximum students
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    value={courseConfig.maxStudents}
+                    onChange={(e) =>
+                      updateCourseConfig({
+                        maxStudents: Math.max(1, Number(e.target.value) || 1),
+                      })
+                    }
+                  />
+                </label>
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 8 }}>
+                  Delivery modes
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {DELIVERY_MODE_OPTIONS.map((option) => {
+                    const selected = deliveryModeSet.has(option.value);
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          const nextModes = selected
+                            ? courseConfig.deliveryModes.filter(
+                                (mode) => mode !== option.value
+                              )
+                            : [...courseConfig.deliveryModes, option.value];
+                          updateCourseConfig({
+                            deliveryModes:
+                              nextModes.length > 0
+                                ? nextModes
+                                : [option.value],
+                          });
+                        }}
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 999,
+                          border: `1px solid ${selected ? "#38bdf8" : "#334155"}`,
+                          background: selected ? "#0c4a6e" : "transparent",
+                          color: selected ? "#bae6fd" : "#cbd5e1",
+                          fontSize: 12,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <SectionNote
+                label="Reviewer note on course shape"
+                note={reviewRubric.sectionNotes.courseStructure}
+              />
+            </div>
+
             {/* Learning Outcomes */}
-            <div className="cbs-outcomes-section">
+            <div className="cbs-outcomes-section" style={{ marginTop: 18 }}>
               <div className="cbs-outcomes-label">Learning Outcomes</div>
+              <p style={{ margin: "4px 0 10px", color: "#94a3b8", fontSize: 12 }}>
+                Name the important things students should be able to do by the end of the course.
+              </p>
               {outcomes.map((outcome, i) => (
                 <div key={i} className="cbs-outcome-item">
                   <input
@@ -1291,14 +1947,96 @@ export function CurriculumBuilderPanel({
             </div>
 
             {/* Progress Bar */}
-            <ProgressBar title={title} outcomes={outcomes} weeklyPlans={weeklyPlans} />
+            <ProgressBar
+              title={title}
+              interestArea={interestArea}
+              outcomes={outcomes}
+              courseConfig={courseConfig}
+              weeklyPlans={weeklyPlans}
+              understandingChecks={understandingChecks}
+            />
+
+            {showReviewSummary ? (
+              <div
+                style={{
+                  marginTop: 18,
+                  padding: 16,
+                  borderRadius: 12,
+                  border: `1px solid ${
+                    reviewStatus === "APPROVED" ? "#166534" : "#92400e"
+                  }`,
+                  background:
+                    reviewStatus === "APPROVED" ? "#052e16" : "#3f1d0d",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    alignItems: "start",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div>
+                    <h3 style={{ margin: 0, color: "#f8fafc" }}>
+                      {reviewStatus === "APPROVED"
+                        ? "Reviewer decision: approved"
+                        : reviewStatus === "REJECTED"
+                          ? "Reviewer decision: not approved"
+                          : "Reviewer guidance"}
+                    </h3>
+                    <p style={{ margin: "6px 0 0", fontSize: 13, color: "#e2e8f0" }}>
+                      {reviewRubric.summary || reviewNotes || "Use the notes below to strengthen the course."}
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {[
+                      ["Clarity", rubricScores.clarity],
+                      ["Sequencing", rubricScores.sequencing],
+                      ["Student Experience", rubricScores.studentExperience],
+                      ["Launch Readiness", rubricScores.launchReadiness],
+                    ].map(([label, score]) => (
+                      <span
+                        key={label}
+                        style={{
+                          padding: "6px 8px",
+                          borderRadius: 999,
+                          border: "1px solid rgba(255,255,255,0.18)",
+                          color: "#f8fafc",
+                          fontSize: 12,
+                        }}
+                      >
+                        {label}: {score}/4
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <UnderstandingCheckSection
+              understandingChecks={understandingChecks}
+              onUpdate={onUpdate}
+            />
           </div>
 
-          {/* ── Weeks ──────────────────────────────────────── */}
+          <SectionNote
+            label="Reviewer note on session plans"
+            note={reviewRubric.sectionNotes.sessionPlans}
+          />
+
+          <SectionNote
+            label="Reviewer note on student assignments"
+            note={reviewRubric.sectionNotes.studentAssignments}
+          />
+
+          {/* ── Sessions ─────────────────────────────────────── */}
           {weeklyPlans.map((week) => {
             const totalMin = week.activities.reduce((sum, a) => sum + a.durationMin, 0);
             const isOverTime = totalMin > week.classDurationMin;
             const isWeekDetailExpanded = expandedWeekIds.has(week.id);
+            const sessionLabel = buildSessionLabel(week, courseConfig);
 
             return (
               <div
@@ -1306,18 +2044,17 @@ export function CurriculumBuilderPanel({
                 id={`cbs-week-${week.id}`}
                 className="cbs-week-section"
               >
-                {/* Week header */}
+                {/* Session header */}
                 <div className="cbs-week-header">
-                  <span className="cbs-week-label">Week {week.weekNumber}</span>
+                  <span className="cbs-week-label">{sessionLabel}</span>
 
                   <input
                     className="cbs-week-title-input"
                     value={week.title}
                     onChange={(e) => onUpdateWeek(week.id, "title", e.target.value)}
-                    placeholder="Week title..."
+                    placeholder="Session title..."
                   />
 
-                  {/* Class duration - editable inline */}
                   <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#94a3b8" }}>
                     <input
                       type="number"
@@ -1336,9 +2073,9 @@ export function CurriculumBuilderPanel({
                         fontSize: 12,
                         textAlign: "center",
                       }}
-                      aria-label="Class duration in minutes"
+                      aria-label="Session duration in minutes"
                     />
-                    <span>min class</span>
+                    <span>min</span>
                   </span>
 
                   <span
@@ -1349,12 +2086,11 @@ export function CurriculumBuilderPanel({
                     {totalMin}m / {week.classDurationMin}m
                   </span>
 
-                  {/* Week detail toggle */}
                   <button
                     type="button"
                     className="cbs-week-detail-toggle"
                     onClick={() => toggleWeekExpand(week.id)}
-                    aria-label={isWeekDetailExpanded ? "Collapse week details" : "Expand week details"}
+                    aria-label={isWeekDetailExpanded ? "Collapse session details" : "Expand session details"}
                     style={{
                       background: "none",
                       border: "1px solid #334155",
@@ -1368,12 +2104,11 @@ export function CurriculumBuilderPanel({
                     {isWeekDetailExpanded ? "▼" : "▶"} Details
                   </button>
 
-                  {/* Duplicate week */}
                   <button
                     type="button"
                     className="cbs-week-dup-btn"
                     onClick={() => onDuplicateWeek(week.id)}
-                    aria-label="Duplicate week"
+                    aria-label="Copy into next slot"
                     style={{
                       background: "none",
                       border: "1px solid #334155",
@@ -1384,26 +2119,24 @@ export function CurriculumBuilderPanel({
                       padding: "3px 8px",
                     }}
                   >
-                    ⧉ Duplicate
+                    ⧉ Copy forward
                   </button>
 
                   <button
                     className="cbs-week-delete-btn"
                     onClick={() => onRemoveWeek(week.id)}
                     type="button"
-                    aria-label="Remove week"
+                    aria-label="Clear session"
                     style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 18, lineHeight: 1, padding: "0 4px" }}
                   >
                     ×
                   </button>
                 </div>
 
-                {/* Week detail section (collapsible) */}
-                {isWeekDetailExpanded && (
+                {isWeekDetailExpanded ? (
                   <WeekDetailSection week={week} onUpdateWeek={onUpdateWeek} />
-                )}
+                ) : null}
 
-                {/* Time bar */}
                 <div
                   className="cbs-time-bar"
                   style={{ display: "flex", height: 8, background: "#1e293b", overflow: "hidden", margin: "0 16px", borderRadius: 4 }}
@@ -1430,7 +2163,6 @@ export function CurriculumBuilderPanel({
                   })}
                 </div>
 
-                {/* Activities with DnD */}
                 <DndContext
                   collisionDetection={closestCenter}
                   onDragEnd={handleDragEnd(week.id)}
@@ -1452,7 +2184,6 @@ export function CurriculumBuilderPanel({
                           allWeeks={weeklyPlans}
                           onMoveToWeek={(toWeekId) => {
                             onMoveActivityToWeek(week.id, activity.id, toWeekId);
-                            // Collapse if it was expanded
                             setExpandedActivityIds((prev) => {
                               const next = new Set(prev);
                               next.delete(activity.id);
@@ -1465,7 +2196,6 @@ export function CurriculumBuilderPanel({
                   </SortableContext>
                 </DndContext>
 
-                {/* Quick add chips */}
                 <div className="cbs-add-activity-row" style={{ padding: "8px 16px 16px", display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {ACTIVITY_TYPES.map((t) => (
                     <button
@@ -1498,7 +2228,7 @@ export function CurriculumBuilderPanel({
                 onClick={onAddWeek}
                 type="button"
               >
-                + Add Week
+                + Add another week
               </button>
             </div>
 
@@ -1518,12 +2248,19 @@ export function CurriculumBuilderPanel({
               <ExportPdfDropdown onExportPdf={onExportPdf} />
 
               {isSubmitted ? (
-                <span className="cbs-submitted-badge">✓ Submitted</span>
+                <span className="cbs-submitted-badge">
+                  {reviewStatus === "APPROVED" ? "✓ Approved" : "✓ Submitted"}
+                </span>
               ) : (
                 <button
                   className="cbs-btn cbs-btn-primary"
                   onClick={() => setShowSubmitModal(true)}
                   type="button"
+                  title={
+                    progress.readyForSubmission
+                      ? "Submit curriculum"
+                      : "Finish the requirements above to unlock submission"
+                  }
                 >
                   Submit Curriculum
                 </button>

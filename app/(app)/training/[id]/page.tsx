@@ -3,7 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withPrismaFallback } from "@/lib/prisma-guard";
+import { getOrCreateCurriculumDraft } from "@/lib/curriculum-draft-actions";
 import TrainingModuleClient from "./client";
+import "../../instructor/lesson-design-studio/studio.css";
 
 export default async function TrainingModulePage({
   params,
@@ -19,6 +21,7 @@ export default async function TrainingModulePage({
 
   const roles = session.user.roles ?? [];
   const canView =
+    roles.includes("APPLICANT") ||
     roles.includes("INSTRUCTOR") ||
     roles.includes("ADMIN") ||
     roles.includes("CHAPTER_LEAD") ||
@@ -66,6 +69,17 @@ export default async function TrainingModulePage({
   if (!trainingModule) {
     notFound();
   }
+
+  const canAccessLessonDesignStudio =
+    roles.includes("APPLICANT") ||
+    roles.includes("INSTRUCTOR") ||
+    roles.includes("ADMIN") ||
+    roles.includes("CHAPTER_LEAD");
+
+  const lessonDesignStudioDraft =
+    trainingModule.type === "CURRICULUM_REVIEW" && canAccessLessonDesignStudio
+      ? await getOrCreateCurriculumDraft()
+      : null;
 
   const [assignment, videoProgress, checkpointCompletions, quizAttempts, evidenceSubmissions, nextModule] =
     await Promise.all([
@@ -314,6 +328,32 @@ export default async function TrainingModulePage({
       nextModule={effectiveNextModule}
       academyHref={academyHref}
       academyLabel={academyLabel}
+      lessonDesignStudio={
+        lessonDesignStudioDraft
+          ? {
+              userId: session.user.id,
+              userName: session.user.name ?? "Instructor Applicant",
+              draft: {
+                id: lessonDesignStudioDraft.id,
+                title: lessonDesignStudioDraft.title,
+                description: lessonDesignStudioDraft.description ?? "",
+                interestArea: lessonDesignStudioDraft.interestArea,
+                outcomes: lessonDesignStudioDraft.outcomes,
+                courseConfig: lessonDesignStudioDraft.courseConfig,
+                weeklyPlans: (lessonDesignStudioDraft.weeklyPlans as unknown[]) ?? [],
+                understandingChecks: lessonDesignStudioDraft.understandingChecks,
+                reviewRubric: lessonDesignStudioDraft.reviewRubric,
+                reviewNotes: lessonDesignStudioDraft.reviewNotes ?? "",
+                reviewedAt: lessonDesignStudioDraft.reviewedAt?.toISOString() ?? null,
+                submittedAt: lessonDesignStudioDraft.submittedAt?.toISOString() ?? null,
+                approvedAt: lessonDesignStudioDraft.approvedAt?.toISOString() ?? null,
+                generatedTemplateId: lessonDesignStudioDraft.generatedTemplateId ?? null,
+                status: lessonDesignStudioDraft.status,
+                updatedAt: lessonDesignStudioDraft.updatedAt.toISOString(),
+              },
+            }
+          : null
+      }
     />
   );
 }

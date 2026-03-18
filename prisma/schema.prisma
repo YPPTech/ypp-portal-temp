@@ -7693,6 +7693,9 @@ enum CurriculumDraftStatus {
   IN_PROGRESS
   COMPLETED
   SUBMITTED
+  NEEDS_REVISION
+  APPROVED
+  REJECTED
 }
 
 model CurriculumDraft {
@@ -7703,11 +7706,22 @@ model CurriculumDraft {
   description  String?               @db.Text
   interestArea String                @default("")
   outcomes     String[]
+  courseConfig Json                  @default("{\"durationWeeks\":8,\"sessionsPerWeek\":1,\"classDurationMin\":60,\"targetAgeGroup\":\"\",\"deliveryModes\":[\"VIRTUAL\"],\"difficultyLevel\":\"LEVEL_101\",\"minStudents\":3,\"maxStudents\":25,\"idealSize\":12,\"estimatedHours\":8}")
   weeklyPlans  Json                  @default("[]")
+  understandingChecks Json           @default("{\"answers\":{},\"lastScorePct\":null,\"passed\":false,\"completedAt\":null}")
+  reviewRubric Json?
+  reviewNotes  String?               @db.Text
+  reviewedById String?
+  reviewedAt   DateTime?
+  submittedAt  DateTime?
+  approvedAt   DateTime?
+  generatedTemplateId String?
   status       CurriculumDraftStatus @default(IN_PROGRESS)
   completedAt  DateTime?
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
 
   @@index([authorId])
+  @@index([status])
+  @@index([generatedTemplateId])
 }

@@ -16,6 +16,11 @@ import { Prisma } from "@prisma/client";
 import { checkAndIssueTrainingCompletion } from "@/lib/auto-certificate-actions";
 import { getInstructorReadiness } from "@/lib/instructor-readiness";
 import { onProgressEvent } from "@/lib/progress-events";
+import {
+  emptyReviewRubric,
+  normalizeReviewRubric,
+} from "@/lib/curriculum-draft-progress";
+import { createOrUpdateStudioLaunchPackage } from "@/lib/curriculum-draft-launch-actions";
 
 async function requireAuth() {
   const session = await getServerSession(authOptions);
@@ -48,6 +53,7 @@ async function requireTrainingLearner() {
   const roles = session.user.roles ?? [];
   const canAccessTraining =
     roles.includes("STUDENT") ||
+    roles.includes("APPLICANT") ||
     roles.includes("INSTRUCTOR") ||
     roles.includes("ADMIN") ||
     roles.includes("CHAPTER_LEAD");
@@ -109,6 +115,48 @@ function getNumber(formData: FormData, key: string, fallback = 0) {
   if (!raw || String(raw).trim() === "") return fallback;
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function getDraftIdFromEvidenceUrl(fileUrl: string | null | undefined) {
+  if (!fileUrl) return null;
+
+  try {
+    const url = new URL(fileUrl, "https://studio.local");
+    return url.searchParams.get("draftId");
+  } catch {
+    return null;
+  }
+}
+
+function buildStudioReviewRubric(formData: FormData) {
+  const fallback = emptyReviewRubric();
+  return normalizeReviewRubric({
+    scores: {
+      clarity: getNumber(formData, "rubricClarity", fallback.scores.clarity),
+      sequencing: getNumber(formData, "rubricSequencing", fallback.scores.sequencing),
+      studentExperience: getNumber(
+        formData,
+        "rubricStudentExperience",
+        fallback.scores.studentExperience
+      ),
+      launchReadiness: getNumber(
+        formData,
+        "rubricLaunchReadiness",
+        fallback.scores.launchReadiness
+      ),
+    },
+    sectionNotes: {
+      overview: getString(formData, "rubricOverviewNote", false),
+      courseStructure: getString(formData, "rubricCourseStructureNote", false),
+      sessionPlans: getString(formData, "rubricSessionPlansNote", false),
+      studentAssignments: getString(
+        formData,
+        "rubricStudentAssignmentsNote",
+        false
+      ),
+    },
+    summary: getString(formData, "rubricSummary", false),
+  });
 }
 
 function getCourseLevel(raw: string): CourseLevel {
@@ -462,6 +510,10 @@ async function syncAssignmentFromArtifacts(userId: string, moduleId: string) {
     evidenceReady,
     configurationIssue,
   };
+}
+
+export async function syncTrainingAssignmentFromArtifacts(userId: string, moduleId: string) {
+  return syncAssignmentFromArtifacts(userId, moduleId);
 }
 
 async function syncAssignmentsForModule(moduleId: string) {
@@ -1246,7 +1298,7 @@ export async function reviewTrainingEvidence(formData: FormData) {
 
   const submissionOwner = await prisma.trainingEvidenceSubmission.findUnique({
     where: { id: submissionId },
-    select: { userId: true },
+    select: { userId: true, moduleId: true, fileUrl: true },
   });
 
   if (!submissionOwner) {
@@ -1269,6 +1321,37 @@ export async function reviewTrainingEvidence(formData: FormData) {
     },
   });
 
+  const draftId = getDraftIdFromEvidenceUrl(submissionOwner.fileUrl);
+  if (draftId) {
+    const reviewRubric = buildStudioReviewRubric(formData);
+    const draftStatus =
+      status === "APPROVED"
+        ? "APPROVED"
+        : status === "REVISION_REQUESTED"
+          ? "NEEDS_REVISION"
+          : "REJECTED";
+
+    await prisma.curriculumDraft.update({
+      where: { id: draftId },
+      data: {
+        status: draftStatus,
+        reviewNotes: reviewNotes || null,
+        reviewRubric: reviewRubric as Prisma.InputJsonValue,
+        reviewedById: session.user.id,
+        reviewedAt: new Date(),
+        approvedAt: status === "APPROVED" ? new Date() : null,
+      },
+      select: { id: true },
+    });
+
+    if (status === "APPROVED") {
+      await createOrUpdateStudioLaunchPackage({
+        draftId,
+        reviewerId: session.user.id,
+      });
+    }
+  }
+
   await syncAssignmentFromArtifacts(submission.userId, submission.moduleId);
 
   revalidatePath("/admin/instructor-readiness");
@@ -1276,6 +1359,7 @@ export async function reviewTrainingEvidence(formData: FormData) {
   revalidatePath("/instructor-training");
   revalidatePath("/student-training");
   revalidatePath("/instructor/training-progress");
+  revalidatePath("/instructor/lesson-design-studio");
   revalidatePath("/admin/training");
   revalidatePath(`/training/${submission.moduleId}`);
 }

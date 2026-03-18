@@ -43,78 +43,78 @@ const STEPS: TourStep[] = [
   {
     kind: "welcome",
     title: "Welcome to the Lesson Design Studio",
-    body: "We're going to build your complete 8-week curriculum together, step by step. By the end of this tour, you'll have a fully planned curriculum with activities, objectives, and homework for every single week. Ready?",
+    body: "We're going to build a complete first curriculum together, step by step. By the end of this tour, you'll have a full draft with outcomes, session objectives, activity pacing, and at-home work across the whole course. The goal is not just to fill boxes. The goal is to leave with something you can actually teach.",
     icon: "🎨",
   },
   {
     kind: "pick-area",
     title: "What Will You Teach?",
-    body: "Pick an interest area below and we'll scaffold a full 8-week curriculum for you. Don't worry — you can customize every detail afterward.",
+    body: "Pick an interest area below and we'll scaffold a full starter curriculum for you. These are strong teaching models, not scripts. You can and should customize the language, examples, assignments, and pacing for your students afterward.",
     icon: "🎯",
   },
   {
     kind: "seed-header",
     title: "Setting Up Your Curriculum",
-    body: "We just filled in your curriculum title, description, interest area, and 4 learning outcomes based on your choice. You can edit any of these later — scroll up to see them in the builder.",
+    body: "We just filled in your curriculum title, description, interest area, and learning outcomes based on your choice. These outcomes matter because they give the whole course a finish line. You can edit every word later, but keep the idea that the course should clearly lead somewhere.",
     icon: "📋",
     seedHeader: true,
   },
   {
     kind: "seed-weeks-1-2",
     title: "Building Weeks 1 & 2",
-    body: "Your first two weeks are now populated with activities, a learning objective, teacher prep notes, and an at-home assignment each. Each week has 3-5 activities with realistic timing that fits your class duration.",
+    body: "Your first two weeks are now populated with activities, a learning objective, teacher prep notes, and an at-home assignment each. Notice that the pacing is realistic, the session has a clear arc, and the homework extends the learning instead of drifting into something unrelated.",
     icon: "1️⃣",
     seedWeeks: [1, 2],
   },
   {
     kind: "seed-weeks-3-4",
     title: "Building Weeks 3 & 4",
-    body: "Two more weeks added! Notice how the activities build on previous weeks — your curriculum has a natural progression from foundational concepts to applied skills.",
+    body: "Two more weeks added. Notice how the sequence keeps moving from foundation into application. Strong curricula do not feel like random good lessons placed beside each other. They feel like each week earns the next one.",
     icon: "2️⃣",
     seedWeeks: [3, 4],
   },
   {
     kind: "seed-weeks-5-6",
     title: "Building Weeks 5 & 6",
-    body: "Weeks 5 and 6 are in. By now students are applying what they've learned through hands-on projects and group work. Check out the sidebar on the left — you can click any week pill to jump right to it.",
+    body: "Weeks 5 and 6 are in. By this point, students should be using what they have learned in more independent or collaborative ways. That shift matters. It shows the course is moving toward transfer, not staying in teacher-led explanation forever.",
     icon: "3️⃣",
     seedWeeks: [5, 6],
   },
   {
     kind: "seed-weeks-7-8",
     title: "Building Weeks 7 & 8 — The Finale",
-    body: "Your final two weeks are set! Week 7 wraps up the project work and Week 8 is the showcase/presentation. You now have a complete 8-week curriculum with activities, objectives, and homework on every week.",
+    body: "Your final two weeks are set. The ending of a course should feel earned. By now, the sequence should be carrying students toward a showcase, synthesis, or real application that proves the earlier weeks mattered.",
     icon: "4️⃣",
     seedWeeks: [7, 8],
   },
   {
     kind: "show-expand",
     title: "Customize Any Activity",
-    body: "Click the ▶ arrow on any activity to expand it inline. Add detailed descriptions, materials needed, energy levels, differentiation tips, standards tags, and rubrics (for assessments). Every field auto-saves.",
+    body: "Click the ▶ arrow on any activity to expand it inline. Add detailed descriptions, materials needed, energy levels, differentiation tips, standards tags, and rubrics for assessments. This is where a lesson stops being a rough outline and starts becoming something a real instructor can run with confidence.",
     icon: "✏️",
   },
   {
     kind: "show-details",
     title: "Week Details & Homework",
-    body: "Click \"▶ Details\" on any week header to edit the learning objective, teacher prep notes, materials checklist, and at-home assignment. All 8 weeks already have these filled in from the template — customize them to fit your style.",
+    body: "Click \"▶ Details\" on any week header to edit the learning objective, teacher prep notes, materials checklist, and at-home assignment. The strongest homework here reinforces class learning, and the strongest prep notes protect the instructor from avoidable surprises on teaching day.",
     icon: "📝",
   },
   {
     kind: "show-nav",
     title: "Navigate, Duplicate & Reorder",
-    body: "Use the W1-W8 sidebar pills to jump between weeks. Click \"⧉ Duplicate\" to copy any week. Drag the ⠿ handle to reorder activities, or use \"Move to Week\" in the expanded view to shift them between weeks. Your work auto-saves and you can browse version history from the menu bar.",
+    body: "Use the session pills in the sidebar to jump around quickly. Click \"⧉ Duplicate\" to copy a strong pattern forward, then adapt it. Drag the ⠿ handle to reorder activities, or use \"Move to Session\" in the expanded view to shift them. Reuse thoughtfully. A repeated structure is fine if the learning purpose still changes.",
     icon: "🧭",
   },
   {
     kind: "show-export",
     title: "Export & Submit",
-    body: "Use \"Export PDF\" for a Student View (clean schedule) or full Instructor Guide (with prep notes and rubrics). When everything looks good, click \"Submit Curriculum\" — a checklist will verify you're ready. This is your final training module!",
+    body: "Use \"Export PDF\" for a Student View or a full Instructor Guide. Before submission, the studio will check that your course is fully built and that you've passed the understanding check. The goal is for your submission to be a launchable first curriculum, not just a promising idea.",
     icon: "🚀",
   },
   {
     kind: "done",
     title: "Your 8-Week Curriculum Is Ready!",
-    body: "You now have a complete curriculum with all 8 weeks built out. Every week has activities, objectives, and homework. Browse the examples panel on the left for more inspiration, or start customizing your weeks right now. Make it yours!",
+    body: "You now have a complete curriculum draft across all 8 weeks. Every week has activities, objectives, and homework. Now the real craft work begins: tighten the pacing, improve the examples, study the gold examples on the left, and make every session feel truly yours and truly teachable.",
     icon: "🎉",
   },
 ];
@@ -149,11 +149,13 @@ interface OnboardingTourProps {
       };
     }>
   ) => void;
+  onComplete?: () => void | Promise<void>;
 }
 
 export function OnboardingTour({
   onSeedHeader,
   onSeedWeeks,
+  onComplete,
 }: OnboardingTourProps) {
   const [currentStep, setCurrentStep] = useState<number | null>(null);
   const [selectedSeed, setSelectedSeed] = useState<SeedCurriculum | null>(null);
@@ -161,12 +163,17 @@ export function OnboardingTour({
   // Check if onboarding should show
   useEffect(() => {
     try {
-      if (!localStorage.getItem(ONBOARDING_KEY)) {
-        const timer = setTimeout(() => setCurrentStep(0), 600);
-        return () => clearTimeout(timer);
+      const onboardingState = localStorage.getItem(ONBOARDING_KEY);
+      if (onboardingState) {
+        if (onboardingState !== "skipped") {
+          void onComplete?.();
+        }
+        return;
       }
+      const timer = setTimeout(() => setCurrentStep(0), 600);
+      return () => clearTimeout(timer);
     } catch {}
-  }, []);
+  }, [onComplete]);
 
   // Fire seed actions when advancing to certain steps
   useEffect(() => {
@@ -208,15 +215,16 @@ export function OnboardingTour({
       if (prev === null) return null;
       const next = prev + 1;
       if (next >= STEPS.length) {
-        try { localStorage.setItem(ONBOARDING_KEY, "1"); } catch {}
+        try { localStorage.setItem(ONBOARDING_KEY, "completed"); } catch {}
+        void onComplete?.();
         return null;
       }
       return next;
     });
-  }, []);
+  }, [onComplete]);
 
   const skip = useCallback(() => {
-    try { localStorage.setItem(ONBOARDING_KEY, "1"); } catch {}
+    try { localStorage.setItem(ONBOARDING_KEY, "skipped"); } catch {}
     setCurrentStep(null);
   }, []);
 
