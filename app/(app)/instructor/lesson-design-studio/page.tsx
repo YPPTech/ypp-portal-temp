@@ -2,10 +2,20 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { getOrCreateCurriculumDraft } from "@/lib/curriculum-draft-actions";
+import { getCurriculumDraftProgress } from "@/lib/curriculum-draft-progress";
+import {
+  deriveStudioPhase,
+  getCanonicalStudioHref,
+  getStudioEntryContextFromSearchParams,
+} from "@/lib/lesson-design-studio";
 import { StudioClient } from "./studio-client";
 import "./studio.css";
 
-export default async function CurriculumBuilderStudioPage() {
+export default async function CurriculumBuilderStudioPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
 
@@ -18,12 +28,40 @@ export default async function CurriculumBuilderStudioPage() {
 
   if (!hasAccess) redirect("/");
 
+  const params = (await searchParams) ?? {};
+  const canonicalHref = getCanonicalStudioHref(params);
+  if (canonicalHref) {
+    redirect(canonicalHref);
+  }
+
   const draft = await getOrCreateCurriculumDraft();
+  const progress = getCurriculumDraftProgress({
+    title: draft.title,
+    interestArea: draft.interestArea,
+    outcomes: draft.outcomes,
+    courseConfig: draft.courseConfig,
+    weeklyPlans: draft.weeklyPlans,
+    understandingChecks: draft.understandingChecks,
+  });
+  const entryContext = getStudioEntryContextFromSearchParams(params);
+  const currentPhase = deriveStudioPhase({
+    status: draft.status,
+    title: draft.title,
+    interestArea: draft.interestArea,
+    outcomes: draft.outcomes,
+    courseConfig: draft.courseConfig,
+    weeklyPlans: draft.weeklyPlans,
+    understandingChecks: draft.understandingChecks,
+    progress,
+  });
 
   return (
     <StudioClient
       userId={session.user.id}
       userName={session.user.name ?? "Instructor"}
+      entryContext={entryContext}
+      currentPhase={currentPhase}
+      progress={progress}
       draft={{
         id: draft.id,
         title: draft.title,

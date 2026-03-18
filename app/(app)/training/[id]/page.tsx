@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { withPrismaFallback } from "@/lib/prisma-guard";
 import { getOrCreateCurriculumDraft } from "@/lib/curriculum-draft-actions";
 import TrainingModuleClient from "./client";
-import "../../instructor/lesson-design-studio/studio.css";
 
 export default async function TrainingModulePage({
   params,

@@ -5,12 +5,8 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { VideoPlayer } from "@/components/video-player";
 import FileUpload from "@/components/file-upload";
-import { StudioClient } from "@/app/(app)/instructor/lesson-design-studio/studio-client";
-import {
-  getCurriculumDraftProgress,
-  MIN_ACTIVITIES_PER_SESSION,
-  UNDERSTANDING_PASS_SCORE_PCT,
-} from "@/lib/curriculum-draft-progress";
+import { getCurriculumDraftProgress } from "@/lib/curriculum-draft-progress";
+import { deriveStudioPhase, STUDIO_PHASES } from "@/lib/lesson-design-studio";
 import {
   setTrainingCheckpointCompletion,
   submitTrainingEvidence,
@@ -225,6 +221,25 @@ export default function TrainingModuleClient({
         : null,
     [lessonDesignStudio]
   );
+  const studioPhase = useMemo(
+    () =>
+      lessonDesignStudio && studioProgress
+        ? deriveStudioPhase({
+            status: lessonDesignStudio.draft.status,
+            title: lessonDesignStudio.draft.title,
+            interestArea: lessonDesignStudio.draft.interestArea,
+            outcomes: lessonDesignStudio.draft.outcomes,
+            courseConfig: lessonDesignStudio.draft.courseConfig,
+            weeklyPlans: lessonDesignStudio.draft.weeklyPlans,
+            understandingChecks: lessonDesignStudio.draft.understandingChecks,
+            progress: studioProgress,
+          })
+        : null,
+    [lessonDesignStudio, studioProgress]
+  );
+  const studioPhaseLabel = studioPhase
+    ? STUDIO_PHASES.find((phase) => phase.id === studioPhase)?.label ?? "Studio"
+    : null;
 
   function setQuizAnswer(questionId: string, answer: string) {
     setQuizAnswers((prev) => ({ ...prev, [questionId]: answer }));
@@ -332,9 +347,13 @@ export default function TrainingModuleClient({
             Go to checkpoints
           </a>
           {lessonDesignStudio ? (
-            <a href="#section-studio" className="button small outline" style={{ textDecoration: "none" }}>
-              Go to studio
-            </a>
+            <Link
+              href="/instructor/lesson-design-studio?entry=training"
+              className="button small outline"
+              style={{ textDecoration: "none" }}
+            >
+              Continue your studio journey
+            </Link>
           ) : null}
           {module.requiresQuiz ? (
             <a href="#section-quiz" className="button small outline" style={{ textDecoration: "none" }}>
@@ -352,45 +371,71 @@ export default function TrainingModuleClient({
       {lessonDesignStudio && studioProgress ? (
         <div
           className="card"
-          style={{ marginBottom: 18, border: "1px solid #c4b5fd", background: "#faf5ff" }}
+          style={{
+            marginBottom: 18,
+            border: "1px solid #c4b5fd",
+            background: "linear-gradient(180deg, #faf5ff 0%, #fff 100%)",
+          }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start", flexWrap: "wrap" }}>
             <div>
-              <h3 style={{ marginBottom: 6 }}>Capstone Studio</h3>
-              <p style={{ marginTop: 0, color: "var(--muted)", fontSize: 13 }}>
-                This final module now includes the Lesson Design Studio below. Study the examples, complete the guided tour, and build the curriculum applicants should leave training with.
+              <p className="badge" style={{ background: "#ede9fe", color: "#6d28d9" }}>
+                Capstone Studio
+              </p>
+              <h3 style={{ margin: "6px 0 6px" }}>Lesson Design Studio readiness</h3>
+              <p style={{ marginTop: 0, color: "var(--muted)", fontSize: 13, maxWidth: 680 }}>
+                This module is now a checkpoint, not the authoring surface itself. Open the canonical Lesson Design Studio when you are ready to keep building, review blockers, and move toward submission.
               </p>
             </div>
-            <Link href="/instructor/lesson-design-studio" className="button small outline" style={{ textDecoration: "none" }}>
-              Open Full Studio
+            <Link
+              href="/instructor/lesson-design-studio?entry=training"
+              className="button small outline"
+              style={{ textDecoration: "none" }}
+            >
+              Continue your studio journey
             </Link>
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-            <span className="pill pill-small">
-              Sessions fully built {studioProgress.fullyBuiltSessions}/{studioProgress.totalSessionsExpected}
-            </span>
-            <span className="pill pill-small">
-              Sessions with {MIN_ACTIVITIES_PER_SESSION}+ activities {studioProgress.sessionsWithThreeActivities}
-            </span>
-            <span className="pill pill-small">
-              Objectives {studioProgress.sessionsWithObjectives}
-            </span>
-            <span className="pill pill-small">
-              At-home assignments {studioProgress.sessionsWithAtHomeAssignments}
-            </span>
-            <span className="pill pill-small">
-              Understanding check {studioProgress.understandingChecksPassed ? "passed" : `needs ${UNDERSTANDING_PASS_SCORE_PCT}%`}
-            </span>
+          <div
+            style={{
+              marginTop: 14,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: 10,
+            }}
+          >
+            <div className="card" style={{ background: "white", margin: 0 }}>
+              <div className="kpi-label">Current phase</div>
+              <div className="kpi" style={{ fontSize: 18 }}>
+                {studioPhaseLabel ?? "Lesson Design Studio"}
+              </div>
+            </div>
+            <div className="card" style={{ background: "white", margin: 0 }}>
+              <div className="kpi-label">Readiness</div>
+              <div className="kpi" style={{ fontSize: 18 }}>
+                {studioProgress.readyForSubmission ? "Ready to submit" : "Still building"}
+              </div>
+            </div>
+            <div className="card" style={{ background: "white", margin: 0 }}>
+              <div className="kpi-label">Fully built sessions</div>
+              <div className="kpi" style={{ fontSize: 18 }}>
+                {studioProgress.fullyBuiltSessions}/{studioProgress.totalSessionsExpected}
+              </div>
+            </div>
           </div>
-          {studioProgress.submissionIssues.length > 0 ? (
-            <p style={{ marginBottom: 0, marginTop: 10, fontSize: 13, color: "var(--muted)" }}>
-              To submit this capstone, keep building until every configured session is complete, stays inside its time budget, and the understanding check is passed.
-            </p>
-          ) : (
-            <p style={{ marginBottom: 0, marginTop: 10, fontSize: 13, color: "#166534", fontWeight: 600 }}>
-              Your curriculum meets the capstone build requirements. Submit it from the studio when you are ready for review.
-            </p>
-          )}
+          <div style={{ marginTop: 12 }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Blockers</p>
+            {studioProgress.submissionIssues.length > 0 ? (
+              <ul style={{ margin: "8px 0 0", paddingLeft: 18, color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}>
+                {studioProgress.submissionIssues.slice(0, 3).map((issue) => (
+                  <li key={issue}>{issue}</li>
+                ))}
+              </ul>
+            ) : (
+              <p style={{ margin: "8px 0 0", color: "#166534", fontSize: 13, fontWeight: 600 }}>
+                No blockers are left. Open the studio to submit and move into review.
+              </p>
+            )}
+          </div>
         </div>
       ) : null}
 
@@ -547,16 +592,6 @@ export default function TrainingModuleClient({
               </div>
             ))}
           </div>
-        </div>
-      ) : null}
-
-      {lessonDesignStudio ? (
-        <div id="section-studio" style={{ marginBottom: 18 }}>
-          <StudioClient
-            userId={lessonDesignStudio.userId}
-            userName={lessonDesignStudio.userName}
-            draft={lessonDesignStudio.draft}
-          />
         </div>
       ) : null}
 
@@ -735,9 +770,13 @@ export default function TrainingModuleClient({
                     Last updated {new Date(lessonDesignStudio.draft.updatedAt).toLocaleString()}
                   </p>
                 </div>
-                <a href="#section-studio" className="button small outline" style={{ textDecoration: "none" }}>
+                <Link
+                  href="/instructor/lesson-design-studio?entry=training"
+                  className="button small outline"
+                  style={{ textDecoration: "none" }}
+                >
                   Jump to Studio
-                </a>
+                </Link>
               </div>
             </>
           ) : (

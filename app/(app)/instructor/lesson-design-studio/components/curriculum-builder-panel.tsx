@@ -16,10 +16,13 @@ import {
   buildSessionLabel,
   buildUnderstandingChecksState,
   getCurriculumDraftProgress,
+  type CurriculumDraftProgress,
   type StudioCourseConfig,
   type StudioReviewRubric,
   type StudioUnderstandingChecks,
 } from "@/lib/curriculum-draft-progress";
+import type { StudioEntryContext, StudioPhase } from "@/lib/lesson-design-studio";
+import type { SeedCurriculum } from "../curriculum-seeds";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -77,6 +80,9 @@ interface WeekPlan {
 }
 
 interface CurriculumBuilderPanelProps {
+  userName: string;
+  activePhase: StudioPhase;
+  entryContext: StudioEntryContext;
   title: string;
   description: string;
   interestArea: string;
@@ -87,6 +93,9 @@ interface CurriculumBuilderPanelProps {
   reviewRubric: StudioReviewRubric;
   reviewStatus: string;
   reviewNotes: string;
+  progress: CurriculumDraftProgress;
+  starterScaffolds: SeedCurriculum[];
+  recommendedScaffoldId: string;
   onUpdate: (field: string, value: any) => void;
   onUpdateWeek: (weekId: string, field: string, value: any) => void;
   onAddWeek: () => void;
@@ -97,13 +106,19 @@ interface CurriculumBuilderPanelProps {
   onUpdateActivity: (weekId: string, activityId: string, fields: Partial<WeekActivity>) => void;
   onReorderActivities: (weekId: string, activeId: string, overId: string) => void;
   onMoveActivityToWeek: (fromWeekId: string, activityId: string, toWeekId: string) => void;
-  onOpenDrawer: (weekId: string, activityId: string) => void;
   onOpenTemplates: (weekId: string) => void;
-  saveStatus: "idle" | "saving" | "saved" | "error";
+  onOpenExamplesLibrary: (targetPlanId?: string | null) => void;
+  onApplyStarterScaffold: (seed: SeedCurriculum) => void;
+  onPhaseChange: (phase: StudioPhase) => void;
   onExportPdf: (type: "student" | "instructor") => void;
   onSubmit: () => void;
   isSubmitted: boolean;
   generatedTemplateId: string | null;
+  launchActionsReady: boolean;
+  hasCourseMap: boolean;
+  nonEmptyOutcomeCount: number;
+  needsRevision: boolean;
+  isApproved: boolean;
 }
 
 /* ── Constants ─────────────────────────────────────────────── */
@@ -196,9 +211,9 @@ function HelpTooltip({ tip }: { tip: string }) {
           width: 16,
           height: 16,
           borderRadius: "50%",
-          border: "1px solid #94a3b8",
+          border: "1px solid #cbd5e1",
           background: "transparent",
-          color: "#94a3b8",
+          color: "#64748b",
           fontSize: 10,
           fontWeight: 700,
           cursor: "pointer",
@@ -218,15 +233,16 @@ function HelpTooltip({ tip }: { tip: string }) {
             bottom: "calc(100% + 6px)",
             left: "50%",
             transform: "translateX(-50%)",
-            background: "#1e293b",
-            color: "#f1f5f9",
+            background: "#fffdf8",
+            color: "#334155",
             fontSize: 12,
             borderRadius: 6,
             padding: "6px 10px",
             whiteSpace: "normal",
             width: 220,
             zIndex: 9999,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
             pointerEvents: "none",
           }}
         >
@@ -707,11 +723,21 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
   }
 
   return (
-    <div className="cbs-week-detail-section" style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 12, borderTop: "1px solid #1e293b" }}>
+    <div
+      className="cbs-week-detail-section"
+      style={{
+        padding: "12px 16px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+        borderTop: "1px solid #e5e7eb",
+        background: "#fffaf5",
+      }}
+    >
 
       {/* Session Objective */}
       <div>
-        <label style={{ display: "flex", alignItems: "center", fontSize: 12, color: "#94a3b8", marginBottom: 4 }}>
+        <label style={{ display: "flex", alignItems: "center", fontSize: 12, color: "#64748b", marginBottom: 4 }}>
           Session Objective
           <HelpTooltip tip="A specific, measurable goal for this single class session" />
         </label>
@@ -719,13 +745,13 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
           value={week.objective ?? ""}
           onChange={(e) => onUpdateWeek(week.id, "objective", e.target.value)}
           placeholder="What will students be able to do after this class?"
-          style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #334155", background: "#0f172a", color: "#f1f5f9", fontSize: 13, boxSizing: "border-box" }}
+          style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #d6d3d1", background: "#ffffff", color: "#111827", fontSize: 13, boxSizing: "border-box" }}
         />
       </div>
 
       {/* Teacher Prep Notes */}
       <div>
-        <label style={{ display: "flex", alignItems: "center", fontSize: 12, color: "#94a3b8", marginBottom: 4 }}>
+        <label style={{ display: "flex", alignItems: "center", fontSize: 12, color: "#64748b", marginBottom: 4 }}>
           Teacher Prep Notes
           <HelpTooltip tip="Things you need to prepare before class — copies to print, room arrangement, supplies to gather, etc." />
         </label>
@@ -734,13 +760,13 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
           value={week.teacherPrepNotes ?? ""}
           onChange={(e) => onUpdateWeek(week.id, "teacherPrepNotes", e.target.value)}
           placeholder="What do you need to prepare before class? e.g., print 30 copies of worksheet, set up group tables..."
-          style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #334155", background: "#0f172a", color: "#f1f5f9", fontSize: 13, resize: "vertical", boxSizing: "border-box" }}
+          style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #d6d3d1", background: "#ffffff", color: "#111827", fontSize: 13, resize: "vertical", boxSizing: "border-box" }}
         />
       </div>
 
       {/* Materials Checklist */}
       <div>
-        <label style={{ display: "block", fontSize: 12, color: "#94a3b8", marginBottom: 6 }}>
+        <label style={{ display: "block", fontSize: 12, color: "#64748b", marginBottom: 6 }}>
           Materials Checklist
         </label>
         {(week.materialsChecklist ?? []).map((item, i) => (
@@ -749,12 +775,12 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
               value={item}
               onChange={(e) => handleChecklist(i, e.target.value)}
               placeholder={`Item ${i + 1}...`}
-              style={{ flex: 1, padding: "4px 8px", borderRadius: 6, border: "1px solid #334155", background: "#0f172a", color: "#f1f5f9", fontSize: 12 }}
+              style={{ flex: 1, padding: "4px 8px", borderRadius: 6, border: "1px solid #d6d3d1", background: "#ffffff", color: "#111827", fontSize: 12 }}
             />
             <button
               type="button"
               onClick={() => handleRemoveChecklistItem(i)}
-              style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 16, lineHeight: 1, padding: "0 4px" }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b", fontSize: 16, lineHeight: 1, padding: "0 4px" }}
               aria-label="Remove item"
             >
               ×
@@ -764,7 +790,7 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
         <button
           type="button"
           onClick={handleAddChecklistItem}
-          style={{ fontSize: 12, color: "#3b82f6", background: "none", border: "none", cursor: "pointer", padding: "2px 0" }}
+          style={{ fontSize: 12, color: "#b45309", background: "none", border: "none", cursor: "pointer", padding: "2px 0" }}
         >
           + Add Item
         </button>
@@ -773,7 +799,7 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
       {/* At-Home Assignment */}
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: atHomeEnabled ? 10 : 0 }}>
-          <label style={{ fontSize: 12, color: "#94a3b8", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+          <label style={{ fontSize: 12, color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
             <input
               type="checkbox"
               checked={atHomeEnabled}
@@ -794,7 +820,7 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
                   type: e.target.value as AtHomeAssignmentType,
                 })
               }
-              style={{ padding: "5px 8px", borderRadius: 6, border: "1px solid #334155", background: "#0f172a", color: "#f1f5f9", fontSize: 13 }}
+              style={{ padding: "5px 8px", borderRadius: 6, border: "1px solid #d6d3d1", background: "#ffffff", color: "#111827", fontSize: 13 }}
             >
               {AT_HOME_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>
@@ -811,7 +837,7 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
                 })
               }
               placeholder="Assignment title..."
-              style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #334155", background: "#0f172a", color: "#f1f5f9", fontSize: 13 }}
+              style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #d6d3d1", background: "#ffffff", color: "#111827", fontSize: 13 }}
             />
             <textarea
               rows={3}
@@ -823,7 +849,7 @@ function WeekDetailSection({ week, onUpdateWeek }: WeekDetailSectionProps) {
                 })
               }
               placeholder="Describe the assignment..."
-              style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #334155", background: "#0f172a", color: "#f1f5f9", fontSize: 13, resize: "vertical" }}
+              style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #d6d3d1", background: "#ffffff", color: "#111827", fontSize: 13, resize: "vertical" }}
             />
           </div>
         )}
@@ -843,13 +869,13 @@ function SectionNote({ label, note }: { label: string; note: string }) {
         marginTop: 10,
         padding: "10px 12px",
         borderRadius: 8,
-        background: "#1e293b",
-        border: "1px solid #334155",
+        background: "#fff7ed",
+        border: "1px solid #fed7aa",
         fontSize: 12,
-        color: "#cbd5e1",
+        color: "#7c2d12",
       }}
     >
-      <strong style={{ color: "#f8fafc" }}>{label}:</strong> {note}
+      <strong style={{ color: "#9a3412" }}>{label}:</strong> {note}
     </div>
   );
 }
@@ -1192,7 +1218,7 @@ function SubmitModal({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.6)",
+        background: "rgba(15, 23, 42, 0.28)",
         zIndex: 1000,
         display: "flex",
         alignItems: "center",
@@ -1205,19 +1231,19 @@ function SubmitModal({
       <div
         className="cbs-modal"
         style={{
-          background: "#0f172a",
-          border: "1px solid #1e293b",
+          background: "#fffdf8",
+          border: "1px solid #e7dccb",
           borderRadius: 12,
           padding: 28,
           width: "100%",
           maxWidth: 540,
-          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+          boxShadow: "0 20px 60px rgba(15, 23, 42, 0.18)",
         }}
       >
-        <h3 style={{ margin: "0 0 8px", fontSize: 18, color: "#f1f5f9", fontWeight: 700 }}>
+        <h3 style={{ margin: "0 0 8px", fontSize: 18, color: "#1f2937", fontWeight: 700 }}>
           Submit full curriculum
         </h3>
-        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#94a3b8" }}>
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#64748b" }}>
           The goal here is not just finishing a form. It is leaving with a full,
           teachable curriculum package.
         </p>
@@ -1286,9 +1312,9 @@ function SubmitModal({
             style={{
               padding: "8px 16px",
               borderRadius: 8,
-              border: "1px solid #334155",
-              background: "transparent",
-              color: "#94a3b8",
+              border: "1px solid #d6d3d1",
+              background: "#ffffff",
+              color: "#475569",
               fontSize: 13,
               cursor: "pointer",
             }}
@@ -1348,10 +1374,10 @@ function ExportPdfDropdown({ onExportPdf }: ExportPdfDropdownProps) {
             position: "absolute",
             bottom: "calc(100% + 6px)",
             right: 0,
-            background: "#0f172a",
-            border: "1px solid #1e293b",
+            background: "#fffdf8",
+            border: "1px solid #e7dccb",
             borderRadius: 8,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+            boxShadow: "0 16px 40px rgba(15, 23, 42, 0.16)",
             minWidth: 200,
             overflow: "hidden",
             zIndex: 100,
@@ -1367,11 +1393,11 @@ function ExportPdfDropdown({ onExportPdf }: ExportPdfDropdownProps) {
               padding: "10px 14px",
               background: "none",
               border: "none",
-              color: "#e2e8f0",
+              color: "#1f2937",
               fontSize: 13,
               cursor: "pointer",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#1e293b")}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
           >
             Student View (clean schedule)
@@ -1386,11 +1412,11 @@ function ExportPdfDropdown({ onExportPdf }: ExportPdfDropdownProps) {
               padding: "10px 14px",
               background: "none",
               border: "none",
-              color: "#e2e8f0",
+              color: "#1f2937",
               fontSize: 13,
               cursor: "pointer",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#1e293b")}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
           >
             Instructor Guide (full details)
@@ -1404,6 +1430,9 @@ function ExportPdfDropdown({ onExportPdf }: ExportPdfDropdownProps) {
 /* ── Main Component ────────────────────────────────────────── */
 
 export function CurriculumBuilderPanel({
+  userName,
+  activePhase,
+  entryContext,
   title,
   description,
   interestArea,
@@ -1414,6 +1443,9 @@ export function CurriculumBuilderPanel({
   reviewRubric,
   reviewStatus,
   reviewNotes,
+  progress,
+  starterScaffolds,
+  recommendedScaffoldId,
   onUpdate,
   onUpdateWeek,
   onAddWeek,
@@ -1424,13 +1456,19 @@ export function CurriculumBuilderPanel({
   onUpdateActivity,
   onReorderActivities,
   onMoveActivityToWeek,
-  onOpenDrawer,
   onOpenTemplates,
-  saveStatus,
+  onOpenExamplesLibrary,
+  onApplyStarterScaffold,
+  onPhaseChange,
   onExportPdf,
   onSubmit,
   isSubmitted,
   generatedTemplateId,
+  launchActionsReady,
+  hasCourseMap,
+  nonEmptyOutcomeCount,
+  needsRevision,
+  isApproved,
 }: CurriculumBuilderPanelProps) {
   /* ── Local state ───────────────────────────────────────────── */
   const [expandedActivityIds, setExpandedActivityIds] = useState<Set<string>>(new Set());
@@ -1531,23 +1569,1066 @@ export function CurriculumBuilderPanel({
     });
   }
 
-  const progress = getCurriculumDraftProgress({
-    title,
-    interestArea,
-    outcomes,
-    courseConfig,
-    weeklyPlans,
-    understandingChecks,
-  });
-
   const deliveryModeSet = new Set(courseConfig.deliveryModes);
   const rubricScores = reviewRubric.scores;
   const showReviewSummary =
-    reviewStatus === "NEEDS_REVISION" ||
-    reviewStatus === "APPROVED" ||
+    needsRevision ||
+    isApproved ||
     reviewStatus === "REJECTED" ||
     reviewRubric.summary.trim().length > 0 ||
     reviewNotes.trim().length > 0;
+  const courseMapReady =
+    title.trim().length > 0 &&
+    interestArea.trim().length > 0 &&
+    nonEmptyOutcomeCount >= MIN_CURRICULUM_OUTCOMES;
+  const sessionBuildComplete =
+    progress.sessionsWithTitles === progress.totalSessionsExpected &&
+    progress.sessionsWithObjectives === progress.totalSessionsExpected &&
+    progress.sessionsWithThreeActivities === progress.totalSessionsExpected &&
+    progress.sessionsWithAtHomeAssignments === progress.totalSessionsExpected &&
+    progress.sessionsWithinTimeBudget === progress.totalSessionsExpected;
+
+  const startContextCopy =
+    entryContext === "TRAINING"
+      ? "You are in the capstone stretch now. Start with a scaffold if you want momentum, then shape the course into something you would feel proud to teach."
+      : entryContext === "APPLICATION_STATUS"
+        ? "This studio is the curriculum part of your applicant journey. The goal is not a rough concept. The goal is a real first course."
+        : needsRevision
+          ? "A reviewer has asked for revision. Use the scaffold and examples only if they help you rebuild weak spots without losing your own voice."
+          : "Use this studio like a mentor-guided workspace. You can start from a scaffold, shape the promise of the course, and then build every session with intention.";
+
+  const reviewHeadline = isApproved
+    ? "Your curriculum is approved and ready for launch"
+    : needsRevision
+      ? "A reviewer asked you to tighten this curriculum"
+      : reviewStatus === "SUBMITTED"
+        ? "Your curriculum is with a reviewer now"
+        : reviewStatus === "COMPLETED"
+          ? "You are ready to submit this curriculum for review"
+          : "Keep building toward a full review-ready curriculum";
+
+  const reviewCopy = isApproved
+    ? "This draft has crossed the line from capstone project to stable launch package. Use the next actions below to keep the instructor journey moving."
+    : needsRevision
+      ? reviewRubric.summary || reviewNotes || "Use the notes below to revise the right parts of the draft, then resubmit."
+      : reviewStatus === "SUBMITTED"
+        ? "Your submission is waiting for reviewer feedback. You can still export the curriculum and review the structure while you wait."
+        : progress.readyForSubmission
+          ? "Everything needed for submission is in place. When you are ready, submit this curriculum for review."
+          : "This phase becomes the review and launch hub once the draft is ready.";
+
+  let phaseContent: JSX.Element;
+
+  if (activePhase === "START") {
+    phaseContent = (
+      <div className="lds-phase-stack">
+        <div className="card lds-phase-card">
+          <div className="lds-phase-card-header">
+            <div>
+              <p className="lds-phase-eyebrow">Start</p>
+              <h2 className="lds-phase-title">Choose a strong starting point</h2>
+              <p className="lds-phase-copy">{startContextCopy}</p>
+            </div>
+            <div className="lds-phase-actions">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => onOpenExamplesLibrary(null)}
+              >
+                Browse Examples Library
+              </button>
+              <button
+                type="button"
+                className="button"
+                onClick={() => onPhaseChange(hasCourseMap ? "SESSIONS" : "COURSE_MAP")}
+              >
+                {hasCourseMap ? "Continue building" : "Shape the course map"}
+              </button>
+            </div>
+          </div>
+
+          <div className="lds-start-grid">
+            <div className="lds-start-summary">
+              <h3>Hello, {userName}</h3>
+              <p>
+                A strong applicant draft usually has a clear topic, a teachable
+                course promise, and a session arc that feels connected from week
+                one to the final session.
+              </p>
+              <div className="lds-start-checklist">
+                <div className="lds-start-check">
+                  <span>{hasCourseMap ? "✓" : "1"}</span>
+                  <div>
+                    <strong>Shape the course promise</strong>
+                    <p>
+                      {hasCourseMap
+                        ? `${nonEmptyOutcomeCount} learning outcomes are in place.`
+                        : "Set the title, interest area, and learning outcomes that give the whole course direction."}
+                    </p>
+                  </div>
+                </div>
+                <div className="lds-start-check">
+                  <span>{progress.sessionsWithTitles > 0 ? "✓" : "2"}</span>
+                  <div>
+                    <strong>Build the sessions</strong>
+                    <p>
+                      {progress.sessionsWithTitles > 0
+                        ? `${progress.sessionsWithTitles} of ${progress.totalSessionsExpected} sessions have titles.`
+                        : "Turn the course promise into concrete sessions with objectives, pacing, and at-home work."}
+                    </p>
+                  </div>
+                </div>
+                <div className="lds-start-check">
+                  <span>{progress.readyForSubmission ? "✓" : "3"}</span>
+                  <div>
+                    <strong>Finish readiness and review</strong>
+                    <p>
+                      {progress.readyForSubmission
+                        ? "This draft is ready to move into review."
+                        : "Use the readiness phase to clear blockers, pass the understanding check, and submit with confidence."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="lds-start-recommended">
+              <span className="badge">Recommended Starter</span>
+              {starterScaffolds
+                .filter((seed) => seed.id === recommendedScaffoldId)
+                .map((seed) => (
+                  <div key={seed.id} className="lds-starter-card lds-starter-card-featured">
+                    <div className="lds-starter-card-top">
+                      <strong>{seed.icon} {seed.label}</strong>
+                      <span className="pill pill-purple">Best fit</span>
+                    </div>
+                    <h3>{seed.title}</h3>
+                    <p>{seed.description}</p>
+                    <div className="lds-starter-meta">
+                      <span>{seed.weeks.length} sessions</span>
+                      <span>{seed.classDurationMin} min</span>
+                      <span>{seed.outcomes.length} outcomes</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="button"
+                      onClick={() => onApplyStarterScaffold(seed)}
+                    >
+                      Apply full starter scaffold
+                    </button>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="card lds-phase-card">
+          <div className="lds-phase-card-header">
+            <div>
+              <p className="lds-phase-eyebrow">Starter Scaffolds</p>
+              <h2 className="lds-phase-title">Pick a scaffold that gives you momentum</h2>
+              <p className="lds-phase-copy">
+                These starter curricula fill the draft with a full teachable arc.
+                You can replace the language, pacing, and assignments afterward.
+              </p>
+            </div>
+          </div>
+          <div className="lds-starter-grid">
+            {starterScaffolds.map((seed) => (
+              <div
+                key={seed.id}
+                className={`lds-starter-card${
+                  seed.id === recommendedScaffoldId ? " featured" : ""
+                }`}
+              >
+                <div className="lds-starter-card-top">
+                  <strong>{seed.icon} {seed.label}</strong>
+                  {seed.id === recommendedScaffoldId ? (
+                    <span className="pill pill-purple">Recommended</span>
+                  ) : null}
+                </div>
+                <h3>{seed.title}</h3>
+                <p>{seed.description}</p>
+                <div className="lds-starter-meta">
+                  <span>{seed.weeks.length} sessions</span>
+                  <span>{seed.classDurationMin} min</span>
+                  <span>{seed.outcomes.length} outcomes</span>
+                </div>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => onApplyStarterScaffold(seed)}
+                >
+                  Apply starter scaffold
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <SectionNote
+            label="Reviewer note on overview"
+            note={reviewRubric.sectionNotes.overview}
+          />
+        </div>
+      </div>
+    );
+  } else if (activePhase === "COURSE_MAP") {
+    phaseContent = (
+      <div className="lds-phase-stack">
+        <div className="card lds-phase-card">
+          <div className="lds-phase-card-header">
+            <div>
+              <p className="lds-phase-eyebrow">Course Map</p>
+              <h2 className="lds-phase-title">Give the course a clear promise</h2>
+              <p className="lds-phase-copy">
+                Name what this course is, who it serves, and what students should leave able to do.
+              </p>
+            </div>
+            <div className="lds-phase-actions">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => onPhaseChange("START")}
+              >
+                Back to start
+              </button>
+              <button
+                type="button"
+                className="button"
+                onClick={() => onPhaseChange("SESSIONS")}
+              >
+                Continue to sessions
+              </button>
+            </div>
+          </div>
+
+          <div className="lds-form-grid">
+            <label className="form-row">
+              Curriculum title
+              <input
+                className="input"
+                value={title}
+                onChange={(e) => onUpdate("title", e.target.value)}
+                placeholder="Name your curriculum"
+              />
+            </label>
+            <label className="form-row">
+              Interest area
+              <input
+                className="input"
+                value={interestArea}
+                onChange={(e) => onUpdate("interestArea", e.target.value)}
+                placeholder="e.g. Finance, Technology, Music"
+              />
+            </label>
+          </div>
+
+          <label className="form-row" style={{ marginTop: 16 }}>
+            Why this course matters
+            <textarea
+              className="input"
+              value={description}
+              onChange={(e) => onUpdate("description", e.target.value)}
+              placeholder="What will students learn, and why is this course worth teaching?"
+              rows={4}
+            />
+          </label>
+
+          <div className="lds-course-shape-card">
+            <div className="lds-course-shape-header">
+              <div>
+                <h3>Course shape</h3>
+                <p>Decide what the real teaching container looks like before polishing individual sessions.</p>
+              </div>
+              <div className="lds-course-shape-meta">
+                <span>{courseConfig.durationWeeks} week{courseConfig.durationWeeks === 1 ? "" : "s"}</span>
+                <span>{courseConfig.sessionsPerWeek} session{courseConfig.sessionsPerWeek === 1 ? "" : "s"}/week</span>
+                <span>{courseConfig.classDurationMin} min/session</span>
+              </div>
+            </div>
+
+            <div className="grid three">
+              <label className="form-row">
+                Weeks
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  value={courseConfig.durationWeeks}
+                  onChange={(e) =>
+                    updateCourseConfig({
+                      durationWeeks: Math.max(1, Number(e.target.value) || 1),
+                    })
+                  }
+                />
+              </label>
+              <label className="form-row">
+                Sessions per week
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  value={courseConfig.sessionsPerWeek}
+                  onChange={(e) =>
+                    updateCourseConfig({
+                      sessionsPerWeek: Math.max(1, Number(e.target.value) || 1),
+                    })
+                  }
+                />
+              </label>
+              <label className="form-row">
+                Minutes per session
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  value={courseConfig.classDurationMin}
+                  onChange={(e) =>
+                    updateCourseConfig({
+                      classDurationMin: Math.max(1, Number(e.target.value) || 1),
+                    })
+                  }
+                />
+              </label>
+              <label className="form-row">
+                Target age group
+                <input
+                  className="input"
+                  value={courseConfig.targetAgeGroup}
+                  onChange={(e) =>
+                    updateCourseConfig({ targetAgeGroup: e.target.value })
+                  }
+                  placeholder="e.g. 12-14 or adults"
+                />
+              </label>
+              <label className="form-row">
+                Difficulty level
+                <select
+                  className="input"
+                  value={courseConfig.difficultyLevel}
+                  onChange={(e) =>
+                    updateCourseConfig({
+                      difficultyLevel: e.target.value as StudioCourseConfig["difficultyLevel"],
+                    })
+                  }
+                >
+                  {DIFFICULTY_LEVEL_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-row">
+                Estimated learning hours
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  value={courseConfig.estimatedHours}
+                  onChange={(e) =>
+                    updateCourseConfig({
+                      estimatedHours: Math.max(1, Number(e.target.value) || 1),
+                    })
+                  }
+                />
+              </label>
+              <label className="form-row">
+                Minimum students
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  value={courseConfig.minStudents}
+                  onChange={(e) =>
+                    updateCourseConfig({
+                      minStudents: Math.max(1, Number(e.target.value) || 1),
+                    })
+                  }
+                />
+              </label>
+              <label className="form-row">
+                Ideal students
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  value={courseConfig.idealSize}
+                  onChange={(e) =>
+                    updateCourseConfig({
+                      idealSize: Math.max(1, Number(e.target.value) || 1),
+                    })
+                  }
+                />
+              </label>
+              <label className="form-row">
+                Maximum students
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  value={courseConfig.maxStudents}
+                  onChange={(e) =>
+                    updateCourseConfig({
+                      maxStudents: Math.max(1, Number(e.target.value) || 1),
+                    })
+                  }
+                />
+              </label>
+            </div>
+
+            <div style={{ marginTop: 16 }}>
+              <div className="lds-delivery-label">Delivery modes</div>
+              <div className="lds-delivery-options">
+                {DELIVERY_MODE_OPTIONS.map((option) => {
+                  const selected = deliveryModeSet.has(option.value);
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`lds-delivery-chip${selected ? " active" : ""}`}
+                      onClick={() => {
+                        const nextModes = selected
+                          ? courseConfig.deliveryModes.filter(
+                              (mode) => mode !== option.value
+                            )
+                          : [...courseConfig.deliveryModes, option.value];
+                        updateCourseConfig({
+                          deliveryModes:
+                            nextModes.length > 0 ? nextModes : [option.value],
+                        });
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <SectionNote
+              label="Reviewer note on course shape"
+              note={reviewRubric.sectionNotes.courseStructure}
+            />
+          </div>
+
+          <div className="cbs-outcomes-section" style={{ marginTop: 18 }}>
+            <div className="cbs-outcomes-label">Learning outcomes</div>
+            <p style={{ margin: "4px 0 10px", color: "var(--muted)", fontSize: 12 }}>
+              Name the important things students should be able to do by the end of the course.
+            </p>
+            {outcomes.map((outcome, index) => (
+              <div key={index} className="cbs-outcome-item">
+                <input
+                  className="cbs-outcome-input"
+                  value={outcome}
+                  onChange={(e) => handleOutcomeChange(index, e.target.value)}
+                  placeholder={`Outcome ${index + 1}`}
+                />
+                <button
+                  className="cbs-outcome-remove-btn"
+                  onClick={() => handleRemoveOutcome(index)}
+                  type="button"
+                  aria-label="Remove outcome"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              className="cbs-add-outcome-btn"
+              onClick={handleAddOutcome}
+              type="button"
+            >
+              + Add outcome
+            </button>
+          </div>
+
+          <SectionNote
+            label="Reviewer note on overview"
+            note={reviewRubric.sectionNotes.overview}
+          />
+        </div>
+      </div>
+    );
+  } else if (activePhase === "SESSIONS") {
+    phaseContent = (
+      <div className="lds-phase-stack">
+        <div className="card lds-phase-card">
+          <div className="lds-phase-card-header">
+            <div>
+              <p className="lds-phase-eyebrow">Sessions</p>
+              <h2 className="lds-phase-title">Build the session-by-session experience</h2>
+              <p className="lds-phase-copy">
+                Give every session a clear goal, a realistic activity arc, and at-home work that extends the learning.
+              </p>
+            </div>
+            <div className="lds-phase-actions">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => onOpenExamplesLibrary(null)}
+              >
+                Open Examples Library
+              </button>
+              <button
+                type="button"
+                className="button"
+                onClick={() => onPhaseChange("READINESS")}
+              >
+                Review readiness
+              </button>
+            </div>
+          </div>
+
+          <div className="lds-session-support">
+            <span className="pill pill-info">
+              {progress.sessionsWithTitles}/{progress.totalSessionsExpected} titles
+            </span>
+            <span className="pill pill-info">
+              {progress.sessionsWithObjectives}/{progress.totalSessionsExpected} objectives
+            </span>
+            <span className="pill pill-info">
+              {progress.sessionsWithThreeActivities}/{progress.totalSessionsExpected} with 3+ activities
+            </span>
+            <span className="pill pill-info">
+              {progress.sessionsWithAtHomeAssignments}/{progress.totalSessionsExpected} with at-home work
+            </span>
+          </div>
+
+          <SectionNote
+            label="Reviewer note on session plans"
+            note={reviewRubric.sectionNotes.sessionPlans}
+          />
+          <SectionNote
+            label="Reviewer note on student assignments"
+            note={reviewRubric.sectionNotes.studentAssignments}
+          />
+        </div>
+
+        <div className="cbs-builder-layout" style={{ display: "grid", gridTemplateColumns: "56px 1fr" }}>
+          <div
+            className="cbs-week-sidebar"
+            style={{
+              position: "sticky",
+              top: 16,
+              alignSelf: "start",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 8,
+              paddingTop: 8,
+            }}
+          >
+            {weeklyPlans.map((week) => (
+              <button
+                key={week.id}
+                type="button"
+                onClick={() =>
+                  document
+                    .getElementById(`cbs-week-${week.id}`)
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: "50%",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text-secondary)",
+                  fontSize: courseConfig.sessionsPerWeek > 1 ? 9 : 11,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 0,
+                  boxShadow: "var(--shadow-xs)",
+                }}
+                title={buildSessionLabel(week, courseConfig)}
+              >
+                {courseConfig.sessionsPerWeek > 1
+                  ? `W${week.weekNumber}.${week.sessionNumber}`
+                  : `W${week.weekNumber}`}
+              </button>
+            ))}
+          </div>
+
+          <div className="cbs-builder-panel" style={{ paddingTop: 0 }}>
+            {weeklyPlans.map((week) => {
+              const totalMin = week.activities.reduce((sum, activity) => sum + activity.durationMin, 0);
+              const isOverTime = totalMin > week.classDurationMin;
+              const isWeekDetailExpanded = expandedWeekIds.has(week.id);
+              const sessionLabel = buildSessionLabel(week, courseConfig);
+
+              return (
+                <div key={week.id} id={`cbs-week-${week.id}`} className="cbs-week-section">
+                  <div className="cbs-week-header">
+                    <span className="cbs-week-label">{sessionLabel}</span>
+
+                    <input
+                      className="cbs-week-title-input"
+                      value={week.title}
+                      onChange={(e) => onUpdateWeek(week.id, "title", e.target.value)}
+                      placeholder="Session title..."
+                    />
+
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--muted)" }}>
+                      <input
+                        type="number"
+                        min={1}
+                        value={week.classDurationMin}
+                        onChange={(e) =>
+                          onUpdateWeek(week.id, "classDurationMin", Math.max(1, Number(e.target.value)))
+                        }
+                        style={{
+                          width: 56,
+                          padding: "4px 8px",
+                          borderRadius: 8,
+                          border: "1px solid var(--border)",
+                          background: "var(--surface)",
+                          color: "var(--text)",
+                          fontSize: 12,
+                          textAlign: "center",
+                        }}
+                        aria-label="Session duration in minutes"
+                      />
+                      <span>min</span>
+                    </span>
+
+                    <span
+                      className={`cbs-week-time-stat${isOverTime ? " cbs-time-warning" : ""}`}
+                      style={{ color: isOverTime ? "#d97706" : "#16a34a", fontSize: 12 }}
+                    >
+                      {isOverTime && "⚠ "}
+                      {totalMin}m / {week.classDurationMin}m
+                    </span>
+
+                    <button
+                      type="button"
+                      className="cbs-week-detail-toggle"
+                      onClick={() => toggleWeekExpand(week.id)}
+                      style={{
+                        background: "var(--surface-alt)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 999,
+                        cursor: "pointer",
+                        color: "var(--text-secondary)",
+                        fontSize: 11,
+                        padding: "5px 10px",
+                      }}
+                    >
+                      {isWeekDetailExpanded ? "Hide details" : "Show details"}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="cbs-week-dup-btn"
+                      onClick={() => onDuplicateWeek(week.id)}
+                      style={{
+                        background: "var(--surface-alt)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 999,
+                        cursor: "pointer",
+                        color: "var(--text-secondary)",
+                        fontSize: 11,
+                        padding: "5px 10px",
+                      }}
+                    >
+                      Copy forward
+                    </button>
+
+                    <button
+                      className="cbs-week-delete-btn"
+                      onClick={() => onRemoveWeek(week.id)}
+                      type="button"
+                      aria-label="Clear session"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  {isWeekDetailExpanded ? (
+                    <WeekDetailSection week={week} onUpdateWeek={onUpdateWeek} />
+                  ) : null}
+
+                  <div
+                    className="cbs-time-bar"
+                    style={{
+                      display: "flex",
+                      height: 8,
+                      background: "var(--surface-alt)",
+                      overflow: "hidden",
+                      margin: "0 16px",
+                      borderRadius: 999,
+                    }}
+                  >
+                    {week.activities.map((activity) => {
+                      const config = getActivityConfig(activity.type);
+                      const pct =
+                        week.classDurationMin > 0
+                          ? (activity.durationMin / week.classDurationMin) * 100
+                          : 0;
+                      return (
+                        <div
+                          key={activity.id}
+                          className="cbs-time-bar-segment"
+                          style={{
+                            width: `${pct}%`,
+                            height: "100%",
+                            backgroundColor: config.color,
+                            transition: "width 0.2s ease",
+                          }}
+                          title={`${activity.title} (${activity.durationMin}m)`}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  <DndContext
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd(week.id)}
+                  >
+                    <SortableContext
+                      items={week.activities.map((activity) => activity.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div
+                        className="cbs-activities-list"
+                        style={{ padding: "8px 16px", display: "flex", flexDirection: "column", gap: 4 }}
+                      >
+                        {week.activities.map((activity) => (
+                          <SortableActivity
+                            key={activity.id}
+                            activity={activity}
+                            weekId={week.id}
+                            isExpanded={expandedActivityIds.has(activity.id)}
+                            onToggle={() => toggleActivityExpand(activity.id)}
+                            onUpdateActivity={onUpdateActivity}
+                            onRemoveActivity={onRemoveActivity}
+                            allWeeks={weeklyPlans}
+                            onMoveToWeek={(toWeekId) => {
+                              onMoveActivityToWeek(week.id, activity.id, toWeekId);
+                              setExpandedActivityIds((prev) => {
+                                const next = new Set(prev);
+                                next.delete(activity.id);
+                                return next;
+                              });
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+
+                  <div
+                    className="cbs-add-activity-row"
+                    style={{ padding: "8px 16px 16px", display: "flex", flexWrap: "wrap", gap: 6 }}
+                  >
+                    {ACTIVITY_TYPES.map((activityType) => (
+                      <button
+                        key={activityType.value}
+                        className="cbs-add-activity-chip"
+                        onClick={() => handleQuickAddActivity(week.id, activityType.value)}
+                        type="button"
+                        style={{ borderColor: `${activityType.color}44`, color: activityType.color }}
+                      >
+                        {activityType.icon} + {activityType.label}
+                      </button>
+                    ))}
+                    <button
+                      className="cbs-templates-btn"
+                      onClick={() => onOpenTemplates(week.id)}
+                      type="button"
+                    >
+                      Templates
+                    </button>
+                    <button
+                      className="cbs-templates-btn"
+                      onClick={() => onOpenExamplesLibrary(week.id)}
+                      type="button"
+                    >
+                      Import from library
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            <div className="cbs-builder-footer">
+              <div className="cbs-footer-left">
+                <button
+                  className="cbs-btn cbs-btn-secondary"
+                  onClick={onAddWeek}
+                  type="button"
+                >
+                  + Add another week
+                </button>
+              </div>
+
+              <div className="cbs-footer-right">
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => onPhaseChange("READINESS")}
+                >
+                  Continue to readiness
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  } else if (activePhase === "READINESS") {
+    phaseContent = (
+      <div className="lds-phase-stack">
+        <div className="card lds-phase-card">
+          <div className="lds-phase-card-header">
+            <div>
+              <p className="lds-phase-eyebrow">Readiness</p>
+              <h2 className="lds-phase-title">Check the draft like a real teaching package</h2>
+              <p className="lds-phase-copy">
+                This phase makes sure the course is more than a set of boxes with text inside them. It should feel teachable, paced, and review-ready.
+              </p>
+            </div>
+            <div className="lds-phase-actions">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => onPhaseChange("SESSIONS")}
+              >
+                Back to sessions
+              </button>
+              <button
+                type="button"
+                className="button"
+                onClick={() => onPhaseChange("REVIEW_LAUNCH")}
+              >
+                Open review hub
+              </button>
+            </div>
+          </div>
+
+          <ProgressBar
+            title={title}
+            interestArea={interestArea}
+            outcomes={outcomes}
+            courseConfig={courseConfig}
+            weeklyPlans={weeklyPlans}
+            understandingChecks={understandingChecks}
+          />
+
+          <UnderstandingCheckSection
+            understandingChecks={understandingChecks}
+            onUpdate={onUpdate}
+          />
+
+          {!progress.readyForSubmission ? (
+            <div className="lds-readiness-blockers">
+              <h3>What still needs attention</h3>
+              <ul>
+                {progress.submissionIssues.map((issue) => (
+                  <li key={issue}>{issue}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <div className="lds-readiness-actions">
+            <ExportPdfDropdown onExportPdf={onExportPdf} />
+            {isSubmitted ? (
+              <span className="cbs-submitted-badge">
+                {isApproved ? "✓ Approved" : "✓ Submitted"}
+              </span>
+            ) : (
+              <button
+                className="cbs-btn cbs-btn-primary"
+                onClick={() => setShowSubmitModal(true)}
+                type="button"
+                title={
+                  progress.readyForSubmission
+                    ? "Submit curriculum"
+                    : "Finish the requirements above to unlock submission"
+                }
+              >
+                Submit curriculum
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  } else {
+    phaseContent = (
+      <div className="lds-phase-stack">
+        <div className="card lds-phase-card">
+          <div className="lds-phase-card-header">
+            <div>
+              <p className="lds-phase-eyebrow">Review & Launch</p>
+              <h2 className="lds-phase-title">{reviewHeadline}</h2>
+              <p className="lds-phase-copy">{reviewCopy}</p>
+            </div>
+            <div className="lds-phase-actions">
+              {!courseMapReady ? (
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => onPhaseChange("COURSE_MAP")}
+                >
+                  Finish course map
+                </button>
+              ) : null}
+              {!sessionBuildComplete ? (
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => onPhaseChange("SESSIONS")}
+                >
+                  Tighten sessions
+                </button>
+              ) : null}
+              {!progress.readyForSubmission ? (
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => onPhaseChange("READINESS")}
+                >
+                  Clear blockers
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="lds-review-status-row">
+            <span className={`pill ${isApproved ? "pill-success" : needsRevision ? "pill-pending" : "pill-info"}`}>
+              {reviewStatus.replace(/_/g, " ")}
+            </span>
+            {showReviewSummary ? (
+              <>
+                <span className="pill pill-info">Clarity {rubricScores.clarity}/4</span>
+                <span className="pill pill-info">Sequencing {rubricScores.sequencing}/4</span>
+                <span className="pill pill-info">Student experience {rubricScores.studentExperience}/4</span>
+                <span className="pill pill-info">Launch readiness {rubricScores.launchReadiness}/4</span>
+              </>
+            ) : null}
+          </div>
+
+          {showReviewSummary ? (
+            <div className="lds-review-summary-card">
+              <h3>Reviewer summary</h3>
+              <p>{reviewRubric.summary || reviewNotes || "No reviewer summary yet."}</p>
+            </div>
+          ) : null}
+
+          {reviewRubric.sectionNotes.overview ? (
+            <SectionNote
+              label="Overview note"
+              note={reviewRubric.sectionNotes.overview}
+            />
+          ) : null}
+          {reviewRubric.sectionNotes.courseStructure ? (
+            <SectionNote
+              label="Course map note"
+              note={reviewRubric.sectionNotes.courseStructure}
+            />
+          ) : null}
+          {reviewRubric.sectionNotes.sessionPlans ? (
+            <SectionNote
+              label="Session note"
+              note={reviewRubric.sectionNotes.sessionPlans}
+            />
+          ) : null}
+          {reviewRubric.sectionNotes.studentAssignments ? (
+            <SectionNote
+              label="Assignment note"
+              note={reviewRubric.sectionNotes.studentAssignments}
+            />
+          ) : null}
+
+          {reviewStatus === "COMPLETED" && !isSubmitted ? (
+            <div className="lds-review-actions">
+              <ExportPdfDropdown onExportPdf={onExportPdf} />
+              <button
+                className="cbs-btn cbs-btn-primary"
+                onClick={() => setShowSubmitModal(true)}
+                type="button"
+              >
+                Submit curriculum for review
+              </button>
+            </div>
+          ) : null}
+
+          {reviewStatus === "SUBMITTED" ? (
+            <div className="lds-review-summary-card">
+              <h3>What happens now</h3>
+              <p>
+                Your curriculum is waiting in the reviewer queue. Use the exports if you need to revisit the structure while you wait for feedback.
+              </p>
+            </div>
+          ) : null}
+
+          {needsRevision ? (
+            <div className="lds-review-actions">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => onPhaseChange("COURSE_MAP")}
+              >
+                Revise course map
+              </button>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => onPhaseChange("SESSIONS")}
+              >
+                Revise sessions
+              </button>
+              <button
+                type="button"
+                className="button"
+                onClick={() => onPhaseChange("READINESS")}
+              >
+                Recheck readiness
+              </button>
+            </div>
+          ) : null}
+
+          {isApproved && launchActionsReady && generatedTemplateId ? (
+            <div className="lds-launch-grid">
+              <a
+                href={`/instructor/curriculum-builder#edit-${generatedTemplateId}`}
+                className="dashboard-action-card"
+              >
+                <span className="dashboard-action-label">Open Curriculum Template</span>
+                <span className="dashboard-action-desc">
+                  Review the stable launch version that was generated from this studio.
+                </span>
+              </a>
+              <a
+                href="/lesson-plans"
+                className="dashboard-action-card"
+              >
+                <span className="dashboard-action-label">Open Lesson Plans</span>
+                <span className="dashboard-action-desc">
+                  Move from the approved curriculum into session-by-session teaching plans.
+                </span>
+              </a>
+              <a
+                href={`/instructor/class-settings?template=${generatedTemplateId}`}
+                className="dashboard-action-card"
+              >
+                <span className="dashboard-action-label">Create First Offering</span>
+                <span className="dashboard-action-desc">
+                  Turn the approved curriculum into a real class offering and launch it.
+                </span>
+              </a>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
 
   /* ── Render ────────────────────────────────────────────────── */
 
@@ -1565,710 +2646,7 @@ export function CurriculumBuilderPanel({
           onSubmit={onSubmit}
         />
       )}
-
-      <div className="cbs-builder-layout" style={{ display: "grid", gridTemplateColumns: "56px 1fr" }}>
-
-        {/* ── Week Sidebar ───────────────────────────────────── */}
-        <div
-          className="cbs-week-sidebar"
-          style={{
-            position: "sticky",
-            top: 16,
-            alignSelf: "start",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 8,
-            paddingTop: 8,
-          }}
-        >
-          {weeklyPlans.map((week) => (
-            <button
-              key={week.id}
-              type="button"
-              onClick={() =>
-                document
-                  .getElementById(`cbs-week-${week.id}`)
-                  ?.scrollIntoView({ behavior: "smooth", block: "start" })
-              }
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: "50%",
-                border: "1px solid #334155",
-                background: "#1e293b",
-                color: "#94a3b8",
-                fontSize: courseConfig.sessionsPerWeek > 1 ? 9 : 11,
-                fontWeight: 700,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 0,
-              }}
-              title={buildSessionLabel(week, courseConfig)}
-            >
-              {courseConfig.sessionsPerWeek > 1
-                ? `W${week.weekNumber}.${week.sessionNumber}`
-                : `W${week.weekNumber}`}
-            </button>
-          ))}
-        </div>
-
-        {/* ── Main content ───────────────────────────────────── */}
-        <div className="cbs-builder-panel">
-
-          {/* ── Header ─────────────────────────────────────── */}
-          <div className="cbs-builder-header" style={{ padding: "20px 20px 0" }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                alignItems: "start",
-                flexWrap: "wrap",
-                marginBottom: 12,
-              }}
-            >
-              <div>
-                <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 4 }}>
-                  Build your first ready-to-teach curriculum
-                </div>
-                <div style={{ fontSize: 13, color: "#64748b" }}>
-                  Use the examples on the left, learn why they work, and turn the moves into your own plan.
-                </div>
-              </div>
-              {generatedTemplateId ? (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "6px 10px",
-                    borderRadius: 999,
-                    background: "#052e16",
-                    border: "1px solid #166534",
-                    color: "#86efac",
-                    fontSize: 12,
-                    fontWeight: 700,
-                  }}
-                >
-                  Stable launch version created
-                </span>
-              ) : null}
-            </div>
-
-            <input
-              className="cbs-title-input"
-              value={title}
-              onChange={(e) => onUpdate("title", e.target.value)}
-              placeholder="Name your curriculum..."
-            />
-
-            <textarea
-              className="cbs-desc-input"
-              value={description}
-              onChange={(e) => onUpdate("description", e.target.value)}
-              placeholder="What will students learn and why does this course matter?"
-              rows={3}
-            />
-
-            <input
-              className="cbs-field-input"
-              value={interestArea}
-              onChange={(e) => onUpdate("interestArea", e.target.value)}
-              placeholder="e.g., Finance, Technology, Cooking..."
-            />
-
-            <SectionNote
-              label="Reviewer note on overview"
-              note={
-                reviewRubric.sectionNotes.overview ||
-                (showReviewSummary ? reviewNotes : "")
-              }
-            />
-
-            <div
-              style={{
-                marginTop: 18,
-                padding: 16,
-                borderRadius: 12,
-                border: "1px solid #334155",
-                background: "#0f172a",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  alignItems: "start",
-                  flexWrap: "wrap",
-                  marginBottom: 14,
-                }}
-              >
-                <div>
-                  <h3 style={{ margin: 0, color: "#f8fafc" }}>Course shape</h3>
-                  <p style={{ margin: "6px 0 0", color: "#94a3b8", fontSize: 13 }}>
-                    Decide what the real course looks like before polishing each session.
-                  </p>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    flexWrap: "wrap",
-                    fontSize: 12,
-                    color: "#cbd5e1",
-                  }}
-                >
-                  <span>{courseConfig.durationWeeks} week{courseConfig.durationWeeks === 1 ? "" : "s"}</span>
-                  <span>·</span>
-                  <span>{courseConfig.sessionsPerWeek} session{courseConfig.sessionsPerWeek === 1 ? "" : "s"}/week</span>
-                  <span>·</span>
-                  <span>{courseConfig.classDurationMin} min/session</span>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                  gap: 12,
-                }}
-              >
-                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
-                  Weeks
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    value={courseConfig.durationWeeks}
-                    onChange={(e) =>
-                      updateCourseConfig({
-                        durationWeeks: Math.max(1, Number(e.target.value) || 1),
-                      })
-                    }
-                  />
-                </label>
-                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
-                  Sessions per week
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    value={courseConfig.sessionsPerWeek}
-                    onChange={(e) =>
-                      updateCourseConfig({
-                        sessionsPerWeek: Math.max(1, Number(e.target.value) || 1),
-                      })
-                    }
-                  />
-                </label>
-                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
-                  Minutes per session
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    value={courseConfig.classDurationMin}
-                    onChange={(e) =>
-                      updateCourseConfig({
-                        classDurationMin: Math.max(1, Number(e.target.value) || 1),
-                      })
-                    }
-                  />
-                </label>
-                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
-                  Target age group
-                  <input
-                    className="input"
-                    value={courseConfig.targetAgeGroup}
-                    onChange={(e) =>
-                      updateCourseConfig({ targetAgeGroup: e.target.value })
-                    }
-                    placeholder="e.g. 12-14 or adults"
-                  />
-                </label>
-                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
-                  Difficulty level
-                  <select
-                    className="input"
-                    value={courseConfig.difficultyLevel}
-                    onChange={(e) =>
-                      updateCourseConfig({
-                        difficultyLevel: e.target.value as StudioCourseConfig["difficultyLevel"],
-                      })
-                    }
-                  >
-                    {DIFFICULTY_LEVEL_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
-                  Estimated learning hours
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    value={courseConfig.estimatedHours}
-                    onChange={(e) =>
-                      updateCourseConfig({
-                        estimatedHours: Math.max(1, Number(e.target.value) || 1),
-                      })
-                    }
-                  />
-                </label>
-                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
-                  Minimum students
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    value={courseConfig.minStudents}
-                    onChange={(e) =>
-                      updateCourseConfig({
-                        minStudents: Math.max(1, Number(e.target.value) || 1),
-                      })
-                    }
-                  />
-                </label>
-                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
-                  Ideal students
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    value={courseConfig.idealSize}
-                    onChange={(e) =>
-                      updateCourseConfig({
-                        idealSize: Math.max(1, Number(e.target.value) || 1),
-                      })
-                    }
-                  />
-                </label>
-                <label className="form-row" style={{ color: "#cbd5e1", fontSize: 12 }}>
-                  Maximum students
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    value={courseConfig.maxStudents}
-                    onChange={(e) =>
-                      updateCourseConfig({
-                        maxStudents: Math.max(1, Number(e.target.value) || 1),
-                      })
-                    }
-                  />
-                </label>
-              </div>
-
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 8 }}>
-                  Delivery modes
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {DELIVERY_MODE_OPTIONS.map((option) => {
-                    const selected = deliveryModeSet.has(option.value);
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => {
-                          const nextModes = selected
-                            ? courseConfig.deliveryModes.filter(
-                                (mode) => mode !== option.value
-                              )
-                            : [...courseConfig.deliveryModes, option.value];
-                          updateCourseConfig({
-                            deliveryModes:
-                              nextModes.length > 0
-                                ? nextModes
-                                : [option.value],
-                          });
-                        }}
-                        style={{
-                          padding: "6px 10px",
-                          borderRadius: 999,
-                          border: `1px solid ${selected ? "#38bdf8" : "#334155"}`,
-                          background: selected ? "#0c4a6e" : "transparent",
-                          color: selected ? "#bae6fd" : "#cbd5e1",
-                          fontSize: 12,
-                          cursor: "pointer",
-                        }}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <SectionNote
-                label="Reviewer note on course shape"
-                note={reviewRubric.sectionNotes.courseStructure}
-              />
-            </div>
-
-            {/* Learning Outcomes */}
-            <div className="cbs-outcomes-section" style={{ marginTop: 18 }}>
-              <div className="cbs-outcomes-label">Learning Outcomes</div>
-              <p style={{ margin: "4px 0 10px", color: "#94a3b8", fontSize: 12 }}>
-                Name the important things students should be able to do by the end of the course.
-              </p>
-              {outcomes.map((outcome, i) => (
-                <div key={i} className="cbs-outcome-item">
-                  <input
-                    className="cbs-outcome-input"
-                    value={outcome}
-                    onChange={(e) => handleOutcomeChange(i, e.target.value)}
-                    placeholder={`Outcome ${i + 1}...`}
-                  />
-                  <button
-                    className="cbs-outcome-remove-btn"
-                    onClick={() => handleRemoveOutcome(i)}
-                    type="button"
-                    aria-label="Remove outcome"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              <button
-                className="cbs-add-outcome-btn"
-                onClick={handleAddOutcome}
-                type="button"
-              >
-                + Add Outcome
-              </button>
-            </div>
-
-            {/* Progress Bar */}
-            <ProgressBar
-              title={title}
-              interestArea={interestArea}
-              outcomes={outcomes}
-              courseConfig={courseConfig}
-              weeklyPlans={weeklyPlans}
-              understandingChecks={understandingChecks}
-            />
-
-            {showReviewSummary ? (
-              <div
-                style={{
-                  marginTop: 18,
-                  padding: 16,
-                  borderRadius: 12,
-                  border: `1px solid ${
-                    reviewStatus === "APPROVED" ? "#166534" : "#92400e"
-                  }`,
-                  background:
-                    reviewStatus === "APPROVED" ? "#052e16" : "#3f1d0d",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    alignItems: "start",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div>
-                    <h3 style={{ margin: 0, color: "#f8fafc" }}>
-                      {reviewStatus === "APPROVED"
-                        ? "Reviewer decision: approved"
-                        : reviewStatus === "REJECTED"
-                          ? "Reviewer decision: not approved"
-                          : "Reviewer guidance"}
-                    </h3>
-                    <p style={{ margin: "6px 0 0", fontSize: 13, color: "#e2e8f0" }}>
-                      {reviewRubric.summary || reviewNotes || "Use the notes below to strengthen the course."}
-                    </p>
-                  </div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {[
-                      ["Clarity", rubricScores.clarity],
-                      ["Sequencing", rubricScores.sequencing],
-                      ["Student Experience", rubricScores.studentExperience],
-                      ["Launch Readiness", rubricScores.launchReadiness],
-                    ].map(([label, score]) => (
-                      <span
-                        key={label}
-                        style={{
-                          padding: "6px 8px",
-                          borderRadius: 999,
-                          border: "1px solid rgba(255,255,255,0.18)",
-                          color: "#f8fafc",
-                          fontSize: 12,
-                        }}
-                      >
-                        {label}: {score}/4
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            <UnderstandingCheckSection
-              understandingChecks={understandingChecks}
-              onUpdate={onUpdate}
-            />
-          </div>
-
-          <SectionNote
-            label="Reviewer note on session plans"
-            note={reviewRubric.sectionNotes.sessionPlans}
-          />
-
-          <SectionNote
-            label="Reviewer note on student assignments"
-            note={reviewRubric.sectionNotes.studentAssignments}
-          />
-
-          {/* ── Sessions ─────────────────────────────────────── */}
-          {weeklyPlans.map((week) => {
-            const totalMin = week.activities.reduce((sum, a) => sum + a.durationMin, 0);
-            const isOverTime = totalMin > week.classDurationMin;
-            const isWeekDetailExpanded = expandedWeekIds.has(week.id);
-            const sessionLabel = buildSessionLabel(week, courseConfig);
-
-            return (
-              <div
-                key={week.id}
-                id={`cbs-week-${week.id}`}
-                className="cbs-week-section"
-              >
-                {/* Session header */}
-                <div className="cbs-week-header">
-                  <span className="cbs-week-label">{sessionLabel}</span>
-
-                  <input
-                    className="cbs-week-title-input"
-                    value={week.title}
-                    onChange={(e) => onUpdateWeek(week.id, "title", e.target.value)}
-                    placeholder="Session title..."
-                  />
-
-                  <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#94a3b8" }}>
-                    <input
-                      type="number"
-                      min={1}
-                      value={week.classDurationMin}
-                      onChange={(e) =>
-                        onUpdateWeek(week.id, "classDurationMin", Math.max(1, Number(e.target.value)))
-                      }
-                      style={{
-                        width: 48,
-                        padding: "2px 6px",
-                        borderRadius: 4,
-                        border: "1px solid #334155",
-                        background: "#0f172a",
-                        color: "#e2e8f0",
-                        fontSize: 12,
-                        textAlign: "center",
-                      }}
-                      aria-label="Session duration in minutes"
-                    />
-                    <span>min</span>
-                  </span>
-
-                  <span
-                    className={`cbs-week-time-stat${isOverTime ? " cbs-time-warning" : ""}`}
-                    style={{ color: isOverTime ? "#f59e0b" : "#22c55e", fontSize: 12 }}
-                  >
-                    {isOverTime && "⚠ "}
-                    {totalMin}m / {week.classDurationMin}m
-                  </span>
-
-                  <button
-                    type="button"
-                    className="cbs-week-detail-toggle"
-                    onClick={() => toggleWeekExpand(week.id)}
-                    aria-label={isWeekDetailExpanded ? "Collapse session details" : "Expand session details"}
-                    style={{
-                      background: "none",
-                      border: "1px solid #334155",
-                      borderRadius: 6,
-                      cursor: "pointer",
-                      color: "#94a3b8",
-                      fontSize: 11,
-                      padding: "3px 8px",
-                    }}
-                  >
-                    {isWeekDetailExpanded ? "▼" : "▶"} Details
-                  </button>
-
-                  <button
-                    type="button"
-                    className="cbs-week-dup-btn"
-                    onClick={() => onDuplicateWeek(week.id)}
-                    aria-label="Copy into next slot"
-                    style={{
-                      background: "none",
-                      border: "1px solid #334155",
-                      borderRadius: 6,
-                      cursor: "pointer",
-                      color: "#94a3b8",
-                      fontSize: 11,
-                      padding: "3px 8px",
-                    }}
-                  >
-                    ⧉ Copy forward
-                  </button>
-
-                  <button
-                    className="cbs-week-delete-btn"
-                    onClick={() => onRemoveWeek(week.id)}
-                    type="button"
-                    aria-label="Clear session"
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 18, lineHeight: 1, padding: "0 4px" }}
-                  >
-                    ×
-                  </button>
-                </div>
-
-                {isWeekDetailExpanded ? (
-                  <WeekDetailSection week={week} onUpdateWeek={onUpdateWeek} />
-                ) : null}
-
-                <div
-                  className="cbs-time-bar"
-                  style={{ display: "flex", height: 8, background: "#1e293b", overflow: "hidden", margin: "0 16px", borderRadius: 4 }}
-                >
-                  {week.activities.map((activity) => {
-                    const config = getActivityConfig(activity.type);
-                    const pct =
-                      week.classDurationMin > 0
-                        ? (activity.durationMin / week.classDurationMin) * 100
-                        : 0;
-                    return (
-                      <div
-                        key={activity.id}
-                        className="cbs-time-bar-segment"
-                        style={{
-                          width: `${pct}%`,
-                          height: "100%",
-                          backgroundColor: config.color,
-                          transition: "width 0.2s ease",
-                        }}
-                        title={`${activity.title} (${activity.durationMin}m)`}
-                      />
-                    );
-                  })}
-                </div>
-
-                <DndContext
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd(week.id)}
-                >
-                  <SortableContext
-                    items={week.activities.map((a) => a.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <div className="cbs-activities-list" style={{ padding: "8px 16px", display: "flex", flexDirection: "column", gap: 4 }}>
-                      {week.activities.map((activity) => (
-                        <SortableActivity
-                          key={activity.id}
-                          activity={activity}
-                          weekId={week.id}
-                          isExpanded={expandedActivityIds.has(activity.id)}
-                          onToggle={() => toggleActivityExpand(activity.id)}
-                          onUpdateActivity={onUpdateActivity}
-                          onRemoveActivity={onRemoveActivity}
-                          allWeeks={weeklyPlans}
-                          onMoveToWeek={(toWeekId) => {
-                            onMoveActivityToWeek(week.id, activity.id, toWeekId);
-                            setExpandedActivityIds((prev) => {
-                              const next = new Set(prev);
-                              next.delete(activity.id);
-                              return next;
-                            });
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
-
-                <div className="cbs-add-activity-row" style={{ padding: "8px 16px 16px", display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {ACTIVITY_TYPES.map((t) => (
-                    <button
-                      key={t.value}
-                      className="cbs-add-activity-chip"
-                      onClick={() => handleQuickAddActivity(week.id, t.value)}
-                      type="button"
-                      style={{ borderColor: `${t.color}44`, color: t.color }}
-                    >
-                      {t.icon} + {t.label}
-                    </button>
-                  ))}
-                  <button
-                    className="cbs-templates-btn"
-                    onClick={() => onOpenTemplates(week.id)}
-                    type="button"
-                  >
-                    Templates
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-
-          {/* ── Footer ───────────────────────────────────────── */}
-          <div className="cbs-builder-footer">
-            <div className="cbs-footer-left">
-              <button
-                className="cbs-btn cbs-btn-secondary"
-                onClick={onAddWeek}
-                type="button"
-              >
-                + Add another week
-              </button>
-            </div>
-
-            <div className="cbs-footer-center">
-              {saveStatus === "saving" && (
-                <span className="cbs-save-status cbs-save-saving">Saving...</span>
-              )}
-              {saveStatus === "saved" && (
-                <span className="cbs-save-status cbs-save-saved">✓ Auto-saved</span>
-              )}
-              {saveStatus === "error" && (
-                <span className="cbs-save-status cbs-save-error">Save failed</span>
-              )}
-            </div>
-
-            <div className="cbs-footer-right">
-              <ExportPdfDropdown onExportPdf={onExportPdf} />
-
-              {isSubmitted ? (
-                <span className="cbs-submitted-badge">
-                  {reviewStatus === "APPROVED" ? "✓ Approved" : "✓ Submitted"}
-                </span>
-              ) : (
-                <button
-                  className="cbs-btn cbs-btn-primary"
-                  onClick={() => setShowSubmitModal(true)}
-                  type="button"
-                  title={
-                    progress.readyForSubmission
-                      ? "Submit curriculum"
-                      : "Finish the requirements above to unlock submission"
-                  }
-                >
-                  Submit Curriculum
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      {phaseContent}
     </>
   );
 }

@@ -200,10 +200,10 @@ export default async function CurriculumBuilderPage() {
                       </form>
                     ) : null;
                   })()}
-                  <Link href={`/instructor/lesson-design-studio?templateId=${template.id}`} className="button primary" style={{ fontSize: 13 }}>
-                    🎨 Design Lesson Plans
+                  <Link href="/instructor/lesson-design-studio?entry=nav" className="button primary" style={{ fontSize: 13 }}>
+                    Continue your studio journey
                   </Link>
-                  <Link href={`/lesson-plans?templateId=${template.id}`} className="button secondary" style={{ fontSize: 13 }}>
+                  <Link href="/lesson-plans" className="button secondary" style={{ fontSize: 13 }}>
                     Lesson Plans
                   </Link>
                   <Link href={`/instructor/class-settings?template=${template.id}`} className="button secondary" style={{ fontSize: 13 }}>
@@ -259,7 +259,7 @@ export default async function CurriculumBuilderPage() {
       <div id="create" style={{ marginBottom: 32 }}>
         <div className="section-title">Build New Curriculum</div>
         <p style={{ color: "var(--text-secondary)", fontSize: 14, marginBottom: 20 }}>
-          Fill out each section below. Save as a draft anytime - submit for review when your curriculum is ready for approval by your chapter lead or admin.
+          Fill out each section below. Save as a draft anytime, then continue your studio journey when your curriculum is ready for review by your chapter lead or admin.
         </p>
         <CurriculumBuilderClient />
       </div>

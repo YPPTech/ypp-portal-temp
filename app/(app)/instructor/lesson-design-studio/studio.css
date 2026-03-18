@@ -1,35 +1,44 @@
 /* ============================================================
-   Curriculum Builder Studio — Split-screen layout
+   Lesson Design Studio — applicant-first shell
    All styles scoped under .cbs-studio to avoid leaking.
    ============================================================ */
 
 .cbs-studio {
-  /* Color tokens (inherit from old OS theme) */
-  --cbs-bg: #131316;
-  --cbs-surface: rgba(36, 36, 42, 0.92);
-  --cbs-surface-raised: rgba(48, 48, 56, 0.95);
-  --cbs-titlebar: rgba(28, 28, 34, 0.98);
-  --cbs-border: rgba(255, 255, 255, 0.07);
-  --cbs-border-bright: rgba(255, 255, 255, 0.14);
-  --cbs-text: #f2f2f7;
-  --cbs-text-muted: rgba(242, 242, 247, 0.5);
-  --cbs-text-dim: rgba(242, 242, 247, 0.3);
-  --cbs-accent: #7c3aed;
-  --cbs-accent-glow: rgba(124, 58, 237, 0.35);
-  --cbs-green: #28c840;
-  --cbs-yellow: #febc2e;
-  --cbs-red: #ff5f57;
-  --cbs-blue: #3b82f6;
+  --cbs-bg: #fffaf5;
+  --cbs-surface: rgba(255, 253, 249, 0.92);
+  --cbs-surface-raised: rgba(255, 248, 240, 0.98);
+  --cbs-titlebar: rgba(255, 250, 244, 0.94);
+  --cbs-border: rgba(148, 163, 184, 0.2);
+  --cbs-border-bright: rgba(148, 163, 184, 0.34);
+  --cbs-text: #1f2937;
+  --cbs-text-muted: rgba(51, 65, 85, 0.76);
+  --cbs-text-dim: rgba(71, 85, 105, 0.56);
+  --cbs-accent: #c2410c;
+  --cbs-accent-glow: rgba(194, 65, 12, 0.18);
+  --cbs-green: #15803d;
+  --cbs-yellow: #d97706;
+  --cbs-red: #dc2626;
+  --cbs-blue: #2563eb;
   --cbs-radius: 12px;
   --cbs-radius-sm: 8px;
   --cbs-transition: 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  --surface: #fffdf9;
+  --surface-alt: #f7efe4;
+  --text: #1f2937;
+  --text-secondary: #475569;
+  --muted: #64748b;
+  --border: #e5ddd2;
 
   min-height: 100vh;
-  background: var(--cbs-bg);
+  background:
+    radial-gradient(circle at top left, rgba(251, 191, 36, 0.16), transparent 34%),
+    radial-gradient(circle at top right, rgba(251, 146, 60, 0.12), transparent 30%),
+    linear-gradient(180deg, #fffaf5 0%, #fffdf9 46%, #fdf7ee 100%);
   color: var(--cbs-text);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
   display: flex;
   flex-direction: column;
+  isolation: isolate;
 }
 
 /* Subtle background gradient */
@@ -37,8 +46,10 @@
   content: "";
   position: fixed;
   inset: 0;
-  background: radial-gradient(ellipse 80% 60% at 20% -10%, rgba(124, 58, 237, 0.10) 0%, transparent 60%),
-              radial-gradient(ellipse 60% 50% at 80% 110%, rgba(59, 130, 246, 0.06) 0%, transparent 60%);
+  background:
+    radial-gradient(ellipse 76% 60% at 14% -8%, rgba(251, 191, 36, 0.14) 0%, transparent 62%),
+    radial-gradient(ellipse 54% 46% at 88% 8%, rgba(249, 115, 22, 0.1) 0%, transparent 58%),
+    radial-gradient(ellipse 52% 42% at 80% 100%, rgba(253, 224, 71, 0.08) 0%, transparent 60%);
   pointer-events: none;
   z-index: 0;
 }
@@ -1866,9 +1877,463 @@
   border-color: var(--cbs-accent);
 }
 
+/* ── Applicant-First Shell ─────────────────────────────────── */
+
+.lds-shell {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 32px 0 56px;
+  gap: 20px;
+}
+
+.lds-shell .card {
+  background: rgba(255, 253, 249, 0.9);
+  border-color: rgba(229, 221, 210, 0.9);
+  box-shadow: 0 18px 48px rgba(148, 163, 184, 0.08);
+}
+
+.lds-shell .button,
+.lds-library-modal .button {
+  width: auto;
+  margin-top: 0;
+}
+
+.lds-hero-card {
+  display: grid;
+  gap: 24px;
+  border-radius: 28px;
+  padding: 28px;
+  background:
+    linear-gradient(135deg, rgba(255, 251, 235, 0.96), rgba(255, 248, 240, 0.96)),
+    #fffdf9;
+}
+
+.lds-hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.lds-hero-eyebrow,
+.lds-phase-eyebrow,
+.lds-library-eyebrow {
+  margin: 10px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #c2410c;
+}
+
+.lds-hero-title {
+  margin: 0;
+  font-size: clamp(2rem, 3.2vw, 3rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: #1f2937;
+}
+
+.lds-hero-copy,
+.lds-phase-copy,
+.lds-library-copy {
+  max-width: 760px;
+  margin: 10px 0 0;
+  font-size: 15px;
+  line-height: 1.75;
+  color: #52606d;
+}
+
+.lds-hero-statuses,
+.lds-phase-actions,
+.lds-review-status-row,
+.lds-readiness-actions,
+.lds-review-actions,
+.lds-session-support {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.lds-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.lds-stat-card,
+.lds-review-summary-card {
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.lds-stat-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+}
+
+.lds-stat-value,
+.lds-phase-title,
+.lds-library-title {
+  margin: 0;
+  color: #1f2937;
+}
+
+.lds-stat-value {
+  font-size: 1.15rem;
+}
+
+.lds-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.lds-updated-at {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.lds-phase-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.lds-phase-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid rgba(229, 221, 210, 0.95);
+  border-radius: 999px;
+  background: rgba(255, 253, 249, 0.86);
+  color: #52606d;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--cbs-transition), border-color var(--cbs-transition), box-shadow var(--cbs-transition), background var(--cbs-transition);
+}
+
+.lds-phase-pill:hover {
+  transform: translateY(-1px);
+  border-color: rgba(194, 65, 12, 0.25);
+  box-shadow: 0 12px 28px rgba(148, 163, 184, 0.12);
+}
+
+.lds-phase-pill.active {
+  background: linear-gradient(135deg, #fff7ed, #fff1f2);
+  border-color: rgba(194, 65, 12, 0.3);
+  color: #9a3412;
+}
+
+.lds-phase-pill-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(194, 65, 12, 0.1);
+  color: #c2410c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lds-phase-pill.active .lds-phase-pill-index {
+  background: #c2410c;
+  color: #fff;
+}
+
+.lds-phase-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.lds-phase-card {
+  border-radius: 24px;
+}
+
+.lds-phase-card-header,
+.lds-course-shape-header,
+.lds-library-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.lds-phase-title {
+  font-size: clamp(1.45rem, 2.4vw, 2rem);
+  letter-spacing: -0.02em;
+}
+
+.lds-start-grid,
+.lds-launch-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 18px;
+}
+
+.lds-start-summary,
+.lds-start-recommended,
+.lds-course-shape-card,
+.lds-readiness-blockers,
+.lds-review-summary-card {
+  border-radius: 22px;
+  padding: 20px;
+  border: 1px solid rgba(229, 221, 210, 0.95);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 248, 240, 0.9));
+}
+
+.lds-start-checklist {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.lds-start-check {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.lds-start-check > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid rgba(251, 146, 60, 0.26);
+}
+
+.lds-start-check strong,
+.lds-starter-card h3,
+.lds-course-shape-card h3,
+.lds-readiness-blockers h3,
+.lds-review-summary-card h3 {
+  display: block;
+  margin: 0 0 4px;
+  color: #1f2937;
+}
+
+.lds-start-check p,
+.lds-starter-card p,
+.lds-course-shape-card p,
+.lds-review-summary-card p,
+.lds-readiness-blockers li {
+  margin: 0;
+  color: #52606d;
+  line-height: 1.65;
+}
+
+.lds-starter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.lds-starter-card {
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(229, 221, 210, 0.95);
+  background: rgba(255, 255, 255, 0.88);
+  display: grid;
+  gap: 12px;
+}
+
+.lds-starter-card-featured,
+.lds-starter-card.featured {
+  background: linear-gradient(180deg, rgba(255, 247, 237, 0.96), rgba(255, 255, 255, 0.92));
+  border-color: rgba(251, 146, 60, 0.34);
+  box-shadow: 0 16px 34px rgba(251, 146, 60, 0.12);
+}
+
+.lds-starter-card-top,
+.lds-starter-meta,
+.lds-course-shape-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.lds-starter-meta,
+.lds-course-shape-meta {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.lds-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.lds-course-shape-card {
+  margin-top: 18px;
+}
+
+.lds-delivery-label {
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.lds-delivery-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.lds-delivery-chip {
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  background: #fff;
+  color: #52606d;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lds-delivery-chip.active {
+  border-color: rgba(194, 65, 12, 0.35);
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.lds-session-support {
+  margin-top: 18px;
+}
+
+.lds-readiness-blockers ul {
+  margin: 12px 0 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+
+.lds-review-status-row {
+  margin-top: 4px;
+}
+
+.lds-review-actions,
+.lds-readiness-actions {
+  margin-top: 16px;
+}
+
+.lds-launch-grid {
+  margin-top: 18px;
+}
+
+.lds-launch-grid .dashboard-action-card {
+  min-height: 132px;
+  justify-content: center;
+  border-top-color: #fb923c;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 247, 237, 0.92));
+}
+
+.lds-library-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.34);
+  padding: 24px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lds-library-modal {
+  width: min(1120px, 100%);
+  max-height: min(90vh, 920px);
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid rgba(229, 221, 210, 0.96);
+  background: #fffdf9;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.18);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.lds-library-header {
+  padding: 24px 24px 18px;
+  border-bottom: 1px solid rgba(229, 221, 210, 0.9);
+}
+
+.lds-library-title {
+  font-size: clamp(1.35rem, 2.4vw, 1.85rem);
+  letter-spacing: -0.02em;
+}
+
+.lds-library-target {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: #9a3412;
+}
+
+.lds-library-close {
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 50%;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.lds-library-body {
+  overflow: auto;
+}
+
+.lds-library-body .cbs-example-panel {
+  padding: 24px;
+}
+
 /* ── Responsive adjustments for new layout ───────────────────── */
 
 @media (max-width: 900px) {
+  .lds-shell {
+    width: calc(100% - 20px);
+    padding: 20px 0 40px;
+  }
+
+  .lds-hero-grid,
+  .lds-phase-strip,
+  .lds-form-grid,
+  .lds-start-grid,
+  .lds-launch-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lds-library-overlay {
+    padding: 12px;
+  }
+
   .cbs-builder-layout {
     grid-template-columns: 1fr;
   }

@@ -158,7 +158,7 @@ export default async function ApplicationStatusPage() {
               >
                 <h3 className="section-title" style={{ marginTop: 0 }}>Build Your First Curriculum</h3>
                 <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 0 }}>
-                  The goal is to leave the instructor pathway with a full curriculum in hand. You can continue the capstone module or jump straight into the Lesson Design Studio.
+                  The goal is to leave the instructor pathway with a full curriculum in hand. Continue your studio journey in the Lesson Design Studio when you are ready to build the capstone.
                 </p>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <Link
@@ -169,11 +169,11 @@ export default async function ApplicationStatusPage() {
                     Open {capstoneModule.title}
                   </Link>
                   <Link
-                    href="/instructor/lesson-design-studio"
+                    href="/instructor/lesson-design-studio?entry=application-status"
                     className="button secondary"
                     style={{ display: "inline-block", textDecoration: "none" }}
                   >
-                    Open Lesson Design Studio
+                    Continue your studio journey
                   </Link>
                 </div>
               </div>
@@ -240,7 +240,7 @@ export default async function ApplicationStatusPage() {
               <>
                 <h3 className="section-title" style={{ color: "#16a34a" }}>Approved!</h3>
                 <p style={{ color: "var(--muted)", fontSize: 14, marginBottom: 16 }}>
-                  Your instructor application has been approved. You can now access instructor training.
+                  Your instructor application has been approved. Continue your studio journey in instructor training.
                 </p>
                 <Link href="/instructor-training" className="button" style={{ display: "inline-block", textDecoration: "none" }}>
                   Start Instructor Training
