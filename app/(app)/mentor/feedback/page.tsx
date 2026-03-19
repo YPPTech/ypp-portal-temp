@@ -2,8 +2,40 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { MentorshipGuideCard } from "@/components/mentorship-guide-card";
 import { getMyFeedbackRequests } from "@/lib/feedback-actions";
 import { RequestFeedbackForm, RespondForm, HelpfulButton } from "./client";
+
+const FEEDBACK_PORTAL_GUIDE_ITEMS = [
+  {
+    label: "Pending Requests",
+    meaning:
+      "These are feedback requests that still need a mentor response or are still waiting for feedback if you are the student.",
+    howToUse:
+      "Start here first because these are the live requests that still need action.",
+  },
+  {
+    label: "Answered Requests",
+    meaning:
+      "These are completed requests with mentor responses and any shared resource links.",
+    howToUse:
+      "Come back here to revisit advice, compare past answers, or mark a response as helpful if you are the student who asked.",
+  },
+  {
+    label: "Request Feedback",
+    meaning:
+      "This student form is for private, personalized review of work like projects, drafts, or performances.",
+    howToUse:
+      "Be specific about what you want reviewed and include a work sample link when possible so mentors can answer faster.",
+  },
+  {
+    label: "Write Response",
+    meaning:
+      "This mentor action turns a request into concrete written guidance and optional resources.",
+    howToUse:
+      "Respond with encouragement, clear next steps, and at least one practical suggestion the student can act on right away.",
+  },
+] as const;
 
 export default async function MentorFeedbackPage() {
   const session = await getServerSession(authOptions);
@@ -51,6 +83,12 @@ export default async function MentorFeedbackPage() {
         </div>
         {isStudent && <RequestFeedbackForm />}
       </div>
+
+      <MentorshipGuideCard
+        title="How To Use The Feedback Portal"
+        intro="This area is for private, person-specific feedback rather than reusable public questions."
+        items={FEEDBACK_PORTAL_GUIDE_ITEMS}
+      />
 
       {/* Stats */}
       <div className="grid two" style={{ marginBottom: 24 }}>

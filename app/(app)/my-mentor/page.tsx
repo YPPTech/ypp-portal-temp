@@ -3,8 +3,40 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { MentorshipGuideCard } from "@/components/mentorship-guide-card";
 import { SUPPORT_ROLE_META, getStudentSupportCircleData } from "@/lib/mentorship-hub";
 import { updateMentorshipActionItemStatus } from "@/lib/mentorship-hub-actions";
+
+const STUDENT_CIRCLE_GUIDE_ITEMS = [
+  {
+    label: "Circle Overview",
+    meaning:
+      "This section tells you who your main mentor is, which track you are in, when the relationship started, and whether work is already waiting for you.",
+    howToUse:
+      "Check this first so you know who to contact and whether you should focus on a session, a request, or an action item next.",
+  },
+  {
+    label: "Support Roles",
+    meaning:
+      "These are the people in your support circle and the specific job each person plays.",
+    howToUse:
+      "Use this list when you need to know who should answer a question, review work, or help with a certain kind of problem.",
+  },
+  {
+    label: "Upcoming Sessions and Action Plan",
+    meaning:
+      "These sections show what meetings are coming and what next steps you are expected to complete.",
+    howToUse:
+      "Before each week starts, read both sections so you know how to prepare and what you need to finish before your next check-in.",
+  },
+  {
+    label: "Recent Requests and Resources",
+    meaning:
+      "These sections store the support you have asked for and the materials your circle shared with you.",
+    howToUse:
+      "Come back here when you want to revisit advice, links, or feedback without searching through old messages.",
+  },
+] as const;
 
 export default async function MyMentorPage() {
   const session = await getServerSession(authOptions);
@@ -76,6 +108,12 @@ export default async function MyMentorPage() {
         </div>
       </div>
 
+      <MentorshipGuideCard
+        title="How To Use My Support Circle"
+        intro="This page is the student view of the mentorship system. It is meant to show you who is helping you, what is next, and where your support history lives."
+        items={STUDENT_CIRCLE_GUIDE_ITEMS}
+      />
+
       <div className="grid two" style={{ marginBottom: 24 }}>
         <section className="card">
           <div className="section-title">Circle Overview</div>
@@ -110,8 +148,8 @@ export default async function MyMentorPage() {
             <Link href="/mentor/resources" className="button secondary small" style={{ width: "fit-content" }}>
               Open Resource Commons
             </Link>
-            <Link href={`/mentorship/reviews/${workspace.mentee.id}`} className="button secondary small" style={{ width: "fit-content" }}>
-              View Current Review
+            <Link href="/goals" className="button secondary small" style={{ width: "fit-content" }}>
+              Open Goals and Review
             </Link>
           </div>
         </section>

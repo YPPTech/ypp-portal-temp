@@ -3,10 +3,43 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { FieldLabel } from "@/components/field-help";
+import { MentorshipGuideCard } from "@/components/mentorship-guide-card";
 import { getMentorshipCommonsData } from "@/lib/mentorship-hub";
 import { promoteMentorshipResponseToResource } from "@/lib/mentorship-hub-actions";
 
 import { AskQuestionForm, AnswerForm, UpvoteButton } from "./client";
+
+const ASK_MENTOR_GUIDE_ITEMS = [
+  {
+    label: "Search and Filter",
+    meaning:
+      "This is how you check whether the mentor commons already has a useful answer before asking a new question.",
+    howToUse:
+      "Search first, especially if your question is broad or common. That keeps the commons clean and helps you get help faster.",
+  },
+  {
+    label: "Fresh Questions",
+    meaning:
+      "These are public questions that still need a first answer.",
+    howToUse:
+      "Students can read them to see current topics. Mentors should start here when they want to contribute new answers.",
+  },
+  {
+    label: "Answered Commons",
+    meaning:
+      "This is the reusable knowledge base built from answered public questions.",
+    howToUse:
+      "Use votes to surface helpful answers and promote strong responses into the Resource Commons when they would help many people.",
+  },
+  {
+    label: "Ask or Answer",
+    meaning:
+      "Students use this flow for reusable public questions, while mentors use it to contribute shared answers.",
+    howToUse:
+      "Ask here when the answer could help more than one person. Use the private feedback portal instead when the work is personal or sensitive.",
+  },
+] as const;
 
 export default async function AskMentorPage({
   searchParams,
@@ -55,10 +88,24 @@ export default async function AskMentorPage({
         {!isMentor && <AskQuestionForm />}
       </div>
 
+      <MentorshipGuideCard
+        title="How To Use Ask A Mentor"
+        intro="This page is the public question-and-answer side of the mentorship system. It is best for questions that could help more than one person."
+        items={ASK_MENTOR_GUIDE_ITEMS}
+      />
+
       <div className="card" style={{ marginBottom: 24 }}>
         <form method="GET" className="grid two" style={{ alignItems: "end" }}>
           <div className="form-row">
-            <label>Search questions or answers</label>
+            <FieldLabel
+              label="Search questions or answers"
+              help={{
+                title: "Search Questions Or Answers",
+                guidance:
+                  "Search by topic, problem, or keyword to find existing questions and mentor responses.",
+                example: "Try 'pitch deck', 'coding bug', or 'audition nerves'.",
+              }}
+            />
             <input
               type="search"
               name="q"
@@ -68,7 +115,15 @@ export default async function AskMentorPage({
             />
           </div>
           <div className="form-row">
-            <label>Passion area</label>
+            <FieldLabel
+              label="Passion area"
+              help={{
+                title: "Passion Area Filter",
+                guidance:
+                  "This narrows the commons to one subject area so the results are easier to scan.",
+                example: "Use Coding to only see software-related questions and answers.",
+              }}
+            />
             <div style={{ display: "flex", gap: 8 }}>
               <input
                 type="text"

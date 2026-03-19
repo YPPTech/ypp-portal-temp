@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+
+import { FieldLabel } from "@/components/field-help";
 import { submitMentorQuestion, answerMentorQuestion, upvoteMentorAnswer } from "@/lib/mentor-ask-actions";
 
 const PASSION_OPTIONS = [
@@ -55,11 +57,22 @@ export function AskQuestionForm() {
   return (
     <div className="card" style={{ borderLeft: "4px solid var(--ypp-purple)", marginBottom: 24 }}>
       <h3 style={{ margin: "0 0 16px" }}>Ask the Mentor Community</h3>
+      <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--muted)" }}>
+        Use this when your question could help other students too. If the work is private or needs personal review, use the feedback portal instead.
+      </p>
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 14 }}>
-          <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13 }}>
-            Passion Area (optional)
-          </label>
+          <div style={{ marginBottom: 6 }}>
+            <FieldLabel
+              label="Passion Area (optional)"
+              help={{
+                title: "Passion Area",
+                guidance:
+                  "This helps route your question toward the right mentors and makes the commons easier to search later.",
+                example: "Pick Music for songwriting, performance, or production questions.",
+              }}
+            />
+          </div>
           <select name="passionId" style={FIELD_STYLE}>
             <option value="">Any area</option>
             {PASSION_OPTIONS.map((o) => (
@@ -69,9 +82,19 @@ export function AskQuestionForm() {
         </div>
 
         <div style={{ marginBottom: 14 }}>
-          <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13 }}>
-            Your Question *
-          </label>
+          <div style={{ marginBottom: 6 }}>
+            <FieldLabel
+              label="Your Question"
+              required
+              help={{
+                title: "Your Question",
+                guidance:
+                  "Ask the question clearly enough that someone who has never met you can still understand what kind of help you need.",
+                example:
+                  "How do I make the opening of my artist statement sound more personal without making it too long?",
+              }}
+            />
+          </div>
           <textarea
             name="question"
             required
@@ -86,6 +109,9 @@ export function AskQuestionForm() {
             <input type="checkbox" name="isAnonymous" />
             Ask anonymously (your name won&apos;t be shown)
           </label>
+          <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--muted)" }}>
+            What this means: mentors will still answer your question, but other users will not see your name.
+          </p>
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
@@ -133,6 +159,19 @@ export function AnswerForm({ questionId }: { questionId: string }) {
   return (
     <form onSubmit={handleSubmit} style={{ marginTop: 12 }}>
       <input type="hidden" name="questionId" value={questionId} />
+      <div style={{ marginBottom: 6 }}>
+        <FieldLabel
+          label="Answer"
+          required
+          help={{
+            title: "Answer",
+            guidance:
+              "Post the most reusable version of your advice so other students can learn from it too.",
+            example:
+              "Start with one clear recommendation, explain why it works, and end with the next thing the student should try.",
+          }}
+        />
+      </div>
       <textarea
         name="answer"
         required

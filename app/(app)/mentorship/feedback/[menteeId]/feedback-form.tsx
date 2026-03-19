@@ -4,6 +4,7 @@ import { ProgressStatus } from "@prisma/client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { FieldLabel } from "@/components/field-help";
 import { ProgressBarSelector } from "@/components/progress-bar";
 import {
   calculateOverallProgress,
@@ -105,6 +106,10 @@ export function FeedbackForm({
   );
   const [escalateToChair, setEscalateToChair] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLabel =
+    requiresChairApproval || escalateToChair
+      ? "Submit To Chair For Approval"
+      : "Publish Monthly Review";
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -226,9 +231,16 @@ export function FeedbackForm({
           />
 
           <div style={{ marginTop: 16 }}>
-            <label style={{ fontSize: 13, fontWeight: 600 }}>
-              Goal Comments
-            </label>
+            <FieldLabel
+              label="Goal Comments"
+              help={{
+                title: "Goal Comments",
+                guidance:
+                  "Use this box to explain why you chose the goal rating and what happened during the month.",
+                example:
+                  "Student finished the outline, asked for help on examples, and is ready to draft the final version next month.",
+              }}
+            />
             <textarea
               value={goalComments[goal.id] || ""}
               onChange={(event) =>
@@ -271,9 +283,18 @@ export function FeedbackForm({
       <div className="grid two" style={{ marginTop: 24 }}>
         <div className="card">
           <div className="section-title">Mentor Summary</div>
-          <label style={{ display: "block", fontSize: 13, fontWeight: 600 }}>
-            Overall Impression of Progress
-          </label>
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel
+              label="Overall Impression of Progress"
+              help={{
+                title: "Overall Impression Of Progress",
+                guidance:
+                  "This is the plain-language story of the month. It should describe how the mentee is doing overall.",
+                example:
+                  "Steady month with clear follow-through on the main project goal, but still needs help turning ideas into a finished deliverable.",
+              }}
+            />
+          </div>
           <textarea
             value={overallComments}
             onChange={(event) => setOverallComments(event.target.value)}
@@ -283,9 +304,18 @@ export function FeedbackForm({
             style={{ marginTop: 6, marginBottom: 16 }}
           />
 
-          <label style={{ display: "block", fontSize: 13, fontWeight: 600 }}>
-            Strengths / What Worked Well
-          </label>
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel
+              label="Strengths / What Worked Well"
+              help={{
+                title: "Strengths / What Worked Well",
+                guidance:
+                  "Call out the behaviors, habits, or results the mentee should keep doing.",
+                example:
+                  "Strong attendance, came prepared to sessions, and used feedback quickly.",
+              }}
+            />
+          </div>
           <textarea
             value={strengths}
             onChange={(event) => setStrengths(event.target.value)}
@@ -295,9 +325,16 @@ export function FeedbackForm({
             style={{ marginTop: 6, marginBottom: 16 }}
           />
 
-          <label style={{ display: "block", fontSize: 13, fontWeight: 600 }}>
-            Areas for Development / Recommended Adjustments
-          </label>
+          <FieldLabel
+            label="Areas for Development / Recommended Adjustments"
+            help={{
+              title: "Areas For Development / Recommended Adjustments",
+              guidance:
+                "Use this to name the most important thing the mentee should change or improve next.",
+              example:
+                "Break the project into smaller weekly pieces and ask for feedback before the final draft.",
+            }}
+          />
           <textarea
             value={focusAreas}
             onChange={(event) => setFocusAreas(event.target.value)}
@@ -311,9 +348,18 @@ export function FeedbackForm({
         <div className="card">
           <div className="section-title">Committee-Facing Notes</div>
 
-          <label style={{ display: "block", fontSize: 13, fontWeight: 600 }}>
-            Collaboration & Communication Notes
-          </label>
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel
+              label="Collaboration & Communication Notes"
+              help={{
+                title: "Collaboration & Communication Notes",
+                guidance:
+                  "This is for patterns the committee should know about when they review the mentee's readiness and consistency.",
+                example:
+                  "Communicates well in sessions but still needs reminders to respond to follow-up messages on time.",
+              }}
+            />
+          </div>
           <textarea
             value={collaborationNotes}
             onChange={(event) => setCollaborationNotes(event.target.value)}
@@ -323,9 +369,18 @@ export function FeedbackForm({
             style={{ marginTop: 6, marginBottom: 16 }}
           />
 
-          <label style={{ display: "block", fontSize: 13, fontWeight: 600 }}>
-            Promotion Readiness
-          </label>
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel
+              label="Promotion Readiness"
+              help={{
+                title: "Promotion Readiness",
+                guidance:
+                  "Use this field to say whether the mentee looks ready for the next level, role, or milestone and what conditions still need to be met.",
+                example:
+                  "Almost ready for promotion once the student shows independent follow-through for one more month.",
+              }}
+            />
+          </div>
           <textarea
             value={promotionReadiness}
             onChange={(event) => setPromotionReadiness(event.target.value)}
@@ -335,9 +390,18 @@ export function FeedbackForm({
             style={{ marginTop: 6, marginBottom: 16 }}
           />
 
-          <label style={{ display: "block", fontSize: 13, fontWeight: 600 }}>
-            Character & Culture Points
-          </label>
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel
+              label="Character & Culture Points"
+              help={{
+                title: "Character & Culture Points",
+                guidance:
+                  "This is the number score for character and culture contributions during the month.",
+                example:
+                  "Add points when the mentee models helpfulness, responsibility, or community values in visible ways.",
+              }}
+            />
+          </div>
           <input
             type="number"
             min={0}
@@ -349,9 +413,16 @@ export function FeedbackForm({
             style={{ marginTop: 6, marginBottom: 16 }}
           />
 
-          <label style={{ display: "block", fontSize: 13, fontWeight: 600 }}>
-            Internal Mentor Notes
-          </label>
+          <FieldLabel
+            label="Internal Mentor Notes"
+            help={{
+              title: "Internal Mentor Notes",
+              guidance:
+                "These notes are for internal reviewers only. Use them for context you would not phrase directly in the mentee-facing summary.",
+              example:
+                "Needs extra structure from adults right now even though public-facing progress looks steady.",
+            }}
+          />
           <textarea
             value={mentorInternalNotes}
             onChange={(event) => setMentorInternalNotes(event.target.value)}
@@ -365,6 +436,18 @@ export function FeedbackForm({
 
       <div className="card" style={{ marginTop: 24 }}>
         <div className="section-title">Plan of Action For Next Month</div>
+        <div style={{ marginBottom: 8 }}>
+          <FieldLabel
+            label="Next-month plan"
+            help={{
+              title: "Next-Month Plan",
+              guidance:
+                "This is the forward-looking plan that turns the review into concrete action for the next month.",
+              example:
+                "Finish draft two, meet once for feedback, and submit the final version before the next review window.",
+            }}
+          />
+        </div>
         <textarea
           value={nextMonthPlan}
           onChange={(event) => setNextMonthPlan(event.target.value)}
@@ -384,7 +467,7 @@ export function FeedbackForm({
         }}
       >
         <button type="submit" className="button" disabled={isSubmitting}>
-          {isSubmitting ? "Submitting..." : "Submit To Chair For Approval"}
+          {isSubmitting ? "Submitting..." : submitLabel}
         </button>
         <button
           type="button"

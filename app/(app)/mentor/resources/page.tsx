@@ -3,11 +3,44 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { FieldLabel } from "@/components/field-help";
+import { MentorshipGuideCard } from "@/components/mentorship-guide-card";
 import {
   MENTORSHIP_RESOURCE_TYPE_META,
   getMentorshipResourceLibrary,
 } from "@/lib/mentorship-hub";
 import { createMentorshipResource } from "@/lib/mentorship-hub-actions";
+
+const RESOURCE_COMMONS_GUIDE_ITEMS = [
+  {
+    label: "Search The Commons",
+    meaning:
+      "This is the library search for shared links, answer summaries, templates, and playbooks created through mentoring work.",
+    howToUse:
+      "Search here before making a new resource so you do not publish duplicates and so you can reuse good material faster.",
+  },
+  {
+    label: "Publish A Resource",
+    meaning:
+      "This form turns useful mentoring knowledge into something the whole community can benefit from later.",
+    howToUse:
+      "Publish when you have a link, note set, checklist, or answer that would still be useful after the original conversation is over.",
+  },
+  {
+    label: "Featured Resources",
+    meaning:
+      "Featured items are the strongest or most broadly helpful resources in the library.",
+    howToUse:
+      "Feature a resource when it deserves extra visibility for other mentors and students.",
+  },
+  {
+    label: "Open and Reuse",
+    meaning:
+      "Each card is meant to be reused in real mentoring work, not just stored.",
+    howToUse:
+      "Open a resource when you need a shortcut, example, or teaching tool during feedback, sessions, or monthly reviews.",
+  },
+] as const;
 
 export default async function CuratedResourcesPage({
   searchParams,
@@ -52,10 +85,24 @@ export default async function CuratedResourcesPage({
         </div>
       </div>
 
+      <MentorshipGuideCard
+        title="How To Use The Resource Commons"
+        intro="This area stores the mentoring knowledge that should outlive one conversation and help the next person faster."
+        items={RESOURCE_COMMONS_GUIDE_ITEMS}
+      />
+
       <div className="card" style={{ marginBottom: 24 }}>
         <form method="GET" className="grid two" style={{ alignItems: "end" }}>
           <div className="form-row">
-            <label>Search the commons</label>
+            <FieldLabel
+              label="Search the commons"
+              help={{
+                title: "Search The Commons",
+                guidance:
+                  "Search by title, keywords, or a type of problem you are trying to solve.",
+                example: "Try 'pitch checklist', 'coding roadmap', or 'audition warmup'.",
+              }}
+            />
             <input
               type="search"
               name="q"
@@ -65,7 +112,15 @@ export default async function CuratedResourcesPage({
             />
           </div>
           <div className="form-row">
-            <label>Passion area</label>
+            <FieldLabel
+              label="Passion area"
+              help={{
+                title: "Passion Area Filter",
+                guidance:
+                  "This narrows the library to a specific subject area.",
+                example: "Use Design or Coding to only see resources in that area.",
+              }}
+            />
             <div style={{ display: "flex", gap: 8 }}>
               <input
                 type="text"
@@ -87,11 +142,28 @@ export default async function CuratedResourcesPage({
           <div className="section-title">Publish a Resource</div>
           <form action={createMentorshipResource} className="form-grid">
             <div className="form-row">
-              <label>Title</label>
+              <FieldLabel
+                label="Title"
+                required
+                help={{
+                  title: "Resource Title",
+                  guidance:
+                    "Give the resource a short, specific name so people know what it helps with before opening it.",
+                  example: "Pitch deck checklist",
+                }}
+              />
               <input name="title" className="input" placeholder="Pitch deck checklist" required />
             </div>
             <div className="form-row">
-              <label>Type</label>
+              <FieldLabel
+                label="Type"
+                help={{
+                  title: "Resource Type",
+                  guidance:
+                    "This classifies the resource so the library stays organized.",
+                  example: "Use Link for an outside URL, Template for something people should copy, or Answer for a polished response.",
+                }}
+              />
               <select name="type" className="input" defaultValue="LINK">
                 {Object.entries(MENTORSHIP_RESOURCE_TYPE_META).map(([value, meta]) => (
                   <option key={value} value={value}>
@@ -101,23 +173,63 @@ export default async function CuratedResourcesPage({
               </select>
             </div>
             <div className="form-row">
-              <label>URL (optional)</label>
+              <FieldLabel
+                label="URL (optional)"
+                help={{
+                  title: "URL",
+                  guidance:
+                    "Add a link when the resource lives somewhere else online.",
+                  example: "A shared document, video, article, or website.",
+                }}
+              />
               <input type="url" name="url" className="input" placeholder="https://..." />
             </div>
             <div className="form-row">
-              <label>Passion area (optional)</label>
+              <FieldLabel
+                label="Passion area (optional)"
+                help={{
+                  title: "Passion Area",
+                  guidance:
+                    "This makes the resource easier to find for people working in the same area.",
+                  example: "coding, music, design",
+                }}
+              />
               <input name="passionId" className="input" placeholder="coding, music, design..." />
             </div>
             <div className="form-row">
-              <label>Description</label>
+              <FieldLabel
+                label="Description"
+                help={{
+                  title: "Description",
+                  guidance:
+                    "Describe why this resource matters and when someone should use it.",
+                  example: "A quick checklist for students getting ready to present their first pitch deck.",
+                }}
+              />
               <textarea name="description" className="input" rows={3} placeholder="Why is this worth sharing?" />
             </div>
             <div className="form-row">
-              <label>Body (optional)</label>
+              <FieldLabel
+                label="Body (optional)"
+                help={{
+                  title: "Body",
+                  guidance:
+                    "Paste the actual notes, checklist, summary, or playbook here when the resource should be readable inside the portal.",
+                  example: "Step 1: start with the audience problem. Step 2: explain your solution. Step 3: show proof.",
+                }}
+              />
               <textarea name="body" className="input" rows={4} placeholder="Paste notes, prompts, or a playbook here." />
             </div>
             <div className="form-row">
-              <label>Feature this resource</label>
+              <FieldLabel
+                label="Feature this resource"
+                help={{
+                  title: "Feature This Resource",
+                  guidance:
+                    "Featuring gives the resource extra prominence in the commons.",
+                  example: "Choose featured when this is a resource many people should see early, not only something useful in one special case.",
+                }}
+              />
               <select name="isFeatured" className="input" defaultValue="false">
                 <option value="false">Standard resource</option>
                 <option value="true">Feature it</option>

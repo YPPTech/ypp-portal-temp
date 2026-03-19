@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { MentorshipGuideCard } from "@/components/mentorship-guide-card";
 import { mentorshipRequiresMonthlyReflection } from "@/lib/mentorship-canonical";
 import { ProgressBar } from "@/components/progress-bar";
 import {
@@ -18,6 +19,37 @@ const TONE_STYLES = {
   success: { background: "#dcfce7", color: "#166534" },
   danger: { background: "#fee2e2", color: "#991b1b" },
 } as const;
+
+const MENTEES_GUIDE_ITEMS = [
+  {
+    label: "Cycle Status",
+    meaning:
+      "The status pill tells you where the mentee is in the current monthly cycle, such as waiting on reflection, waiting on review, or fully complete.",
+    howToUse:
+      "Start with mentees showing warning or danger tones so you can unblock the next step in their cycle first.",
+  },
+  {
+    label: "Current Month",
+    meaning:
+      "This panel shows the two monthly checkpoints that matter most: whether the mentee submitted a reflection and whether their review has started.",
+    howToUse:
+      "If either line is missing, reach out or open the monthly review so the month keeps moving forward.",
+  },
+  {
+    label: "Overall Progress",
+    meaning:
+      "The progress bar is the latest overall signal pulled from goal progress or the current monthly review.",
+    howToUse:
+      "Use it as a quick read of momentum, then open the mentee details page when you need the full story behind that rating.",
+  },
+  {
+    label: "View Details and Open Monthly Review",
+    meaning:
+      "These buttons are the two main actions on the page: one opens the full workspace and one opens the formal review flow.",
+    howToUse:
+      "Choose View Details for day-to-day mentoring work and Open Monthly Review when you are ready to write or update the formal monthly review.",
+  },
+] as const;
 
 export default async function MenteesPage() {
   const session = await getServerSession(authOptions);
@@ -168,6 +200,12 @@ export default async function MenteesPage() {
           {mentees.length} mentee{mentees.length !== 1 ? "s" : ""}
         </div>
       </div>
+
+      <MentorshipGuideCard
+        title="How To Read The Mentee List"
+        intro="This page helps mentors, chapter leads, and admins quickly spot who needs support right now and where to click next."
+        items={MENTEES_GUIDE_ITEMS}
+      />
 
       {mentees.length === 0 ? (
         <div className="card" style={{ textAlign: "center", padding: 24 }}>

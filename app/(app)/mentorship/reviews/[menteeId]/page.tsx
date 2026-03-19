@@ -3,10 +3,42 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { MentorshipGuideCard } from "@/components/mentorship-guide-card";
 import { mentorshipRequiresChairApproval } from "@/lib/mentorship-canonical";
 import { submitMonthlyGoalReview } from "@/lib/mentorship-program-actions";
 import { prisma } from "@/lib/prisma";
 import { FeedbackForm } from "../../feedback/[menteeId]/feedback-form";
+
+const MONTHLY_REVIEW_GUIDE_ITEMS = [
+  {
+    label: "Per-Goal Ratings",
+    meaning:
+      "This is where you score each goal one by one so the review is tied to actual goals instead of general impressions.",
+    howToUse:
+      "Read the goal title, choose the progress color that matches the month, and write short comments about wins, blockers, and next steps.",
+  },
+  {
+    label: "Overall Progress",
+    meaning:
+      "This is the single monthly summary bar for the whole review.",
+    howToUse:
+      "Choose the color that best matches the month as a whole after you finish the per-goal ratings.",
+  },
+  {
+    label: "Mentor Summary and Committee Notes",
+    meaning:
+      "These text areas explain the story behind the ratings for both the mentee and any chair or committee reviewer.",
+    howToUse:
+      "Use the mentor summary to speak clearly to the student, and use committee-facing notes to capture internal decision-making context.",
+  },
+  {
+    label: "Plan Of Action and Submission",
+    meaning:
+      "The last section turns the review into a concrete plan and sends it into the right workflow.",
+    howToUse:
+      "Write the next month's priorities, then submit the review so it either publishes directly or moves into chair approval.",
+  },
+] as const;
 
 export default async function MonthlyReviewEditorPage({
   params,
@@ -117,6 +149,12 @@ export default async function MonthlyReviewEditorPage({
           <h1 className="page-title">Monthly Goal Review</h1>
         </div>
       </div>
+
+      <MentorshipGuideCard
+        title="How To Complete A Monthly Goal Review"
+        intro="Work from top to bottom. The review should show what happened this month, what it means, and what the mentee should do next."
+        items={MONTHLY_REVIEW_GUIDE_ITEMS}
+      />
 
       <div className="card">
         <div style={{ marginBottom: 24 }}>

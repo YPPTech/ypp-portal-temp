@@ -3,12 +3,45 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { FieldLabel } from "@/components/field-help";
+import { MentorshipGuideCard } from "@/components/mentorship-guide-card";
 import { ProgressBar } from "@/components/progress-bar";
 import {
   approveMonthlyGoalReview,
   getPendingChairReviews,
   returnMonthlyGoalReview,
 } from "@/lib/mentorship-program-actions";
+
+const CHAIR_QUEUE_GUIDE_ITEMS = [
+  {
+    label: "Queue Overview",
+    meaning:
+      "Each card is one monthly review waiting for a chair-level decision before it becomes final.",
+    howToUse:
+      "Read the mentee, mentor, month, and progress summary first so you know what case you are about to review.",
+  },
+  {
+    label: "Mentor Summary and Committee Notes",
+    meaning:
+      "These sections explain the mentor's reasoning, what the mentee did well, and what internal reviewers should know.",
+    howToUse:
+      "Use them to judge whether the review is clear, fair, and complete enough to release.",
+  },
+  {
+    label: "Goal Ratings and Linked Reflection",
+    meaning:
+      "This is the supporting evidence for the decision. Goal ratings show scored progress and the reflection shows the mentee's own voice.",
+    howToUse:
+      "Compare these two areas when you want to see whether the review matches the evidence from the month.",
+  },
+  {
+    label: "Approve or Return",
+    meaning:
+      "The last forms decide whether the review moves forward or goes back for edits.",
+    howToUse:
+      "Approve when the review is ready to stand on its own. Return it when the mentor needs to clarify ratings, evidence, or next steps.",
+  },
+] as const;
 
 export default async function ChairReviewQueuePage() {
   const session = await getServerSession(authOptions);
@@ -41,6 +74,12 @@ export default async function ChairReviewQueuePage() {
           </p>
         </div>
       </div>
+
+      <MentorshipGuideCard
+        title="How To Work The Chair Review Queue"
+        intro="This page is the quality-control step for monthly reviews that require chair approval."
+        items={CHAIR_QUEUE_GUIDE_ITEMS}
+      />
 
       {reviews.length === 0 ? (
         <div className="card">
@@ -196,12 +235,18 @@ export default async function ChairReviewQueuePage() {
               <div className="grid two">
                 <form action={approveMonthlyGoalReview}>
                   <input type="hidden" name="reviewId" value={review.id} />
-                  <label
-                    htmlFor={`${review.id}-approve-note`}
-                    style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}
-                  >
-                    Approval Note
-                  </label>
+                  <div style={{ marginBottom: 6 }}>
+                    <FieldLabel
+                      label="Approval Note"
+                      help={{
+                        title: "Approval Note",
+                        guidance:
+                          "This optional note is the final message you want attached to the approved review.",
+                        example:
+                          "Approved as written. Strong evidence and clear next-month plan.",
+                      }}
+                    />
+                  </div>
                   <textarea
                     id={`${review.id}-approve-note`}
                     name="chairDecisionNotes"
@@ -217,12 +262,18 @@ export default async function ChairReviewQueuePage() {
 
                 <form action={returnMonthlyGoalReview}>
                   <input type="hidden" name="reviewId" value={review.id} />
-                  <label
-                    htmlFor={`${review.id}-return-note`}
-                    style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}
-                  >
-                    Return For Edits Note
-                  </label>
+                  <div style={{ marginBottom: 6 }}>
+                    <FieldLabel
+                      label="Return For Edits Note"
+                      help={{
+                        title: "Return For Edits Note",
+                        guidance:
+                          "Use this required note to explain exactly what the mentor needs to fix before the review can be approved.",
+                        example:
+                          "Please explain the yellow rating on Goal 2 and add a clearer next-month plan with measurable steps.",
+                      }}
+                    />
+                  </div>
                   <textarea
                     id={`${review.id}-return-note`}
                     name="chairDecisionNotes"

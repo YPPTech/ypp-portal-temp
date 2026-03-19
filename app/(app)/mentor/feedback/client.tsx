@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+
+import { FieldLabel } from "@/components/field-help";
 import {
   createFeedbackRequest,
   respondToFeedback,
@@ -43,11 +45,23 @@ export function RequestFeedbackForm() {
       }}
     >
       <h3 style={{ margin: "0 0 16px" }}>Request Mentor Feedback</h3>
+      <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--muted)" }}>
+        Use this for private, personalized feedback on a real piece of work. The clearer your request is, the better the response will be.
+      </p>
       <form action={handleSubmit}>
         <div style={{ marginBottom: 16 }}>
-          <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13 }}>
-            Passion Area *
-          </label>
+          <div style={{ marginBottom: 6 }}>
+            <FieldLabel
+              label="Passion Area"
+              required
+              help={{
+                title: "Passion Area",
+                guidance:
+                  "This tells mentors what subject area your request belongs to so the right people can respond.",
+                example: "Choose Coding for app, website, or software work.",
+              }}
+            />
+          </div>
           <select
             name="passionId"
             required
@@ -71,9 +85,19 @@ export function RequestFeedbackForm() {
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13 }}>
-            What would you like feedback on? *
-          </label>
+          <div style={{ marginBottom: 6 }}>
+            <FieldLabel
+              label="What would you like feedback on?"
+              required
+              help={{
+                title: "What Would You Like Feedback On?",
+                guidance:
+                  "Describe the work and the kind of help you want so mentors know what to focus on.",
+                example:
+                  "Please review my pitch deck opening and tell me if the story is clear and persuasive.",
+              }}
+            />
+          </div>
           <textarea
             name="question"
             required
@@ -90,9 +114,17 @@ export function RequestFeedbackForm() {
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13 }}>
-            Link to your work (optional)
-          </label>
+          <div style={{ marginBottom: 6 }}>
+            <FieldLabel
+              label="Link to your work (optional)"
+              help={{
+                title: "Link To Your Work",
+                guidance:
+                  "Add a URL to the thing you want reviewed so the mentor can see the actual work, not only your description of it.",
+                example: "A Google Doc, slide deck, video, portfolio page, or shared file link.",
+              }}
+            />
+          </div>
           <input
             type="url"
             name="mediaUrl"
@@ -158,6 +190,19 @@ export function RespondForm({ requestId }: { requestId: string }) {
   return (
     <form action={handleSubmit} style={{ marginTop: 12 }}>
       <input type="hidden" name="requestId" value={requestId} />
+      <div style={{ marginBottom: 6 }}>
+        <FieldLabel
+          label="Response"
+          required
+          help={{
+            title: "Response",
+            guidance:
+              "Write the actual feedback here. Aim for something supportive, specific, and usable.",
+            example:
+              "Your concept is strong. Tighten the opening, show one concrete example, and simplify slide three.",
+          }}
+        />
+      </div>
       <textarea
         name="feedback"
         required
@@ -172,6 +217,17 @@ export function RespondForm({ requestId }: { requestId: string }) {
           marginBottom: 8,
         }}
       />
+      <div style={{ marginBottom: 6 }}>
+        <FieldLabel
+          label="Helpful resource link (optional)"
+          help={{
+            title: "Helpful Resource Link",
+            guidance:
+              "Add a link when a template, example, or tutorial would help the student act on your feedback.",
+            example: "A checklist, reference example, or how-to article that matches your advice.",
+          }}
+        />
+      </div>
       <input
         type="url"
         name="resourceUrl"

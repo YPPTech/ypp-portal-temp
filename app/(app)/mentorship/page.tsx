@@ -3,10 +3,49 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import ContextTrail from "@/components/context-trail";
+import { MentorshipGuideCard } from "@/components/mentorship-guide-card";
 import { authOptions } from "@/lib/auth";
 import { buildContextTrail } from "@/lib/context-trail";
 import { formatEnum } from "@/lib/format-utils";
 import { getMentorshipHubData } from "@/lib/mentorship-hub";
+
+const HUB_GUIDE_ITEMS = [
+  {
+    label: "Relationship Health",
+    meaning:
+      "This score shows whether support circles are staying active with recent contact, upcoming sessions, and enough people involved.",
+    howToUse:
+      "If these numbers are high, open the relevant circle, schedule or log a session, and add coverage before a mentee gets stuck.",
+  },
+  {
+    label: "Mentee Momentum",
+    meaning:
+      "This is the work tracker for the mentorship system. It counts overdue action items, due reflections, and support requests that still need attention.",
+    howToUse:
+      "Use this area as your first triage step each time you visit the hub so urgent student work does not sit too long.",
+  },
+  {
+    label: "Program Outcomes",
+    meaning:
+      "This is the big-picture program view showing how many pairings are active, how many reviews are waiting on approval, and how much reusable knowledge has been published.",
+    howToUse:
+      "Admins and chairs can use this to spot bottlenecks, while mentors can use it to see whether work is flowing from support into published resources.",
+  },
+  {
+    label: "Support Circles",
+    meaning:
+      "Each support circle is the working space for one mentee and the people helping them.",
+    howToUse:
+      "Open a circle when you want to schedule sessions, create next steps, review requests, or look at the mentee's current momentum.",
+  },
+  {
+    label: "Shared Knowledge and Quick Routes",
+    meaning:
+      "These sections connect one-on-one mentoring work to reusable answers, shared playbooks, and the fastest routes into the rest of the system.",
+    howToUse:
+      "Go to the private queue for personal feedback, Ask a Mentor for reusable public questions, and the Resource Commons for polished references.",
+  },
+] as const;
 
 export default async function MentorshipPage() {
   const session = await getServerSession(authOptions);
@@ -70,6 +109,12 @@ export default async function MentorshipPage() {
       </div>
 
       <ContextTrail items={trailItems} />
+
+      <MentorshipGuideCard
+        title="How This Mentorship Hub Works"
+        intro="This page is the front door to the mentorship system. Each block below answers a different question so you know where to look first."
+        items={HUB_GUIDE_ITEMS}
+      />
 
       <div className="grid three" style={{ marginBottom: 24 }}>
         <div className="card">
