@@ -13,7 +13,15 @@ export function ReviewNotesBanner({
   reviewerName,
   onDismiss,
 }: ReviewNotesBannerProps) {
-  if (status !== "NEEDS_REVISION" || !reviewNotes) return null;
+  if (!reviewNotes) return null;
+
+  const isMentorshipReturn = status === "RETURNED";
+  if (status !== "NEEDS_REVISION" && !isMentorshipReturn) return null;
+
+  const title = isMentorshipReturn ? "Review Returned For Edits" : "Revision Requested";
+  const subtitle = isMentorshipReturn
+    ? "Use the note below to update the review, strengthen the evidence, and resubmit it."
+    : null;
 
   return (
     <div
@@ -25,11 +33,16 @@ export function ReviewNotesBanner({
         marginBottom: 16,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
           <strong style={{ fontSize: 14, color: "#991b1b", display: "block", marginBottom: 6 }}>
-            Revision Requested
+            {title}
           </strong>
+          {subtitle && (
+            <div style={{ fontSize: 12, color: "#7f1d1d", marginBottom: 6, lineHeight: 1.5 }}>
+              {subtitle}
+            </div>
+          )}
           {reviewerName && (
             <div style={{ fontSize: 12, color: "#7f1d1d", marginBottom: 4 }}>
               From: {reviewerName}

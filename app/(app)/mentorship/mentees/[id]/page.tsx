@@ -90,10 +90,10 @@ export default async function MenteeDetailPage({
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Link href={`/mentorship/reviews/${workspace.mentee.id}`} className="button primary small">
-            Monthly Review
+            Open Monthly Review
           </Link>
           <Link href="/mentor/feedback" className="button secondary small">
-            Private Queue
+            Feedback Queue
           </Link>
         </div>
       </div>
@@ -174,7 +174,7 @@ export default async function MenteeDetailPage({
         </section>
 
         <section className="card">
-          <div className="section-title">Current Review Spine</div>
+          <div className="section-title">Review Status</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div>
               <strong>Active mentorship:</strong>{" "}

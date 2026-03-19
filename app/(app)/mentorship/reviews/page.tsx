@@ -6,6 +6,8 @@ import { authOptions } from "@/lib/auth";
 import { FieldLabel } from "@/components/field-help";
 import { MentorshipGuideCard } from "@/components/mentorship-guide-card";
 import { ProgressBar } from "@/components/progress-bar";
+import { formatEnum } from "@/lib/format-utils";
+import { PROGRESS_STATUS_META } from "@/lib/mentorship-review-helpers";
 import {
   approveMonthlyGoalReview,
   getPendingChairReviews,
@@ -21,11 +23,11 @@ const CHAIR_QUEUE_GUIDE_ITEMS = [
       "Read the mentee, mentor, month, and progress summary first so you know what case you are about to review.",
   },
   {
-    label: "Mentor Summary and Committee Notes",
+    label: "Evidence and reasoning",
     meaning:
-      "These sections explain the mentor's reasoning, what the mentee did well, and what internal reviewers should know.",
+      "These sections show the scored goal evidence, the mentee's own reflection, and the mentor's written reasoning.",
     howToUse:
-      "Use them to judge whether the review is clear, fair, and complete enough to release.",
+      "Use them to judge whether the review is complete, fair, and strong enough to release without confusion.",
   },
   {
     label: "Goal Ratings and Linked Reflection",
@@ -65,18 +67,18 @@ export default async function ChairReviewQueuePage() {
       <div className="topbar">
         <div>
           <Link href="/mentorship" style={{ color: "var(--muted)", fontSize: 13 }}>
-            &larr; Mentorship
+            &larr; Support Hub
           </Link>
-          <p className="badge">Chair Workflow</p>
-          <h1 className="page-title">Monthly Goal Review Queue</h1>
-          <p style={{ marginTop: 4, color: "var(--muted)", fontSize: 14 }}>
-            Approve or return mentor reviews before they are released to mentees.
+          <p className="badge">Review Approval</p>
+          <h1 className="page-title">Chair Review Queue</h1>
+          <p className="page-subtitle">
+            Review the evidence, decide if the monthly write-up is ready, and either approve it or return it with clear guidance.
           </p>
         </div>
       </div>
 
       <MentorshipGuideCard
-        title="How To Work The Chair Review Queue"
+        title="How To Review And Approve Monthly Reviews"
         intro="This page is the quality-control step for monthly reviews that require chair approval."
         items={CHAIR_QUEUE_GUIDE_ITEMS}
       />
@@ -91,150 +93,326 @@ export default async function ChairReviewQueuePage() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {reviews.map((review) => (
-            <div key={review.id} className="card">
+            <article
+              key={review.id}
+              className="card"
+              style={{ padding: 0, overflow: "hidden" }}
+            >
               <div
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 16,
-                  flexWrap: "wrap",
-                  marginBottom: 16,
+                  padding: 24,
+                  borderBottom: "1px solid var(--border)",
+                  background: "linear-gradient(180deg, rgba(59, 130, 246, 0.06), transparent)",
                 }}
               >
-                <div>
-                  <div className="section-title" style={{ marginBottom: 6 }}>
-                    {review.mentee.name}
-                  </div>
-                  <div style={{ fontSize: 13, color: "var(--muted)" }}>
-                    Mentor: {review.mentor.name} · {review.mentee.primaryRole.replace("_", " ")}
-                  </div>
-                  <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
-                    Month:{" "}
-                    {new Date(review.month).toLocaleDateString("en-US", {
-                      month: "long",
-                      year: "numeric",
-                    })}
-                    {review.mentorship.track && ` · Track: ${review.mentorship.track.name}`}
-                  </div>
+                <div className="section-title" style={{ marginBottom: 12 }}>
+                  Review Context
                 </div>
-                <div style={{ minWidth: 240 }}>
-                  {review.overallStatus ? (
-                    <ProgressBar status={review.overallStatus} label="Overall Progress" />
-                  ) : (
-                    <p style={{ margin: 0, color: "var(--muted)" }}>
-                      No overall progress selected.
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 20,
+                    flexWrap: "wrap",
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <div style={{ flex: "1 1 340px" }}>
+                    <h3 style={{ margin: "0 0 6px" }}>{review.mentee.name}</h3>
+                    <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
+                      {formatEnum(review.mentee.primaryRole)} · Mentor: {review.mentor.name}
+                      {review.mentorship.track ? ` · ${review.mentorship.track.name}` : ""}
                     </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid two" style={{ marginBottom: 16 }}>
-                <div>
-                  <strong style={{ display: "block", marginBottom: 6 }}>
-                    Mentor Summary
-                  </strong>
-                  <p style={{ marginTop: 0, color: "var(--muted)", fontSize: 13 }}>
-                    {review.overallComments || "No overall summary provided."}
-                  </p>
-                  <p style={{ marginTop: 12, fontSize: 13 }}>
-                    <strong>Strengths:</strong>{" "}
-                    {review.strengths || "No strengths recorded."}
-                  </p>
-                  <p style={{ marginTop: 12, fontSize: 13 }}>
-                    <strong>Focus Areas:</strong>{" "}
-                    {review.focusAreas || "No focus areas recorded."}
-                  </p>
-                  <p style={{ marginTop: 12, fontSize: 13 }}>
-                    <strong>Next Month Plan:</strong>{" "}
-                    {review.nextMonthPlan || "No next-month plan recorded."}
-                  </p>
-                </div>
-
-                <div>
-                  <strong style={{ display: "block", marginBottom: 6 }}>
-                    Committee Notes
-                  </strong>
-                  <p style={{ marginTop: 0, fontSize: 13 }}>
-                    <strong>Collaboration:</strong>{" "}
-                    {review.collaborationNotes || "No collaboration notes provided."}
-                  </p>
-                  <p style={{ marginTop: 12, fontSize: 13 }}>
-                    <strong>Promotion Readiness:</strong>{" "}
-                    {review.promotionReadiness || "No promotion readiness note provided."}
-                  </p>
-                  <p style={{ marginTop: 12, fontSize: 13 }}>
-                    <strong>Character & Culture Points:</strong>{" "}
-                    {review.characterCulturePoints}
-                  </p>
-                  <p style={{ marginTop: 12, fontSize: 13 }}>
-                    <strong>Internal Mentor Notes:</strong>{" "}
-                    {review.mentorInternalNotes || "No internal notes provided."}
-                  </p>
-                </div>
-              </div>
-
-              {review.goalRatings.length > 0 && (
-                <div style={{ marginBottom: 16 }}>
-                  <strong style={{ display: "block", marginBottom: 10 }}>
-                    Goal Ratings
-                  </strong>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {review.goalRatings.map((rating) => (
-                      <div
-                        key={rating.id}
-                        style={{
-                          padding: 12,
-                          background: "var(--surface-alt)",
-                          borderRadius: "var(--radius-sm)",
-                          border: "1px solid var(--border)",
-                        }}
-                      >
-                        <div style={{ fontWeight: 600 }}>{rating.goal.template.title}</div>
-                        <div style={{ marginTop: 8 }}>
-                          <ProgressBar status={rating.status} />
-                        </div>
-                        {rating.comments && (
-                          <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--muted)" }}>
-                            {rating.comments}
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                      <span className="pill pill-info">
+                        {new Date(review.month).toLocaleDateString("en-US", {
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </span>
+                      <span className="pill">Pending approval</span>
+                      {review.mentorSubmittedAt && (
+                        <span
+                          className="pill pill-small"
+                          style={{ background: "var(--surface-alt)", color: "var(--muted)" }}
+                        >
+                          Submitted {new Date(review.mentorSubmittedAt).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
 
-              {review.reflectionSubmission && (
-                <div style={{ marginBottom: 16 }}>
-                  <strong style={{ display: "block", marginBottom: 10 }}>
-                    Linked Monthly Self-Reflection
-                  </strong>
                   <div
                     style={{
-                      padding: 12,
-                      background: "var(--surface-alt)",
-                      borderRadius: "var(--radius-sm)",
+                      flex: "1 1 300px",
+                      minWidth: 260,
+                      padding: 16,
+                      borderRadius: "var(--radius-md)",
+                      background: "var(--surface)",
                       border: "1px solid var(--border)",
                     }}
                   >
-                    {review.reflectionSubmission.responses.slice(0, 3).map((response) => (
-                      <div key={response.id} style={{ marginBottom: 10 }}>
-                        <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                          {response.question.sectionTitle || "Reflection"}
-                        </div>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>
-                          {response.question.question}
-                        </div>
-                        <div style={{ fontSize: 13, marginTop: 4 }}>{response.value}</div>
-                      </div>
-                    ))}
+                    <div className="section-title" style={{ marginBottom: 10 }}>
+                      Overall Progress
+                    </div>
+                    {review.overallStatus ? (
+                      <>
+                        <ProgressBar status={review.overallStatus} />
+                        <p style={{ marginTop: 10, fontSize: 13, color: "var(--muted)" }}>
+                          <strong style={{ color: "var(--foreground)" }}>
+                            {PROGRESS_STATUS_META[review.overallStatus].label}:
+                          </strong>{" "}
+                          {PROGRESS_STATUS_META[review.overallStatus].description}
+                        </p>
+                      </>
+                    ) : (
+                      <p style={{ margin: 0, color: "var(--muted)" }}>
+                        No overall progress selected.
+                      </p>
+                    )}
                   </div>
                 </div>
-              )}
+              </div>
 
-              <div className="grid two">
-                <form action={approveMonthlyGoalReview}>
+              <div style={{ padding: 24 }}>
+                <div className="section-title" style={{ marginBottom: 12 }}>
+                  Evidence To Review
+                </div>
+                <div className="grid two" style={{ marginBottom: 20 }}>
+                  <section
+                    style={{
+                      padding: 18,
+                      background: "#f8fafc",
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid #cbd5e1",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        gap: 12,
+                        marginBottom: 8,
+                      }}
+                    >
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: 16 }}>Goal-by-goal evidence</h3>
+                        <p style={{ marginTop: 6, fontSize: 13 }}>
+                          Read each rating and comment before deciding whether the final summary is supported.
+                        </p>
+                      </div>
+                      <span className="pill pill-small">
+                        {review.goalRatings.length} goal{review.goalRatings.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+
+                    {review.goalRatings.length === 0 ? (
+                      <p style={{ color: "var(--muted)", margin: 0 }}>
+                        No goal ratings were submitted with this review.
+                      </p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {review.goalRatings.map((rating) => (
+                          <div
+                            key={rating.id}
+                            style={{
+                              padding: 14,
+                              background: "white",
+                              borderRadius: "var(--radius-sm)",
+                              border: "1px solid var(--border)",
+                            }}
+                          >
+                            <div style={{ fontWeight: 700 }}>{rating.goal.template.title}</div>
+                            <div style={{ marginTop: 8 }}>
+                              <ProgressBar status={rating.status} />
+                            </div>
+                            <p style={{ marginTop: 8, fontSize: 13, color: "var(--muted)" }}>
+                              {rating.comments || "No goal comment provided."}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+
+                  <section
+                    style={{
+                      padding: 18,
+                      background: "#f8fafc",
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid #cbd5e1",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        gap: 12,
+                        marginBottom: 8,
+                      }}
+                    >
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: 16 }}>Mentee self-reflection</h3>
+                        <p style={{ marginTop: 6, fontSize: 13 }}>
+                          This is the mentee&apos;s voice from the same month and should line up with the mentor&apos;s write-up.
+                        </p>
+                      </div>
+                      <span
+                        className={`pill pill-small${review.reflectionSubmission ? " pill-info" : ""}`}
+                        style={
+                          review.reflectionSubmission
+                            ? undefined
+                            : { background: "#fee2e2", color: "#991b1b" }
+                        }
+                      >
+                        {review.reflectionSubmission ? "Attached" : "Missing"}
+                      </span>
+                    </div>
+
+                    {!review.reflectionSubmission ? (
+                      <div
+                        style={{
+                          padding: 14,
+                          borderRadius: "var(--radius-sm)",
+                          background: "white",
+                          border: "1px solid #fecaca",
+                          color: "#991b1b",
+                          fontSize: 13,
+                        }}
+                      >
+                        No self-reflection was attached to this review.
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {review.reflectionSubmission.responses.slice(0, 4).map((response) => (
+                          <div
+                            key={response.id}
+                            style={{
+                              padding: 14,
+                              background: "white",
+                              borderRadius: "var(--radius-sm)",
+                              border: "1px solid var(--border)",
+                            }}
+                          >
+                            <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                              {response.question.sectionTitle || "Reflection"}
+                            </div>
+                            <div style={{ marginTop: 4, fontWeight: 700, fontSize: 13 }}>
+                              {response.question.question}
+                            </div>
+                            <div style={{ marginTop: 6, fontSize: 13 }}>{response.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </div>
+
+                <div className="section-title" style={{ marginBottom: 12 }}>
+                  Mentor Reasoning
+                </div>
+                <div className="grid two" style={{ marginBottom: 20 }}>
+                  <section
+                    style={{
+                      padding: 18,
+                      background: "var(--surface-alt)",
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid var(--border)",
+                    }}
+                  >
+                    <h3 style={{ margin: 0, fontSize: 16 }}>Summary the mentee will see</h3>
+                    <p style={{ marginTop: 8, fontSize: 13 }}>
+                      These fields become the readable version of the approved review.
+                    </p>
+                    <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
+                      <div>
+                        <strong style={{ fontSize: 13 }}>Overall summary</strong>
+                        <p style={{ marginTop: 6, fontSize: 13 }}>
+                          {review.overallComments || "No overall summary provided."}
+                        </p>
+                      </div>
+                      <div>
+                        <strong style={{ fontSize: 13 }}>Strengths to keep building</strong>
+                        <p style={{ marginTop: 6, fontSize: 13 }}>
+                          {review.strengths || "No strengths recorded."}
+                        </p>
+                      </div>
+                      <div>
+                        <strong style={{ fontSize: 13 }}>Focus for next month</strong>
+                        <p style={{ marginTop: 6, fontSize: 13 }}>
+                          {review.focusAreas || "No focus area recorded."}
+                        </p>
+                      </div>
+                      <div>
+                        <strong style={{ fontSize: 13 }}>Next-month plan</strong>
+                        <p style={{ marginTop: 6, fontSize: 13 }}>
+                          {review.nextMonthPlan || "No next-month plan recorded."}
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section
+                    style={{
+                      padding: 18,
+                      background: "var(--surface-alt)",
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid var(--border)",
+                    }}
+                  >
+                    <h3 style={{ margin: 0, fontSize: 16 }}>Internal review notes</h3>
+                    <p style={{ marginTop: 8, fontSize: 13 }}>
+                      Use these notes to judge internal context, readiness, and anything the mentor chose not to phrase directly to the mentee.
+                    </p>
+                    <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
+                      <div>
+                        <strong style={{ fontSize: 13 }}>Collaboration and communication</strong>
+                        <p style={{ marginTop: 6, fontSize: 13 }}>
+                          {review.collaborationNotes || "No collaboration notes provided."}
+                        </p>
+                      </div>
+                      <div>
+                        <strong style={{ fontSize: 13 }}>Readiness for promotion or added responsibility</strong>
+                        <p style={{ marginTop: 6, fontSize: 13 }}>
+                          {review.promotionReadiness || "No readiness note provided."}
+                        </p>
+                      </div>
+                      <div>
+                        <strong style={{ fontSize: 13 }}>Character and culture points</strong>
+                        <p style={{ marginTop: 6, fontSize: 13 }}>
+                          {review.characterCulturePoints}
+                        </p>
+                      </div>
+                      <div>
+                        <strong style={{ fontSize: 13 }}>Internal notes for reviewers only</strong>
+                        <p style={{ marginTop: 6, fontSize: 13 }}>
+                          {review.mentorInternalNotes || "No internal notes provided."}
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                <div className="section-title" style={{ marginBottom: 12 }}>
+                  Decision
+                </div>
+                <div className="grid two">
+                <form
+                  action={approveMonthlyGoalReview}
+                  style={{
+                    padding: 18,
+                    background: "#f0fdf4",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid #86efac",
+                  }}
+                >
                   <input type="hidden" name="reviewId" value={review.id} />
+                  <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>Approve and publish</h3>
+                  <p style={{ margin: "0 0 14px", fontSize: 13, color: "#166534" }}>
+                    Use this when the evidence, summary, and next-step plan are ready to become the final published review.
+                  </p>
                   <div style={{ marginBottom: 6 }}>
                     <FieldLabel
                       label="Approval Note"
@@ -260,8 +438,20 @@ export default async function ChairReviewQueuePage() {
                   </button>
                 </form>
 
-                <form action={returnMonthlyGoalReview}>
+                <form
+                  action={returnMonthlyGoalReview}
+                  style={{
+                    padding: 18,
+                    background: "#fff7ed",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid #fdba74",
+                  }}
+                >
                   <input type="hidden" name="reviewId" value={review.id} />
+                  <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>Return for edits</h3>
+                  <p style={{ margin: "0 0 14px", fontSize: 13, color: "#9a3412" }}>
+                    Be specific about what needs to change so the mentor can strengthen the review and resubmit it without guessing.
+                  </p>
                   <div style={{ marginBottom: 6 }}>
                     <FieldLabel
                       label="Return For Edits Note"
@@ -287,8 +477,9 @@ export default async function ChairReviewQueuePage() {
                     Return Review
                   </button>
                 </form>
+                </div>
               </div>
-            </div>
+            </article>
           ))}
         </div>
       )}

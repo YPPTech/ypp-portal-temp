@@ -52,7 +52,7 @@ export default async function MyMentorPage() {
         <div className="topbar">
           <div>
             <Link href="/mentorship" style={{ fontSize: 13, color: "var(--muted)", display: "inline-block", marginBottom: 4 }}>
-              &larr; Mentorship Hub
+              &larr; Support Hub
             </Link>
             <h1 className="page-title">My Support Circle</h1>
             <p className="page-subtitle">Your layered support team will appear here once a circle is assigned.</p>
@@ -91,7 +91,7 @@ export default async function MyMentorPage() {
       <div className="topbar">
         <div>
           <Link href="/mentorship" style={{ fontSize: 13, color: "var(--muted)", display: "inline-block", marginBottom: 4 }}>
-            &larr; Mentorship Hub
+            &larr; Support Hub
           </Link>
           <h1 className="page-title">My Support Circle</h1>
           <p className="page-subtitle">

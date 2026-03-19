@@ -119,6 +119,20 @@ export default async function GoalsPage() {
           status: "APPROVED",
         },
         include: {
+          mentor: {
+            select: {
+              name: true,
+            },
+          },
+          mentorship: {
+            include: {
+              track: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
           goalRatings: {
             include: {
               goal: {
@@ -175,9 +189,13 @@ export default async function GoalsPage() {
   const monthlyCycle =
     currentMonthReview?.status === "APPROVED"
       ? { label: "Approved Review Ready", tone: "success" as const }
-      : currentMonthReflection
-        ? { label: "Monthly Review In Progress", tone: "warning" as const }
-        : { label: "Reflection Not Started", tone: "neutral" as const };
+      : currentMonthReview?.status === "PENDING_CHAIR_APPROVAL"
+        ? { label: "Review Awaiting Approval", tone: "warning" as const }
+        : currentMonthReview?.status === "RETURNED"
+          ? { label: "Mentor Updating Review", tone: "warning" as const }
+          : currentMonthReflection
+            ? { label: "Mentor Writing Review", tone: "warning" as const }
+            : { label: "Reflection Not Started", tone: "neutral" as const };
 
   return (
     <div>
@@ -226,8 +244,8 @@ export default async function GoalsPage() {
               })}
             </h3>
             <p style={{ margin: "8px 0 0", color: "var(--muted)", fontSize: 13 }}>
-              Step 1: Monthly Self-Reflection. Step 2: mentor Monthly Goal Review.
-              Step 3: chair approval. Only approved reviews are shown below.
+              Step 1: submit your monthly self-reflection. Step 2: your mentor writes the monthly review.
+              Step 3: a review chair approves it when needed. Only approved reviews appear below.
             </p>
           </div>
           <span className="pill" style={TONE_STYLES[monthlyCycle.tone]}>
@@ -309,7 +327,7 @@ export default async function GoalsPage() {
 
       {mentor && (
         <div className="card" style={{ marginBottom: 24 }}>
-          <div className="section-title">My Mentorship Team</div>
+          <div className="section-title">My Support Team</div>
           <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
             <div>
               <h3 style={{ margin: 0 }}>{mentor.name}</h3>
@@ -334,7 +352,7 @@ export default async function GoalsPage() {
                     fontSize: 14,
                   }}
                 >
-                  Mentor Committee Chair
+                  Review Chair
                 </p>
               </div>
             )}
@@ -449,11 +467,14 @@ export default async function GoalsPage() {
         </div>
 
         <div className="card">
-          <div className="section-title">Approved Monthly Goal Review</div>
+          <div className="section-title">Latest Approved Review</div>
           {!latestApprovedReview ? (
             <div>
               <p style={{ color: "var(--muted)", fontSize: 14 }}>
-                No approved Monthly Goal Review has been released yet.
+                No approved monthly review has been released yet.
+              </p>
+              <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 8 }}>
+                Once your mentor finishes the review and any required approval is complete, the final version will appear here.
               </p>
               <a
                 href="/reflection"
@@ -475,7 +496,7 @@ export default async function GoalsPage() {
                 }}
               >
                 <div>
-                  <strong>
+                  <strong style={{ fontSize: 16 }}>
                     {new Date(latestApprovedReview.month).toLocaleDateString(
                       "en-US",
                       {
@@ -494,51 +515,171 @@ export default async function GoalsPage() {
                   </div>
                 </div>
                 <span className="pill" style={TONE_STYLES.success}>
-                  Approved
+                  Final version
                 </span>
               </div>
 
-              {latestApprovedReview.overallStatus && (
+              <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--muted)" }}>
+                This is the final approved version of your monthly review. Use it to understand what went well, what needs focus next, and what plan you and your mentor are carrying into the next month.
+              </p>
+
+              <div className="grid two" style={{ marginBottom: 16 }}>
+                <div
+                  style={{
+                    padding: 16,
+                    background: "var(--surface-alt)",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  <div className="section-title" style={{ marginBottom: 10 }}>
+                    Review Overview
+                  </div>
+                  {latestApprovedReview.overallStatus ? (
+                    <>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          marginBottom: 8,
+                          fontSize: 13,
+                        }}
+                      >
+                        <strong>Overall Progress</strong>
+                        <span style={{ color: "var(--muted)" }}>
+                          {PROGRESS_STATUS_META[latestApprovedReview.overallStatus].label}
+                        </span>
+                      </div>
+                      <ProgressBar status={latestApprovedReview.overallStatus} />
+                      <p style={{ marginTop: 10, fontSize: 13, color: "var(--muted)" }}>
+                        {PROGRESS_STATUS_META[latestApprovedReview.overallStatus].description}
+                      </p>
+                    </>
+                  ) : (
+                    <p style={{ margin: 0, color: "var(--muted)" }}>
+                      No overall progress rating was recorded.
+                    </p>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    padding: 16,
+                    background: "var(--surface-alt)",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  <div className="section-title" style={{ marginBottom: 10 }}>
+                    Review Details
+                  </div>
+                  <div style={{ display: "grid", gap: 10, fontSize: 13 }}>
+                    <div>
+                      <strong>Mentor:</strong> {latestApprovedReview.mentor.name}
+                    </div>
+                    <div>
+                      <strong>Track:</strong> {latestApprovedReview.mentorship.track?.name || "Not assigned"}
+                    </div>
+                    <div>
+                      <strong>Achievement points:</strong> {latestApprovedReview.totalAchievementPoints}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: 16,
+                  background: "white",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border)",
+                  marginBottom: 16,
+                }}
+              >
+                <div className="section-title" style={{ marginBottom: 10 }}>
+                  Overall Summary
+                </div>
+                <p style={{ marginTop: 0, fontSize: 14, color: "var(--foreground)" }}>
+                  {latestApprovedReview.overallComments || "No summary recorded."}
+                </p>
+              </div>
+
+              <div className="grid three" style={{ marginBottom: 16 }}>
+                <div
+                  style={{
+                    padding: 16,
+                    background: "white",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  <div className="section-title" style={{ marginBottom: 10 }}>
+                    Strengths
+                  </div>
+                  <p style={{ fontSize: 13 }}>
+                    {latestApprovedReview.strengths || "No strengths recorded."}
+                  </p>
+                </div>
+                <div
+                  style={{
+                    padding: 16,
+                    background: "white",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  <div className="section-title" style={{ marginBottom: 10 }}>
+                    Focus Next
+                  </div>
+                  <p style={{ fontSize: 13 }}>
+                    {latestApprovedReview.focusAreas || "No focus area recorded."}
+                  </p>
+                </div>
+                <div
+                  style={{
+                    padding: 16,
+                    background: "white",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  <div className="section-title" style={{ marginBottom: 10 }}>
+                    Next-Month Plan
+                  </div>
+                  <p style={{ fontSize: 13 }}>
+                    {latestApprovedReview.nextMonthPlan || "No plan recorded."}
+                  </p>
+                </div>
+              </div>
+
+              {latestApprovedReview.chairDecisionNotes && (
                 <div style={{ marginBottom: 16 }}>
+                  <div className="section-title" style={{ marginBottom: 10 }}>
+                    Approval Note
+                  </div>
                   <div
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginBottom: 8,
-                      fontSize: 13,
+                      padding: 16,
+                      background: "#f0fdf4",
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid #bbf7d0",
                     }}
                   >
-                    <strong>Overall Progress</strong>
-                    <span style={{ color: "var(--muted)" }}>
-                      {PROGRESS_STATUS_META[latestApprovedReview.overallStatus].label}
-                    </span>
+                    <p style={{ fontSize: 13, color: "#166534" }}>
+                      {latestApprovedReview.chairDecisionNotes}
+                    </p>
                   </div>
-                  <ProgressBar status={latestApprovedReview.overallStatus} />
                 </div>
               )}
 
-              <p style={{ marginTop: 0, fontSize: 13 }}>
-                <strong>Overall Comments:</strong>{" "}
-                {latestApprovedReview.overallComments || "No summary recorded."}
-              </p>
-              <p style={{ marginTop: 12, fontSize: 13 }}>
-                <strong>Strengths:</strong>{" "}
-                {latestApprovedReview.strengths || "No strengths recorded."}
-              </p>
-              <p style={{ marginTop: 12, fontSize: 13 }}>
-                <strong>Focus Areas:</strong>{" "}
-                {latestApprovedReview.focusAreas || "No focus areas recorded."}
-              </p>
-              <p style={{ marginTop: 12, fontSize: 13 }}>
-                <strong>Next Month Plan:</strong>{" "}
-                {latestApprovedReview.nextMonthPlan || "No plan recorded."}
-              </p>
-
               {latestApprovedReview.goalRatings.length > 0 && (
                 <div style={{ marginTop: 16 }}>
-                  <strong style={{ display: "block", marginBottom: 10 }}>
-                    Goal Ratings
-                  </strong>
+                  <div className="section-title" style={{ marginBottom: 10 }}>
+                    Goal-by-Goal Breakdown
+                  </div>
+                  <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--muted)" }}>
+                    This shows how each goal was rated and what evidence was recorded for it.
+                  </p>
                   <div style={{ display: "grid", gap: 10 }}>
                     {latestApprovedReview.goalRatings.map((rating) => (
                       <div
@@ -567,10 +708,6 @@ export default async function GoalsPage() {
                 </div>
               )}
 
-              <div style={{ marginTop: 16, fontSize: 13, color: "var(--muted)" }}>
-                Achievement points from this review:{" "}
-                {latestApprovedReview.totalAchievementPoints}
-              </div>
             </>
           )}
 

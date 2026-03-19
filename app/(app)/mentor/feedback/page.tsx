@@ -72,7 +72,7 @@ export default async function MentorFeedbackPage() {
               marginBottom: 4,
             }}
           >
-            &larr; Mentorship
+            &larr; Support Hub
           </Link>
           <h1 className="page-title">Feedback Portal</h1>
           <p className="page-subtitle">

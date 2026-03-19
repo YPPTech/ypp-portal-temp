@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
 import { MentorshipGuideCard } from "@/components/mentorship-guide-card";
+import { ReviewNotesBanner } from "@/components/review-notes-banner";
 import { mentorshipRequiresChairApproval } from "@/lib/mentorship-canonical";
 import { submitMonthlyGoalReview } from "@/lib/mentorship-program-actions";
 import { prisma } from "@/lib/prisma";
@@ -116,6 +117,11 @@ export default async function MonthlyReviewEditorPage({
         },
         include: {
           goalRatings: true,
+          chair: {
+            select: {
+              name: true,
+            },
+          },
         },
       })
     : null;
@@ -146,7 +152,10 @@ export default async function MonthlyReviewEditorPage({
           >
             &larr; Back to {mentee.name}
           </Link>
-          <h1 className="page-title">Monthly Goal Review</h1>
+          <h1 className="page-title">Write Monthly Review</h1>
+          <p className="page-subtitle">
+            Build the evidence, summary, and next-step plan that will move through approval and eventually be shown to the mentee.
+          </p>
         </div>
       </div>
 
@@ -176,6 +185,14 @@ export default async function MonthlyReviewEditorPage({
               : "This will publish directly unless you intentionally escalate it to chair review."}
           </p>
         </div>
+
+        {existingReview?.status === "RETURNED" && existingReview.chairDecisionNotes && (
+          <ReviewNotesBanner
+            status={existingReview.status}
+            reviewNotes={existingReview.chairDecisionNotes}
+            reviewerName={existingReview.chair?.name ?? null}
+          />
+        )}
 
         {mentee.goals.length === 0 ? (
           <div
@@ -212,6 +229,7 @@ export default async function MonthlyReviewEditorPage({
                     promotionReadiness: existingReview.promotionReadiness,
                     nextMonthPlan: existingReview.nextMonthPlan,
                     mentorInternalNotes: existingReview.mentorInternalNotes,
+                    status: existingReview.status,
                     characterCulturePoints:
                       existingReview.characterCulturePoints,
                     goalRatings: existingReview.goalRatings.map((rating) => ({

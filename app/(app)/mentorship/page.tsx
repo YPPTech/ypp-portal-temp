@@ -70,9 +70,9 @@ export default async function MentorshipPage() {
     <div>
       <div className="topbar">
         <div>
-          <p className="badge">Mentorship OS</p>
+          <p className="badge">Support</p>
           <h1 className="page-title">
-            {hub.flags.isStudent ? "My Support Hub" : "Mentorship Hub"}
+            {hub.flags.isStudent ? "My Support Hub" : "Support Hub"}
           </h1>
           <p className="page-subtitle">
             One place for sessions, action items, support requests, reviews, and shared knowledge.
@@ -86,7 +86,7 @@ export default async function MentorshipPage() {
           )}
           {hub.flags.canSupport && (
             <Link href="/mentor/feedback" className="button small secondary">
-              Private Requests
+              Feedback Queue
             </Link>
           )}
           <Link href="/mentor/ask" className="button small secondary">
@@ -111,7 +111,7 @@ export default async function MentorshipPage() {
       <ContextTrail items={trailItems} />
 
       <MentorshipGuideCard
-        title="How This Mentorship Hub Works"
+        title="How This Support Hub Works"
         intro="This page is the front door to the mentorship system. Each block below answers a different question so you know where to look first."
         items={HUB_GUIDE_ITEMS}
       />
@@ -336,7 +336,7 @@ export default async function MentorshipPage() {
           <div style={{ display: "grid", gap: 10 }}>
             <Link href="/mentor/feedback" style={{ textDecoration: "none", color: "inherit" }}>
               <div style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 14 }}>
-                <strong>Private request queue</strong>
+                <strong>Feedback queue</strong>
                 <p style={{ margin: "6px 0 0", color: "var(--muted)", fontSize: 13 }}>
                   Handle project feedback, escalations, and targeted support requests.
                 </p>

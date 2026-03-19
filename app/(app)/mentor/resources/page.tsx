@@ -76,7 +76,7 @@ export default async function CuratedResourcesPage({
             href="/mentorship"
             style={{ fontSize: 13, color: "var(--muted)", display: "inline-block", marginBottom: 4 }}
           >
-            &larr; Mentorship Hub
+            &larr; Support Hub
           </Link>
           <h1 className="page-title">Resource Commons</h1>
           <p className="page-subtitle">
@@ -250,7 +250,7 @@ export default async function CuratedResourcesPage({
           </p>
           <p style={{ marginTop: 12, fontSize: 13, color: "var(--muted)" }}>
             Good places to create new resources: the{" "}
-            <Link href="/mentor/feedback" className="link">Private Queue</Link> and{" "}
+            <Link href="/mentor/feedback" className="link">Feedback Queue</Link> and{" "}
             <Link href="/mentor/ask" className="link">Ask a Mentor</Link>.
           </p>
         </div>

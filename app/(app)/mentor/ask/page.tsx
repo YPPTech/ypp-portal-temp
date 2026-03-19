@@ -78,7 +78,7 @@ export default async function AskMentorPage({
             href="/mentorship"
             style={{ fontSize: 13, color: "var(--muted)", display: "inline-block", marginBottom: 4 }}
           >
-            &larr; Mentorship Hub
+            &larr; Support Hub
           </Link>
           <h1 className="page-title">Ask a Mentor</h1>
           <p className="page-subtitle">

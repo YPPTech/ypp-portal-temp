@@ -1,6 +1,6 @@
 "use client";
 
-import { ProgressStatus } from "@prisma/client";
+import { MentorshipReviewStatus, ProgressStatus } from "@prisma/client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -21,6 +21,7 @@ interface Goal {
 }
 
 interface ExistingReview {
+  status: MentorshipReviewStatus;
   overallStatus: ProgressStatus | null;
   overallComments: string | null;
   strengths: string | null;
@@ -106,8 +107,10 @@ export function FeedbackForm({
   );
   const [escalateToChair, setEscalateToChair] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const submitLabel =
-    requiresChairApproval || escalateToChair
+  const isReturnedForEdits = existingReview?.status === "RETURNED";
+  const submitLabel = isReturnedForEdits
+    ? "Resubmit For Approval"
+    : requiresChairApproval || escalateToChair
       ? "Submit To Chair For Approval"
       : "Publish Monthly Review";
 
@@ -161,9 +164,11 @@ export function FeedbackForm({
           Monthly Goal Review Workflow
         </div>
         <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>
-          {requiresChairApproval
-            ? "Step 1: review each goal. Step 2: write the mentor summary. Step 3: submit this review to the Mentor Committee Chair for approval."
-            : "Step 1: review each goal. Step 2: write the mentor summary. Step 3: publish this review directly to the mentorship workspace unless you choose to escalate it to chair review."}
+          {isReturnedForEdits
+            ? "This draft was returned for edits. Step 1: strengthen the evidence and comments below. Step 2: update the student-facing summary. Step 3: resubmit it for approval."
+            : requiresChairApproval
+            ? "Step 1: review each goal. Step 2: write the student-facing summary. Step 3: submit this review to the review chair for approval."
+            : "Step 1: review each goal. Step 2: write the student-facing summary. Step 3: publish this review directly unless you choose to escalate it to chair review."}
         </p>
         {allowChairEscalation && (
           <label
@@ -186,9 +191,9 @@ export function FeedbackForm({
         )}
       </div>
 
-      <div className="section-title">Per-Goal Ratings</div>
+      <div className="section-title">Evidence From This Month</div>
       <p style={{ color: "var(--muted)", fontSize: 13, marginBottom: 20 }}>
-        Rate each goal using the YPP Red / Yellow / Green / Purple scale.
+        Start with the evidence. Rate each goal and explain the month in concrete terms before writing the final summary.
       </p>
 
       {goals.map((goal, index) => (
@@ -282,12 +287,15 @@ export function FeedbackForm({
 
       <div className="grid two" style={{ marginTop: 24 }}>
         <div className="card">
-          <div className="section-title">Mentor Summary</div>
+          <div className="section-title">What The Mentee Will See</div>
+          <p style={{ margin: "0 0 16px", color: "var(--muted)", fontSize: 13 }}>
+            These fields become the readable version of the review after approval.
+          </p>
           <div style={{ marginBottom: 16 }}>
             <FieldLabel
-              label="Overall Impression of Progress"
+              label="Overall summary"
               help={{
-                title: "Overall Impression Of Progress",
+                title: "Overall Summary",
                 guidance:
                   "This is the plain-language story of the month. It should describe how the mentee is doing overall.",
                 example:
@@ -300,15 +308,15 @@ export function FeedbackForm({
             onChange={(event) => setOverallComments(event.target.value)}
             className="input"
             rows={4}
-            placeholder="Summarize the month overall."
+            placeholder="Summarize the month in plain language."
             style={{ marginTop: 6, marginBottom: 16 }}
           />
 
           <div style={{ marginBottom: 16 }}>
             <FieldLabel
-              label="Strengths / What Worked Well"
+              label="Strengths to keep building"
               help={{
-                title: "Strengths / What Worked Well",
+                title: "Strengths To Keep Building",
                 guidance:
                   "Call out the behaviors, habits, or results the mentee should keep doing.",
                 example:
@@ -326,9 +334,9 @@ export function FeedbackForm({
           />
 
           <FieldLabel
-            label="Areas for Development / Recommended Adjustments"
+            label="Focus for next month"
             help={{
-              title: "Areas For Development / Recommended Adjustments",
+              title: "Focus For Next Month",
               guidance:
                 "Use this to name the most important thing the mentee should change or improve next.",
               example:
@@ -340,17 +348,41 @@ export function FeedbackForm({
             onChange={(event) => setFocusAreas(event.target.value)}
             className="input"
             rows={4}
-            placeholder="What should change or improve next month?"
+            placeholder="What should the mentee focus on next?"
+            style={{ marginTop: 6, marginBottom: 16 }}
+          />
+
+          <div style={{ marginBottom: 8 }}>
+            <FieldLabel
+              label="Next-month plan"
+              help={{
+                title: "Next-Month Plan",
+                guidance:
+                  "This is the forward-looking plan that turns the review into concrete action for the next month.",
+                example:
+                  "Finish draft two, meet once for feedback, and submit the final version before the next review window.",
+              }}
+            />
+          </div>
+          <textarea
+            value={nextMonthPlan}
+            onChange={(event) => setNextMonthPlan(event.target.value)}
+            className="input"
+            rows={5}
+            placeholder="List the high-level objectives, next steps, and timeline for next month."
             style={{ marginTop: 6 }}
           />
         </div>
 
         <div className="card">
-          <div className="section-title">Committee-Facing Notes</div>
+          <div className="section-title">Internal Review Notes</div>
+          <p style={{ margin: "0 0 16px", color: "var(--muted)", fontSize: 13 }}>
+            These notes stay inside the approval workflow and help reviewers understand the decision.
+          </p>
 
           <div style={{ marginBottom: 16 }}>
             <FieldLabel
-              label="Collaboration & Communication Notes"
+              label="Collaboration and communication"
               help={{
                 title: "Collaboration & Communication Notes",
                 guidance:
@@ -371,7 +403,7 @@ export function FeedbackForm({
 
           <div style={{ marginBottom: 16 }}>
             <FieldLabel
-              label="Promotion Readiness"
+              label="Readiness for promotion or added responsibility"
               help={{
                 title: "Promotion Readiness",
                 guidance:
@@ -414,7 +446,7 @@ export function FeedbackForm({
           />
 
           <FieldLabel
-            label="Internal Mentor Notes"
+            label="Internal notes for reviewers only"
             help={{
               title: "Internal Mentor Notes",
               guidance:
@@ -432,29 +464,6 @@ export function FeedbackForm({
             style={{ marginTop: 6 }}
           />
         </div>
-      </div>
-
-      <div className="card" style={{ marginTop: 24 }}>
-        <div className="section-title">Plan of Action For Next Month</div>
-        <div style={{ marginBottom: 8 }}>
-          <FieldLabel
-            label="Next-month plan"
-            help={{
-              title: "Next-Month Plan",
-              guidance:
-                "This is the forward-looking plan that turns the review into concrete action for the next month.",
-              example:
-                "Finish draft two, meet once for feedback, and submit the final version before the next review window.",
-            }}
-          />
-        </div>
-        <textarea
-          value={nextMonthPlan}
-          onChange={(event) => setNextMonthPlan(event.target.value)}
-          className="input"
-          rows={5}
-          placeholder="List the high-level objectives, next month goals, and implementation plan."
-        />
       </div>
 
       <div
@@ -477,6 +486,9 @@ export function FeedbackForm({
         >
           Cancel
         </button>
+        <span style={{ fontSize: 12, color: "var(--muted)" }}>
+          The mentee sees the approved summary, plan, and goal ratings. Internal review notes stay in the approval workflow.
+        </span>
         <span style={{ fontSize: 12, color: "var(--muted)" }}>
           Purple scale key: {PROGRESS_STATUS_META.ABOVE_AND_BEYOND.label}
         </span>
