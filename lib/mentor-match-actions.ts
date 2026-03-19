@@ -1,6 +1,6 @@
 "use server";
 
-import { MentorshipType, SupportRole } from "@prisma/client";
+import { MentorshipType, type Prisma, SupportRole } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
 
@@ -342,7 +342,7 @@ export async function approveMentorMatch(formData: FormData) {
   revalidatePath("/mentorship");
 }
 
-function getLaneWhere(lane: AdminMentorshipLane) {
+function getLaneWhere(lane: AdminMentorshipLane): Prisma.UserWhereInput {
   if (lane === "STUDENTS") {
     return {
       OR: [{ roles: { some: { role: "STUDENT" } } }, { primaryRole: "STUDENT" }],
