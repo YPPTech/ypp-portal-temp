@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { reviewCPApplicationAction } from "@/lib/chapter-president-application-actions";
@@ -68,8 +69,25 @@ export default async function AdminCPApplicantsPage() {
         <div>
           <span className="badge">Admin</span>
           <h1 className="page-title">Chapter President Applicants</h1>
-          <p className="page-subtitle">Review and manage chapter president applications.</p>
+          <p className="page-subtitle">
+            Review and manage legacy chapter president applications.
+          </p>
         </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 24 }}>
+        <p style={{ margin: 0, fontSize: 14, color: "var(--muted)" }}>
+          This page is kept for compatibility. The canonical chapter-president hiring flow should
+          now run through{" "}
+          <Link href="/chapter/recruiting" className="link">
+            Chapter Recruiting
+          </Link>{" "}
+          using the recruiting workspace and the shared{" "}
+          <Link href="/applications" className="link">
+            Applications
+          </Link>{" "}
+          review path.
+        </p>
       </div>
 
       {/* KPI cards */}

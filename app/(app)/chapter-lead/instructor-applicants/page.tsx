@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { reviewInstructorApplicationAction } from "@/lib/instructor-application-actions";
@@ -66,8 +67,24 @@ export default async function ChapterLeadInstructorApplicantsPage() {
         <div>
           <span className="badge">Chapter Lead</span>
           <h1 className="page-title">Instructor Applicants</h1>
-          <p className="page-subtitle">Review and manage instructor applications for your chapter.</p>
+          <p className="page-subtitle">
+            Review and manage legacy instructor applications for your chapter.
+          </p>
         </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 24 }}>
+        <p style={{ margin: 0, fontSize: 14, color: "var(--muted)" }}>
+          This page is kept for compatibility. Chapter Leads should do primary hiring work in{" "}
+          <Link href="/chapter/recruiting" className="link">
+            Chapter Recruiting
+          </Link>{" "}
+          and the shared candidate workspaces under{" "}
+          <Link href="/applications" className="link">
+            Applications
+          </Link>
+          .
+        </p>
       </div>
 
       {/* KPI cards */}

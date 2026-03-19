@@ -24,6 +24,26 @@ const fileChecks = [
     description: "Feature gate service exists",
     file: "lib/feature-gates.ts",
   },
+  {
+    id: "workflow-matrix-doc",
+    description: "Portal reliability matrix exists",
+    file: "docs/portal-reliability-matrix.md",
+  },
+  {
+    id: "admin-portal-analytics-lib",
+    description: "Admin portal analytics data layer exists",
+    file: "lib/admin-portal-analytics.ts",
+  },
+  {
+    id: "playwright-config",
+    description: "Playwright configuration exists",
+    file: "playwright.config.ts",
+  },
+  {
+    id: "e2e-seed-script",
+    description: "Dedicated E2E seed script exists",
+    file: "scripts/seed-portal-e2e.ts",
+  },
 ];
 
 const contentChecks = [
@@ -56,6 +76,24 @@ const contentChecks = [
     description: "Activities page checks feature gates",
     file: "app/(app)/activities/page.tsx",
     pattern: "isFeatureEnabledForUser(",
+  },
+  {
+    id: "analytics-dashboard-uses-new-source",
+    description: "Admin analytics page uses the portal analytics source",
+    file: "app/(app)/admin/analytics/page.tsx",
+    pattern: "getAdminPortalAnalytics(",
+  },
+  {
+    id: "legacy-instructor-banner",
+    description: "Legacy instructor applicants page points to recruiting",
+    file: "app/(app)/admin/instructor-applicants/page.tsx",
+    pattern: "This page is kept for compatibility.",
+  },
+  {
+    id: "legacy-cp-banner",
+    description: "Legacy chapter president applicants page points to recruiting",
+    file: "app/(app)/admin/chapter-president-applicants/page.tsx",
+    pattern: "This page is kept for compatibility.",
   },
 ];
 

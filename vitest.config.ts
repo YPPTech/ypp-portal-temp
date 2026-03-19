@@ -5,9 +5,11 @@ import path from "path";
 export default defineConfig({
   plugins: [react()],
   test: {
+    include: ["tests/**/*.{test,spec}.{ts,tsx}"],
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
     globals: true,
+    exclude: ["tests/e2e/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],

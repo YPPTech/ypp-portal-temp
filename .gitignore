@@ -5,6 +5,8 @@ node_modules/
 .next/
 dist/
 out/
+playwright-report/
+test-results/
 *.log
 public/uploads/
 tsconfig.tsbuildinfo

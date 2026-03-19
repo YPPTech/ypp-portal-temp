@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useActionState } from "react";
+import { useState } from "react";
+import { useFormState, useFormStatus } from "react-dom";
 import { submitChapterPresidentApplication } from "@/lib/chapter-president-application-actions";
 import FileUpload from "./file-upload";
 
@@ -24,11 +25,26 @@ interface CPApplicationFormProps {
   customFields?: FormField[];
 }
 
+function SubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      className="button"
+      disabled={pending}
+      style={{ width: "100%" }}
+    >
+      {pending ? "Submitting..." : "Submit Application"}
+    </button>
+  );
+}
+
 export default function ChapterPresidentApplicationForm({
   chapters,
   customFields = [],
 }: CPApplicationFormProps) {
-  const [state, formAction, isPending] = useActionState(submitChapterPresidentApplication, {
+  const [state, formAction] = useFormState(submitChapterPresidentApplication, {
     status: "idle" as const,
     message: "",
   });
@@ -251,15 +267,7 @@ export default function ChapterPresidentApplicationForm({
             )}
           </div>
         ))}
-
-        <button
-          type="submit"
-          className="button"
-          disabled={isPending}
-          style={{ width: "100%" }}
-        >
-          {isPending ? "Submitting..." : "Submit Application"}
-        </button>
+        <SubmitButton />
       </form>
     </div>
   );
