@@ -680,6 +680,8 @@ export const NAV_CATALOG: NavLink[] = [
     { href: "/admin/pathway-tracking", label: "Pathway Tracking", icon: "🛤", roles: ADMIN_ONLY },
     { href: "/admin/pathways", label: "Manage Pathways", icon: "🗺", roles: ADMIN_ONLY },
     { href: "/admin/audit-log", label: "Audit Log", icon: "🗒", roles: ADMIN_ONLY },
+    { href: "/admin/governance", label: "Governance & Risk", icon: "🛡", roles: ADMIN_ONLY },
+    { href: "/admin/role-matrix", label: "Role Matrix Audit", icon: "👥", roles: ADMIN_ONLY },
     { href: "/admin/volunteer-hours", label: "Volunteer Hours", icon: "⏰", roles: ADMIN_ONLY },
     { href: "/admin/export", label: "Data Export", icon: "📥", roles: ADMIN_ONLY },
     { href: "/admin/data-export", label: "Export Tools", icon: "💾", roles: ADMIN_ONLY },
