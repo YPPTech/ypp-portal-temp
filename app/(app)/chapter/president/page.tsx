@@ -13,8 +13,14 @@ export default async function ChapterPresidentPage() {
   // Find the current user's chapter
   const currentUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    include: {
-      chapter: true,
+    select: {
+      id: true,
+      chapter: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   });
 

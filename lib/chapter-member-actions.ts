@@ -3,6 +3,32 @@
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isRecoverablePrismaError, withPrismaFallback } from "@/lib/prisma-guard";
+
+type MyChapterHomeChapter = {
+  id: string;
+  name: string;
+  slug: string | null;
+  tagline: string | null;
+  logoUrl: string | null;
+  bannerUrl: string | null;
+  city: string | null;
+  region: string | null;
+  _count: { users: number; courses: number };
+  events: Array<{
+    id: string;
+    title: string;
+    startDate: Date;
+    eventType: string;
+    location: string | null;
+  }>;
+} | null;
+
+type MyChapterChannelSummary = {
+  id: string;
+  name: string;
+  _count: { messages: number };
+};
 
 // ============================================
 // CHAPTER MEMBER DIRECTORY
@@ -61,51 +87,90 @@ export async function getMyChapterHomeData() {
   });
 
   if (!user?.chapterId) return null;
-
-  const now = new Date();
+  const chapterId = user.chapterId;
 
   const [chapter, members, channels, recentAnnouncements, myEnrollments] = await Promise.all([
-    prisma.chapter.findUnique({
-      where: { id: user.chapterId },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        tagline: true,
-        logoUrl: true,
-        bannerUrl: true,
-        city: true,
-        region: true,
-        _count: { select: { users: true, courses: true } },
-        events: {
-          where: { startDate: { gte: now } },
-          orderBy: { startDate: "asc" },
-          take: 5,
-          select: { id: true, title: true, startDate: true, eventType: true, location: true },
-        },
-      },
-    }),
+    (async (): Promise<MyChapterHomeChapter> => {
+      try {
+        return (await prisma.chapter.findUnique({
+          where: { id: chapterId },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            tagline: true,
+            logoUrl: true,
+            bannerUrl: true,
+            city: true,
+            region: true,
+            _count: { select: { users: true, courses: true } },
+            events: {
+              where: { startDate: { gte: new Date() } },
+              orderBy: { startDate: "asc" },
+              take: 5,
+              select: { id: true, title: true, startDate: true, eventType: true, location: true },
+            },
+          },
+        })) as MyChapterHomeChapter;
+      } catch (error) {
+        if (!isRecoverablePrismaError(error)) {
+          throw error;
+        }
+
+        console.error(
+          "[getMyChapterHomeData] Chapter branding fields are unavailable; using basic chapter fallback.",
+          error
+        );
+
+        const basicChapter = await prisma.chapter.findUnique({
+          where: { id: chapterId },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            city: true,
+            region: true,
+            _count: { select: { users: true, courses: true } },
+          },
+        });
+
+        return basicChapter
+          ? {
+              ...basicChapter,
+              tagline: null,
+              logoUrl: null,
+              bannerUrl: null,
+              events: [],
+            }
+          : null;
+      }
+    })(),
 
     prisma.user.findMany({
-      where: { chapterId: user.chapterId },
+      where: { chapterId },
       select: { id: true, name: true, primaryRole: true },
       orderBy: { createdAt: "asc" },
       take: 12,
     }),
 
-    prisma.chapterChannel.findMany({
-      where: { chapterId: user.chapterId },
-      orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-      take: 5,
-      select: {
-        id: true,
-        name: true,
-        _count: { select: { messages: true } },
-      },
-    }),
+    withPrismaFallback<MyChapterChannelSummary[]>(
+      "getMyChapterHomeData.channels",
+      async () =>
+        prisma.chapterChannel.findMany({
+          where: { chapterId },
+          orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+          take: 5,
+          select: {
+            id: true,
+            name: true,
+            _count: { select: { messages: true } },
+          },
+        }),
+      () => [] as MyChapterChannelSummary[],
+    ),
 
     prisma.chapterUpdate.findMany({
-      where: { chapterId: user.chapterId },
+      where: { chapterId },
       orderBy: { publishedAt: "desc" },
       take: 3,
       select: {
@@ -135,7 +200,7 @@ export async function getMyChapterHomeData() {
     members,
     channels,
     recentAnnouncements,
-    myEnrollments: myEnrollments.filter((e) => e.course.chapterId === user.chapterId),
+    myEnrollments: myEnrollments.filter((e) => e.course.chapterId === chapterId),
     userId: user.id,
     userRole: user.primaryRole,
   };
