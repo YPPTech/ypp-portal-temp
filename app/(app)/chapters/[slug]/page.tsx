@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { getChapterBySlug, getMyJoinRequestStatus } from "@/lib/chapter-join-actions";
 import { JoinChapterButton } from "./join-chapter-button";
 
+type ChapterProfile = NonNullable<Awaited<ReturnType<typeof getChapterBySlug>>>;
+
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(date));
 }
@@ -37,6 +39,7 @@ export default async function ChapterProfilePage({
   const isMember = userChapterId === chapter.id;
   const isInAnotherChapter = userChapterId !== null && userChapterId !== chapter.id;
   const location = [chapter.city, chapter.region].filter(Boolean).join(", ");
+  const publicFeedUrl = `/api/chapter-calendar/feed?slug=${chapter.slug || params.slug}&public=1`;
 
   return (
     <main className="main-content">
@@ -109,7 +112,7 @@ export default async function ChapterProfilePage({
         </div>
 
         {/* Join CTA */}
-        <div style={{ flexShrink: 0 }}>
+        <div style={{ flexShrink: 0, display: "grid", gap: 8, justifyItems: "end" }}>
           {!session?.user ? (
             <a href="/login" className="button" style={{ textDecoration: "none" }}>
               Sign in to Join
@@ -150,6 +153,9 @@ export default async function ChapterProfilePage({
               joinPolicy={chapter.joinPolicy}
             />
           )}
+          <a href={publicFeedUrl} className="button outline small" style={{ textDecoration: "none" }}>
+            Public Calendar Feed
+          </a>
         </div>
       </div>
 
@@ -175,21 +181,30 @@ export default async function ChapterProfilePage({
           </div>
 
           {/* Description */}
-          {chapter.description && (
+          {(chapter.publicSummary || chapter.description) && (
             <div className="card">
               <h3>About</h3>
               <p style={{ marginTop: 8, lineHeight: 1.6, color: "var(--text)" }}>
-                {chapter.description}
+                {chapter.publicSummary || chapter.description}
               </p>
             </div>
           )}
+
+          {chapter.publicStory ? (
+            <div className="card">
+              <h3>Chapter Story</h3>
+              <p style={{ marginTop: 8, lineHeight: 1.6, color: "var(--text)" }}>
+                {chapter.publicStory}
+              </p>
+            </div>
+          ) : null}
 
           {/* Pathways */}
           {chapter.pathwayConfigs.length > 0 && (
             <div className="card">
               <h3>Pathways Offered</h3>
               <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {chapter.pathwayConfigs.map((config) => (
+                {chapter.pathwayConfigs.map((config: ChapterProfile["pathwayConfigs"][number]) => (
                   <span
                     key={config.pathway.id}
                     style={{
@@ -217,7 +232,7 @@ export default async function ChapterProfilePage({
             <div className="card">
               <h3>Leadership</h3>
               <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-                {chapter.users.map((leader) => (
+                {chapter.users.map((leader: ChapterProfile["users"][number]) => (
                   <div key={leader.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div
                       style={{
@@ -252,7 +267,7 @@ export default async function ChapterProfilePage({
             <div className="card">
               <h3>Upcoming Events</h3>
               <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-                {chapter.events.map((event) => (
+                {chapter.events.map((event: ChapterProfile["events"][number]) => (
                   <div
                     key={event.id}
                     style={{
@@ -293,6 +308,22 @@ export default async function ChapterProfilePage({
               )}
             </p>
           </div>
+
+          {(chapter.publicContactEmail || chapter.publicContactUrl) ? (
+            <div className="card">
+              <h3>Contact</h3>
+              <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                {chapter.publicContactEmail ? (
+                  <a href={`mailto:${chapter.publicContactEmail}`}>{chapter.publicContactEmail}</a>
+                ) : null}
+                {chapter.publicContactUrl ? (
+                  <a href={chapter.publicContactUrl} target="_blank" rel="noreferrer">
+                    {chapter.publicContactUrl}
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </main>

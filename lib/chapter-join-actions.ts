@@ -5,6 +5,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
+type RoleRecord = { role: string };
+
 // ============================================
 // CHAPTER DISCOVERY & JOIN FLOW
 // ============================================
@@ -57,6 +59,11 @@ export async function getChapterBySlug(slug: string) {
       bannerUrl: true,
       joinPolicy: true,
       isPublic: true,
+      publicSummary: true,
+      publicStory: true,
+      publicContactEmail: true,
+      publicContactUrl: true,
+      calendarThemeColor: true,
       _count: {
         select: {
           users: true,
@@ -200,8 +207,8 @@ export async function getJoinRequests() {
     include: { roles: true },
   });
 
-  const isAdmin = user?.roles.some((r) => r.role === "ADMIN");
-  const isChapterLead = user?.roles.some((r) => r.role === "CHAPTER_LEAD");
+  const isAdmin = user?.roles.some((r: RoleRecord) => r.role === "ADMIN");
+  const isChapterLead = user?.roles.some((r: RoleRecord) => r.role === "CHAPTER_LEAD");
 
   if (!isAdmin && !isChapterLead) throw new Error("Unauthorized");
   if (!user?.chapterId) throw new Error("No chapter assigned");
@@ -229,8 +236,8 @@ export async function reviewJoinRequest(requestId: string, decision: "APPROVED" 
     include: { roles: true },
   });
 
-  const isAdmin = user?.roles.some((r) => r.role === "ADMIN");
-  const isChapterLead = user?.roles.some((r) => r.role === "CHAPTER_LEAD");
+  const isAdmin = user?.roles.some((r: RoleRecord) => r.role === "ADMIN");
+  const isChapterLead = user?.roles.some((r: RoleRecord) => r.role === "CHAPTER_LEAD");
 
   if (!isAdmin && !isChapterLead) throw new Error("Unauthorized");
 

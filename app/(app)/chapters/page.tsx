@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { getPublicChapters } from "@/lib/chapter-join-actions";
 import { slugifyChapterName } from "@/lib/chapter-calendar";
 
+type PublicChapter = Awaited<ReturnType<typeof getPublicChapters>>[number];
+
 export default async function ChaptersPage() {
   const session = await getServerSession(authOptions);
   const chapters = await getPublicChapters();
@@ -39,7 +41,7 @@ export default async function ChaptersPage() {
         </div>
       ) : (
         <div className="grid two">
-          {chapters.map((chapter) => {
+          {chapters.map((chapter: PublicChapter) => {
             const href = `/chapters/${chapter.slug || slugifyChapterName(chapter.name)}`;
             const location = [chapter.city, chapter.region].filter(Boolean).join(", ");
 
