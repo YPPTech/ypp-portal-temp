@@ -530,6 +530,12 @@ export const NAV_CATALOG: NavLink[] = [
       icon: "🧑‍💻",
       requiresAward: true,
     },
+    {
+      href: "/advisor-dashboard",
+      label: "Advisor Dashboard",
+      icon: "📋",
+      requiresAward: true,
+    },
     { href: "/profile", label: "My Profile", icon: "👤" },
     { href: "/profile/timeline", label: "My Journey", icon: "🛤" },
     { href: "/profile/xp", label: "XP & Levels", icon: "⬆" },

@@ -2324,30 +2324,101 @@ model AlumniProfile {
 }
 
 model CollegeAdvisor {
-  id           String               @id @default(cuid())
-  userId       String               @unique
-  user         User                 @relation(fields: [userId], references: [id])
-  college      String
-  major        String?
-  availability String?
-  bio          String?
-  isActive     Boolean              @default(true)
-  advisees     CollegeAdvisorship[]
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  id                String                    @id @default(cuid())
+  userId            String                    @unique
+  user              User                      @relation(fields: [userId], references: [id])
+  college           String
+  major             String?
+  availability      String?
+  bio               String?
+  isActive          Boolean                   @default(true)
+  advisees          CollegeAdvisorship[]
+  availabilitySlots AdvisorAvailabilitySlot[]
+  resources         CollegeResource[]
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
 }
 
 model CollegeAdvisorship {
-  id        String         @id @default(cuid())
+  id        String                  @id @default(cuid())
   advisorId String
-  advisor   CollegeAdvisor @relation(fields: [advisorId], references: [id])
+  advisor   CollegeAdvisor          @relation(fields: [advisorId], references: [id])
   adviseeId String
-  advisee   User           @relation("CollegeAdviseeships", fields: [adviseeId], references: [id])
-  startDate DateTime       @default(now())
+  advisee   User                    @relation("CollegeAdviseeships", fields: [adviseeId], references: [id])
+  startDate DateTime                @default(now())
   endDate   DateTime?
   notes     String?
+  meetings  CollegeAdvisorMeeting[]
 
   @@unique([advisorId, adviseeId])
+}
+
+/// Meeting between college advisor and advisee with scheduling and feedback
+model CollegeAdvisorMeeting {
+  id              String              @id @default(cuid())
+  advisorshipId   String
+  advisorship     CollegeAdvisorship  @relation(fields: [advisorshipId], references: [id])
+  scheduledAt     DateTime
+  durationMinutes Int                 @default(30)
+  status          CollegeMeetingStatus @default(REQUESTED)
+  meetingLink     String?
+  topic           String?
+  notes           String?
+  actionItems     String?
+  adviseeRating   Int?
+  adviseeFeedback String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([advisorshipId])
+}
+
+enum CollegeMeetingStatus {
+  REQUESTED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+/// Recurring availability slots for college advisors
+model AdvisorAvailabilitySlot {
+  id          String         @id @default(cuid())
+  advisorId   String
+  advisor     CollegeAdvisor @relation(fields: [advisorId], references: [id])
+  dayOfWeek   Int            // 0=Sunday, 6=Saturday
+  startTime   String         // "14:00"
+  endTime     String         // "15:00"
+  timezone    String         @default("America/New_York")
+  isRecurring Boolean        @default(true)
+  isActive    Boolean        @default(true)
+
+  @@index([advisorId, isActive])
+}
+
+/// Shared resource library contributed by college advisors
+model CollegeResource {
+  id          String                  @id @default(cuid())
+  advisorId   String
+  advisor     CollegeAdvisor          @relation(fields: [advisorId], references: [id])
+  title       String
+  description String?
+  url         String?
+  category    CollegeResourceCategory
+  tags        String[]                @default([])
+  isFeatured  Boolean                 @default(false)
+  createdAt   DateTime                @default(now())
+}
+
+enum CollegeResourceCategory {
+  SCHOLARSHIP
+  APPLICATION_TIPS
+  ESSAY_WRITING
+  FINANCIAL_AID
+  CAMPUS_LIFE
+  CAREER_PLANNING
+  TEST_PREP
+  RECOMMENDATION_LETTERS
 }
 
 // ============================================
@@ -7258,6 +7329,11 @@ model MentorGoalReview {
   chairApprovedAt    DateTime?
   releasedToMenteeAt DateTime?
 
+  // Character & Culture bonus points (mentor awards 0–25, chair can adjust)
+  bonusPoints              Int     @default(0)
+  bonusReason              String?
+  chairAdjustedBonusPoints Int?
+
   // Points awarded (auto-set on chair approval based on overallRating × roleType table)
   pointsAwarded Int?
 
@@ -7290,11 +7366,12 @@ model GoalReviewRating {
 /// Running achievement point total and current award tier per user.
 /// One record per user; updated automatically when a goal review is approved.
 model AchievementPointSummary {
-  id          String                @id @default(cuid())
-  userId      String                @unique
-  user        User                  @relation("AchievementPointSummary", fields: [userId], references: [id])
-  totalPoints Int                   @default(0)
-  currentTier AchievementAwardTier?
+  id                    String                @id @default(cuid())
+  userId                String                @unique
+  user                  User                  @relation("AchievementPointSummary", fields: [userId], references: [id])
+  totalPoints           Int                   @default(0)
+  currentTier           AchievementAwardTier?
+  volunteerHoursAwarded Int                   @default(0)
 
   pointLogs   AchievementPointLog[]
   nominations AwardNomination[]
