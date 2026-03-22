@@ -1,4 +1,3 @@
-"use client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -9,7 +8,16 @@ import {
   canAccessCollegeAdvisor,
   getUserAwardTier,
 } from "@/lib/alumni-actions";
+import { getMyMeetings } from "@/lib/college-advisor-scheduling";
 import Link from "next/link";
+
+export const metadata = { title: "College Advisor" };
+
+const TIER_MEETING_INFO: Record<string, string> = {
+  SILVER: "1 meeting included",
+  GOLD: "2 meetings included",
+  LIFETIME: "Unlimited meetings",
+};
 
 export default async function CollegeAdvisorPage() {
   const session = await getServerSession(authOptions);
@@ -20,343 +28,363 @@ export default async function CollegeAdvisorPage() {
 
   if (!hasAccess) {
     return (
-      <main className="main-content college-advisor-page">
-        <h1>College Advisor</h1>
-        <div className="card locked">
-          <div className="lock-icon">🎓</div>
-          <h2>Silver Award Required</h2>
-          <p>
+      <div>
+        <div className="topbar">
+          <div>
+            <p className="badge">College Advisor</p>
+            <h1 className="page-title">College Advisor</h1>
+            <p className="page-subtitle">
+              Connect with alumni for college guidance
+            </p>
+          </div>
+        </div>
+        <div
+          className="card"
+          style={{ textAlign: "center", padding: "3rem", maxWidth: "500px", margin: "2rem auto" }}
+        >
+          <div style={{ fontSize: "4rem", marginBottom: "1rem" }}>🎓</div>
+          <h2 style={{ margin: "0 0 1rem" }}>Silver Award Required</h2>
+          <p style={{ color: "var(--muted)", marginBottom: "1.5rem" }}>
             College Advisor matching is available to members who have earned at
             least a <strong>Silver Award</strong>.
+            {tier === "BRONZE" && (
+              <> You currently have a <strong>Bronze</strong> tier. Keep up the great work!</>
+            )}
           </p>
-          {tier === "BRONZE" ? (
-            <p>
-              You currently have a <strong>Bronze</strong> tier. Keep up the
-              great work to unlock this feature!
-            </p>
-          ) : (
-            <p>
-              Continue earning awards to unlock access to college advisors who
-              can help guide your academic journey.
-            </p>
-          )}
-          <Link href="/alumni" className="btn btn-primary">
+          <Link href="/alumni" className="button primary">
             View Alumni Benefits
           </Link>
         </div>
-
-        <style>{`
-
-          .college-advisor-page .locked {
-            text-align: center;
-            padding: 3rem;
-            max-width: 500px;
-            margin: 2rem auto;
-          }
-          .college-advisor-page .lock-icon {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-          }
-          .college-advisor-page .locked h2 {
-            margin: 0 0 1rem;
-          }
-          .college-advisor-page .locked p {
-            color: var(--muted);
-            margin: 0.5rem 0 1.5rem;
-          }
-        
-`}</style>
-      </main>
+      </div>
     );
   }
 
   const myAdvisor = await getMyCollegeAdvisor();
+  const meetingData = myAdvisor ? await getMyMeetings() : null;
   const availableAdvisors = !myAdvisor ? await getAvailableAdvisors() : [];
 
   if (myAdvisor) {
     const advisor = myAdvisor.advisor;
     const user = advisor.user;
+    const upcomingMeetings = meetingData?.meetings.filter(
+      (m) => m.status === "REQUESTED" || m.status === "CONFIRMED"
+    ) ?? [];
+    const pastMeetings = meetingData?.meetings.filter(
+      (m) => m.status === "COMPLETED" || m.status === "CANCELLED"
+    ) ?? [];
 
     return (
-      <main className="main-content college-advisor-page">
-        <h1>My College Advisor</h1>
+      <div>
+        <div className="topbar">
+          <div>
+            <p className="badge">College Advisor</p>
+            <h1 className="page-title">My College Advisor</h1>
+            <p className="page-subtitle">
+              {tier && TIER_MEETING_INFO[tier] ? TIER_MEETING_INFO[tier] : ""}
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <Link href="/college-advisor/schedule" className="button primary small">
+              Schedule Meeting
+            </Link>
+            <Link href="/college-advisor/resources" className="button outline small">
+              Resources
+            </Link>
+          </div>
+        </div>
 
-        <div className="advisor-grid">
-          <section className="card advisor-profile">
-            <div className="advisor-header">
-              <div className="avatar">{user.name.charAt(0).toUpperCase()}</div>
-              <div className="advisor-info">
-                <h2>{user.name}</h2>
-                <span className="role">Your College Advisor</span>
+        <div className="grid two" style={{ marginBottom: "1.5rem" }}>
+          {/* Advisor Profile Card */}
+          <div className="card" style={{ gridRow: "span 2" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "1rem",
+                alignItems: "center",
+                marginBottom: "1.25rem",
+                paddingBottom: "1.25rem",
+                borderBottom: "1px solid var(--border)",
+              }}
+            >
+              <div
+                style={{
+                  width: "64px",
+                  height: "64px",
+                  borderRadius: "50%",
+                  background: "var(--ypp-purple-600)",
+                  color: "white",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "1.5rem",
+                  fontWeight: 700,
+                  flexShrink: 0,
+                }}
+              >
+                {user.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <p style={{ fontWeight: 700, margin: 0, fontSize: "1.1rem" }}>{user.name}</p>
+                <p style={{ color: "var(--muted)", margin: "0.15rem 0 0", fontSize: "0.82rem" }}>
+                  Your College Advisor
+                </p>
               </div>
             </div>
 
-            <div className="details">
-              <div className="detail-item">
-                <span className="icon">🎓</span>
-                <div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.25rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span>🎓</span>
+                <span>
                   <strong>{advisor.college}</strong>
-                  {advisor.major && (
-                    <span className="major"> - {advisor.major}</span>
-                  )}
-                </div>
+                  {advisor.major && <span style={{ color: "var(--muted)" }}> — {advisor.major}</span>}
+                </span>
               </div>
-
               {advisor.availability && (
-                <div className="detail-item">
-                  <span className="icon">📅</span>
-                  <span>Available: {advisor.availability}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span>📅</span>
+                  <span>{advisor.availability}</span>
+                </div>
+              )}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span>📧</span>
+                <a href={`mailto:${user.email}`} style={{ color: "var(--ypp-purple-600)" }}>
+                  {user.email}
+                </a>
+              </div>
+              {user.phone && (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span>📱</span>
+                  <a href={`tel:${user.phone}`} style={{ color: "var(--ypp-purple-600)" }}>
+                    {user.phone}
+                  </a>
                 </div>
               )}
             </div>
 
             {advisor.bio && (
-              <div className="bio">
-                <h3>About Your Advisor</h3>
-                <p>{advisor.bio}</p>
+              <div
+                style={{
+                  padding: "0.75rem 1rem",
+                  background: "var(--surface-alt)",
+                  borderRadius: "var(--radius-sm)",
+                  marginBottom: "1.25rem",
+                }}
+              >
+                <p style={{ fontWeight: 600, fontSize: "0.82rem", color: "var(--muted)", marginBottom: "0.3rem" }}>
+                  About
+                </p>
+                <p style={{ margin: 0, fontSize: "0.88rem", lineHeight: 1.6 }}>{advisor.bio}</p>
               </div>
             )}
 
-            <div className="contact-section">
-              <h3>Contact</h3>
-              <div className="contact-item">
-                <span className="icon">📧</span>
-                <a href={`mailto:${user.email}`}>{user.email}</a>
-              </div>
-              {user.phone && (
-                <div className="contact-item">
-                  <span className="icon">📱</span>
-                  <a href={`tel:${user.phone}`}>{user.phone}</a>
-                </div>
-              )}
-            </div>
-
-            <a href={`mailto:${user.email}`} className="btn btn-primary contact-btn">
+            <a href={`mailto:${user.email}`} className="button primary" style={{ width: "100%", textAlign: "center", textDecoration: "none" }}>
               Send Email
             </a>
-          </section>
+          </div>
 
-          <section className="card advisorship-details">
-            <h3>Advisorship Details</h3>
-            <div className="detail-row">
-              <span className="label">Started</span>
-              <span className="value">
+          {/* Advisorship Details */}
+          <div className="card">
+            <p style={{ fontWeight: 700, marginBottom: "0.75rem" }}>Advisorship Details</p>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "0.5rem 0", borderBottom: "1px solid var(--border)" }}>
+              <span style={{ color: "var(--muted)" }}>Started</span>
+              <span style={{ fontWeight: 600 }}>
                 {new Date(myAdvisor.startDate).toLocaleDateString()}
               </span>
             </div>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "0.5rem 0", borderBottom: "1px solid var(--border)" }}>
+              <span style={{ color: "var(--muted)" }}>Total Meetings</span>
+              <span style={{ fontWeight: 600 }}>{meetingData?.meetings.length ?? 0}</span>
+            </div>
             {myAdvisor.notes && (
-              <div className="notes">
-                <span className="label">Notes</span>
-                <p>{myAdvisor.notes}</p>
+              <div style={{ marginTop: "0.75rem" }}>
+                <p style={{ color: "var(--muted)", fontSize: "0.82rem", marginBottom: "0.3rem" }}>Notes</p>
+                <p style={{ margin: 0, padding: "0.5rem 0.75rem", background: "var(--surface-alt)", borderRadius: "var(--radius-sm)", fontSize: "0.88rem" }}>
+                  {myAdvisor.notes}
+                </p>
               </div>
             )}
-          </section>
+          </div>
 
-          <section className="card tips-section">
-            <h3>Tips for Working with Your Advisor</h3>
-            <ul className="tips-list">
-              <li>Schedule regular check-ins (monthly or bi-weekly)</li>
-              <li>Come prepared with specific questions</li>
-              <li>Share your goals and aspirations</li>
-              <li>Ask about their college experience</li>
-              <li>Be open to feedback and suggestions</li>
-            </ul>
-          </section>
+          {/* Quick Links */}
+          <div className="card">
+            <p style={{ fontWeight: 700, marginBottom: "0.75rem" }}>Quick Links</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <Link href="/college-advisor/schedule" style={{ color: "var(--ypp-purple-600)", fontSize: "0.88rem", textDecoration: "none" }}>
+                📅 Schedule a Meeting
+              </Link>
+              <Link href="/college-advisor/meetings" style={{ color: "var(--ypp-purple-600)", fontSize: "0.88rem", textDecoration: "none" }}>
+                📋 Meeting History ({meetingData?.meetings.length ?? 0})
+              </Link>
+              <Link href="/college-advisor/resources" style={{ color: "var(--ypp-purple-600)", fontSize: "0.88rem", textDecoration: "none" }}>
+                📚 Resource Library
+              </Link>
+            </div>
+          </div>
         </div>
 
-        <style>{`
+        {/* Upcoming Meetings */}
+        {upcomingMeetings.length > 0 && (
+          <div className="card" style={{ marginBottom: "1.5rem" }}>
+            <p style={{ fontWeight: 700, marginBottom: "0.75rem" }}>
+              Upcoming Meetings ({upcomingMeetings.length})
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {upcomingMeetings.map((m) => (
+                <div
+                  key={m.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "0.75rem 1rem",
+                    background: "var(--surface-alt)",
+                    borderRadius: "var(--radius-sm)",
+                    borderLeft: m.status === "CONFIRMED" ? "4px solid #16a34a" : "4px solid #d97706",
+                  }}
+                >
+                  <div>
+                    <p style={{ fontWeight: 600, margin: 0 }}>
+                      {new Date(m.scheduledAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                      {" at "}
+                      {new Date(m.scheduledAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                    </p>
+                    {m.topic && <p style={{ color: "var(--muted)", fontSize: "0.82rem", margin: "0.15rem 0 0" }}>{m.topic}</p>}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span
+                      className="pill"
+                      style={{
+                        background: m.status === "CONFIRMED" ? "#f0fdf4" : "#fffbeb",
+                        color: m.status === "CONFIRMED" ? "#16a34a" : "#d97706",
+                        fontSize: "0.75rem",
+                      }}
+                    >
+                      {m.status === "CONFIRMED" ? "Confirmed" : "Requested"}
+                    </span>
+                    {m.meetingLink && (
+                      <a href={m.meetingLink} target="_blank" rel="noopener noreferrer" className="button primary small">
+                        Join
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-          .college-advisor-page .advisor-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 1.5rem;
-          }
-          @media (max-width: 768px) {
-            .college-advisor-page .advisor-grid {
-              grid-template-columns: 1fr;
-            }
-          }
-          .college-advisor-page .card {
-            padding: 1.5rem;
-          }
-          .college-advisor-page .advisor-profile {
-            grid-row: span 2;
-          }
-          .college-advisor-page .advisor-header {
-            display: flex;
-            gap: 1.5rem;
-            align-items: center;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1.5rem;
-            border-bottom: 1px solid var(--border);
-          }
-          .college-advisor-page .avatar {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: var(--primary);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2rem;
-            font-weight: 700;
-          }
-          .college-advisor-page .advisor-info h2 {
-            margin: 0;
-          }
-          .college-advisor-page .role {
-            color: var(--muted);
-          }
-          .college-advisor-page .details {
-            margin-bottom: 1.5rem;
-          }
-          .college-advisor-page .detail-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.5rem 0;
-          }
-          .college-advisor-page .icon {
-            font-size: 1.25rem;
-          }
-          .college-advisor-page .major {
-            color: var(--muted);
-          }
-          .college-advisor-page .bio {
-            margin-bottom: 1.5rem;
-            padding: 1rem;
-            background: var(--background);
-            border-radius: 0.5rem;
-          }
-          .college-advisor-page .bio h3 {
-            margin: 0 0 0.5rem;
-            font-size: 0.875rem;
-          }
-          .college-advisor-page .bio p {
-            margin: 0;
-            color: var(--muted);
-          }
-          .college-advisor-page .contact-section {
-            margin-bottom: 1.5rem;
-          }
-          .college-advisor-page .contact-section h3 {
-            margin: 0 0 0.75rem;
-            font-size: 0.875rem;
-          }
-          .college-advisor-page .contact-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.5rem 0;
-          }
-          .college-advisor-page .contact-item a {
-            color: var(--primary);
-            text-decoration: none;
-          }
-          .college-advisor-page .contact-btn {
-            width: 100%;
-            text-align: center;
-            text-decoration: none;
-          }
-          .college-advisor-page .advisorship-details h3,
-          .college-advisor-page .tips-section h3 {
-            margin: 0 0 1rem;
-          }
-          .college-advisor-page .detail-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 0.75rem 0;
-            border-bottom: 1px solid var(--border);
-          }
-          .college-advisor-page .label {
-            color: var(--muted);
-          }
-          .college-advisor-page .value {
-            font-weight: 600;
-          }
-          .college-advisor-page .notes {
-            margin-top: 1rem;
-          }
-          .college-advisor-page .notes .label {
-            display: block;
-            margin-bottom: 0.5rem;
-          }
-          .college-advisor-page .notes p {
-            margin: 0;
-            padding: 0.75rem;
-            background: var(--background);
-            border-radius: 0.5rem;
-          }
-          .college-advisor-page .tips-list {
-            margin: 0;
-            padding-left: 1.5rem;
-          }
-          .college-advisor-page .tips-list li {
-            padding: 0.5rem 0;
-            color: var(--muted);
-          }
-        
-`}</style>
-      </main>
+        {/* Recent Past Meetings */}
+        {pastMeetings.length > 0 && (
+          <div>
+            <p className="section-title" style={{ marginBottom: "0.75rem" }}>
+              Recent Meetings
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {pastMeetings.slice(0, 3).map((m) => (
+                <div
+                  key={m.id}
+                  className="card"
+                  style={{ padding: "0.75rem 1rem" }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: m.notes ? "0.5rem" : 0 }}>
+                    <div>
+                      <p style={{ fontWeight: 600, margin: 0, fontSize: "0.88rem" }}>
+                        {new Date(m.scheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </p>
+                      {m.topic && <p style={{ color: "var(--muted)", fontSize: "0.78rem", margin: 0 }}>{m.topic}</p>}
+                    </div>
+                    <span
+                      className="pill"
+                      style={{
+                        background: m.status === "COMPLETED" ? "#f0fdf4" : "#fef2f2",
+                        color: m.status === "COMPLETED" ? "#16a34a" : "#dc2626",
+                        fontSize: "0.72rem",
+                      }}
+                    >
+                      {m.status === "COMPLETED" ? "Completed" : "Cancelled"}
+                    </span>
+                  </div>
+                  {m.notes && (
+                    <p style={{ fontSize: "0.82rem", color: "var(--muted)", margin: 0 }}>{m.notes}</p>
+                  )}
+                </div>
+              ))}
+              {pastMeetings.length > 3 && (
+                <Link href="/college-advisor/meetings" className="button outline small" style={{ alignSelf: "flex-start" }}>
+                  View All Meetings
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
 
-  // No advisor - show available advisors
+  // No advisor — show available advisors
   return (
-    <main className="main-content college-advisor-page">
-      <h1>College Advisor</h1>
-      <p className="intro">
-        Connect with a YPP alumni who can guide you through your college
-        journey. Request an advisor below.
-      </p>
+    <div>
+      <div className="topbar">
+        <div>
+          <p className="badge">College Advisor</p>
+          <h1 className="page-title">College Advisor</h1>
+          <p className="page-subtitle">
+            Connect with a YPP alumni who can guide your college journey
+          </p>
+        </div>
+      </div>
 
       {availableAdvisors.length === 0 ? (
-        <div className="card empty">
-          <div className="empty-icon">🎓</div>
-          <h2>No Advisors Available</h2>
-          <p>
-            There are no college advisors available at this time. Please check
-            back later.
+        <div className="card" style={{ textAlign: "center", padding: "3rem", maxWidth: "500px", margin: "2rem auto" }}>
+          <div style={{ fontSize: "4rem", marginBottom: "1rem" }}>🎓</div>
+          <h2 style={{ margin: "0 0 1rem" }}>No Advisors Available</h2>
+          <p style={{ color: "var(--muted)" }}>
+            There are no college advisors available at this time. Please check back later.
           </p>
         </div>
       ) : (
-        <div className="advisors-grid">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1.25rem" }}>
           {availableAdvisors.map((advisor) => (
-            <div key={advisor.id} className="card advisor-card">
-              <div className="advisor-header">
-                <div className="avatar">
+            <div key={advisor.id} className="card">
+              <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem" }}>
+                <div
+                  style={{
+                    width: "48px",
+                    height: "48px",
+                    borderRadius: "50%",
+                    background: "var(--ypp-purple-600)",
+                    color: "white",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 700,
+                    flexShrink: 0,
+                  }}
+                >
                   {advisor.user.name.charAt(0).toUpperCase()}
                 </div>
-                <div className="advisor-info">
-                  <h3>{advisor.user.name}</h3>
-                  <span className="college">{advisor.college}</span>
+                <div>
+                  <p style={{ fontWeight: 700, margin: 0 }}>{advisor.user.name}</p>
+                  <p style={{ color: "var(--muted)", fontSize: "0.82rem", margin: 0 }}>{advisor.college}</p>
                 </div>
               </div>
 
               {advisor.major && (
-                <div className="detail">
-                  <span className="icon">📚</span>
-                  <span>{advisor.major}</span>
-                </div>
+                <p style={{ fontSize: "0.85rem", margin: "0 0 0.3rem" }}>📚 {advisor.major}</p>
               )}
-
               {advisor.availability && (
-                <div className="detail">
-                  <span className="icon">📅</span>
-                  <span>{advisor.availability}</span>
-                </div>
+                <p style={{ fontSize: "0.85rem", margin: "0 0 0.3rem" }}>📅 {advisor.availability}</p>
               )}
+              <p style={{ fontSize: "0.85rem", margin: "0 0 0.75rem" }}>👥 {advisor._count.advisees} current advisees</p>
 
-              <div className="detail">
-                <span className="icon">👥</span>
-                <span>{advisor._count.advisees} current advisees</span>
-              </div>
-
-              {advisor.bio && <p className="bio">{advisor.bio}</p>}
+              {advisor.bio && (
+                <p style={{ fontSize: "0.82rem", color: "var(--muted)", padding: "0.5rem 0.75rem", background: "var(--surface-alt)", borderRadius: "var(--radius-sm)", marginBottom: "0.75rem" }}>
+                  {advisor.bio}
+                </p>
+              )}
 
               <form action={requestAdvisor.bind(null, advisor.id)}>
-                <button type="submit" className="btn btn-primary request-btn">
+                <button type="submit" className="button primary" style={{ width: "100%" }}>
                   Request This Advisor
                 </button>
               </form>
@@ -364,82 +392,6 @@ export default async function CollegeAdvisorPage() {
           ))}
         </div>
       )}
-
-      <style>{`
-
-        .college-advisor-page .intro {
-          color: var(--muted);
-          margin-bottom: 2rem;
-        }
-        .college-advisor-page .empty {
-          text-align: center;
-          padding: 3rem;
-          max-width: 500px;
-          margin: 2rem auto;
-        }
-        .college-advisor-page .empty-icon {
-          font-size: 4rem;
-          margin-bottom: 1rem;
-        }
-        .college-advisor-page .empty h2 {
-          margin: 0 0 1rem;
-        }
-        .college-advisor-page .empty p {
-          color: var(--muted);
-          margin: 0;
-        }
-        .college-advisor-page .advisors-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-          gap: 1.5rem;
-        }
-        .college-advisor-page .advisor-card {
-          padding: 1.5rem;
-        }
-        .college-advisor-page .advisor-header {
-          display: flex;
-          gap: 1rem;
-          margin-bottom: 1rem;
-        }
-        .college-advisor-page .avatar {
-          width: 48px;
-          height: 48px;
-          border-radius: 50%;
-          background: var(--primary);
-          color: white;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 700;
-          font-size: 1.25rem;
-        }
-        .college-advisor-page .advisor-info h3 {
-          margin: 0;
-        }
-        .college-advisor-page .college {
-          font-size: 0.875rem;
-          color: var(--muted);
-        }
-        .college-advisor-page .detail {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          font-size: 0.875rem;
-          margin-bottom: 0.5rem;
-        }
-        .college-advisor-page .bio {
-          font-size: 0.875rem;
-          color: var(--muted);
-          margin: 1rem 0;
-          padding: 0.75rem;
-          background: var(--background);
-          border-radius: 0.5rem;
-        }
-        .college-advisor-page .request-btn {
-          width: 100%;
-        }
-      
-`}</style>
-    </main>
+    </div>
   );
 }

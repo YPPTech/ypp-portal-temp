@@ -6,6 +6,7 @@ import {
   grantAward,
   createCollegeAdvisor,
 } from "@/lib/alumni-actions";
+import { getAdvisorAnalytics } from "@/lib/college-advisor-scheduling";
 import { prisma } from "@/lib/prisma";
 
 export default async function AdminAlumniPage() {
@@ -22,6 +23,7 @@ export default async function AdminAlumniPage() {
   }
 
   const alumniProfiles = await getAllAlumniProfiles();
+  const advisorAnalytics = await getAdvisorAnalytics();
 
   // Get all users for award/advisor assignment
   const allUsers = await prisma.user.findMany({
@@ -162,6 +164,81 @@ export default async function AdminAlumniPage() {
           )}
         </section>
 
+        {/* Advisor Analytics */}
+        <section className="card analytics-section">
+          <h2>Advisor Analytics</h2>
+          {advisorAnalytics.length === 0 ? (
+            <p className="empty">No active advisors to display metrics for.</p>
+          ) : (
+            <>
+              <div className="analytics-kpis">
+                <div className="kpi-card">
+                  <span className="kpi-value">{advisorAnalytics.length}</span>
+                  <span className="kpi-label">Active Advisors</span>
+                </div>
+                <div className="kpi-card">
+                  <span className="kpi-value">
+                    {advisorAnalytics.reduce((s, a) => s + a.activeAdvisees, 0)}
+                  </span>
+                  <span className="kpi-label">Total Advisees</span>
+                </div>
+                <div className="kpi-card">
+                  <span className="kpi-value">
+                    {advisorAnalytics.reduce((s, a) => s + a.completedMeetings, 0)}
+                  </span>
+                  <span className="kpi-label">Completed Meetings</span>
+                </div>
+                <div className="kpi-card">
+                  <span className="kpi-value">
+                    {(() => {
+                      const rated = advisorAnalytics.filter((a) => a.avgRating !== null);
+                      if (rated.length === 0) return "—";
+                      const avg = rated.reduce((s, a) => s + (a.avgRating ?? 0), 0) / rated.length;
+                      return `${avg.toFixed(1)}/5`;
+                    })()}
+                  </span>
+                  <span className="kpi-label">Avg Rating</span>
+                </div>
+              </div>
+              <div className="profiles-table-wrapper">
+                <table className="profiles-table">
+                  <thead>
+                    <tr>
+                      <th>Advisor</th>
+                      <th>College</th>
+                      <th>Advisees</th>
+                      <th>Meetings</th>
+                      <th>Completed</th>
+                      <th>Avg Rating</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {advisorAnalytics.map((a) => (
+                      <tr key={a.advisorId}>
+                        <td>
+                          <strong>{a.advisorName}</strong>
+                          <span className="email">{a.advisorEmail}</span>
+                        </td>
+                        <td>{a.college}</td>
+                        <td>{a.activeAdvisees}</td>
+                        <td>{a.totalMeetings}</td>
+                        <td>{a.completedMeetings}</td>
+                        <td>
+                          {a.avgRating !== null ? (
+                            <span className="rating">{a.avgRating.toFixed(1)}/5</span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </section>
+
         {/* Alumni Profiles */}
         <section className="card profiles-section">
           <h2>Alumni Profiles ({alumniProfiles.length})</h2>
@@ -263,8 +340,37 @@ export default async function AdminAlumniPage() {
           gap: 1rem;
         }
         .admin-alumni-page .advisors-section,
-        .admin-alumni-page .profiles-section {
+        .admin-alumni-page .profiles-section,
+        .admin-alumni-page .analytics-section {
           grid-column: span 2;
+        }
+        .admin-alumni-page .analytics-kpis {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 1rem;
+          margin-bottom: 1.5rem;
+        }
+        .admin-alumni-page .kpi-card {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding: 1rem;
+          background: var(--background);
+          border-radius: 0.5rem;
+        }
+        .admin-alumni-page .kpi-value {
+          font-size: 1.5rem;
+          font-weight: 700;
+          color: var(--ypp-purple-700, #7c3aed);
+        }
+        .admin-alumni-page .kpi-label {
+          font-size: 0.75rem;
+          color: var(--muted);
+          margin-top: 0.25rem;
+        }
+        .admin-alumni-page .rating {
+          color: #d97706;
+          font-weight: 600;
         }
         .admin-alumni-page .empty {
           color: var(--muted);
