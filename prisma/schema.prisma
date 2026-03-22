@@ -510,6 +510,14 @@ model User {
   mentorshipRequestResponses     MentorshipRequestResponse[]              @relation("MentorshipRequestResponses")
   feedbackRequestsCreated        QuarterlyFeedbackRequest[]               @relation("FeedbackRequestsCreated")
   scheduleRequestsCreated        MentorshipScheduleRequest[]              @relation("ScheduleRequestsCreated")
+  peerKudosGiven                 PeerKudos[]                              @relation("PeerKudosGiven")
+  peerKudosReceived              PeerKudos[]                              @relation("PeerKudosReceived")
+  collegeRoadmap                 CollegeReadinessRoadmap?                 @relation("CollegeRoadmap")
+  collegeActivities              CollegeActivity[]                        @relation("CollegeActivities")
+  alumniPanelRsvps               AlumniPanelRsvp[]                        @relation("AlumniPanelRsvps")
+  alumniPanelEvents              AlumniPanelist[]                         @relation("AlumniPanelists")
+  alumniIntroRequestsSent        AlumniIntroRequest[]                     @relation("AlumniIntroRequestsSent")
+  alumniIntroRequestsReceived    AlumniIntroRequest[]                     @relation("AlumniIntroRequestsReceived")
   mentorshipResourcesCreated     MentorshipResource[]                     @relation("MentorshipResourcesCreated")
   mentorshipResourcesForMentee   MentorshipResource[]                     @relation("MentorshipResourcesForMentee")
   feedbackGiven                  Feedback[]                               @relation("FeedbackSource")
@@ -1521,6 +1529,11 @@ model Mentorship {
   chairId            String?
   kickoffScheduledAt DateTime?
   kickoffCompletedAt DateTime?
+  // Gamification streaks
+  reflectionStreak   Int                 @default(0)
+  longestReflectionStreak Int            @default(0)
+  reviewStreak       Int                 @default(0)
+  longestReviewStreak Int                @default(0)
   mentor             User                @relation("MentorLinks", fields: [mentorId], references: [id])
   mentee             User                @relation("MenteeLinks", fields: [menteeId], references: [id])
   chair              User?               @relation("MentorshipChairs", fields: [chairId], references: [id])
@@ -7971,4 +7984,211 @@ model CurriculumDraft {
   @@index([authorId])
   @@index([status])
   @@index([generatedTemplateId])
+}
+
+// ============================================
+// PHASE 4: GAMIFICATION, COLLEGE PLATFORM, ALUMNI NETWORK
+// ============================================
+
+// ---- 4B: PEER RECOGNITION FEED ----
+
+enum KudosCategory {
+  HELPFULNESS
+  LEADERSHIP
+  CREATIVITY
+  ABOVE_AND_BEYOND
+  TEAMWORK
+  PROBLEM_SOLVING
+}
+
+/// Public peer shout-out that feeds into Character & Culture bonus points
+model PeerKudos {
+  id          String         @id @default(cuid())
+  giverId     String
+  giver       User           @relation("PeerKudosGiven", fields: [giverId], references: [id])
+  receiverId  String
+  receiver    User           @relation("PeerKudosReceived", fields: [receiverId], references: [id])
+  category    KudosCategory
+  message     String
+  isPublic    Boolean        @default(true)
+  referencedInReviewId String?
+  createdAt   DateTime       @default(now())
+
+  @@index([receiverId])
+  @@index([giverId])
+  @@index([createdAt])
+}
+
+// ---- 4E: COLLEGE READINESS ROADMAP ----
+
+enum CollegeStage {
+  EXPLORING
+  BUILDING_PROFILE
+  TEST_PREP
+  COLLEGE_LIST
+  APPLICATIONS
+  FINANCIAL_AID
+  DECISION
+  TRANSITION
+}
+
+model CollegeReadinessRoadmap {
+  id             String              @id @default(cuid())
+  userId         String              @unique
+  user           User                @relation("CollegeRoadmap", fields: [userId], references: [id])
+  currentStage   CollegeStage        @default(EXPLORING)
+  graduationYear Int?
+  dreamColleges  String[]
+  intendedMajors String[]
+  tasks          CollegeRoadmapTask[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([userId])
+}
+
+model CollegeRoadmapTask {
+  id          String                  @id @default(cuid())
+  roadmapId   String
+  roadmap     CollegeReadinessRoadmap @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  stage       CollegeStage
+  title       String
+  description String?
+  category    String                  // "Research", "Testing", "Essays", "Financial", "Visits"
+  isRequired  Boolean                 @default(false)
+  isTemplate  Boolean                 @default(false)
+  completedAt DateTime?
+  dueDate     DateTime?
+  notes       String?
+  sortOrder   Int                     @default(0)
+  createdAt   DateTime                @default(now())
+
+  @@index([roadmapId, stage])
+}
+
+// ---- 4F: ACTIVITIES & EXTRACURRICULAR BUILDER ----
+
+enum ActivityCategory {
+  LEADERSHIP
+  COMMUNITY_SERVICE
+  ATHLETICS
+  ARTS_CREATIVE
+  ACADEMIC
+  WORK_INTERNSHIP
+  PERSONAL_PROJECT
+  STEM
+  OTHER
+}
+
+model CollegeActivity {
+  id              String            @id @default(cuid())
+  userId          String
+  user            User              @relation("CollegeActivities", fields: [userId], references: [id])
+  name            String
+  category        ActivityCategory
+  organization    String?
+  role            String?
+  description     String?
+  hoursPerWeek    Float?
+  weeksPerYear    Int?
+  yearsInvolved   Int?
+  startDate       DateTime?
+  endDate         DateTime?
+  isOngoing       Boolean           @default(true)
+  impactStatement String?
+  advisorNotes    String?
+  isYppActivity   Boolean           @default(false) // auto-populated from portal data
+  sortOrder       Int               @default(0)
+  milestones      ActivityMilestone[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([userId])
+}
+
+model ActivityMilestone {
+  id          String          @id @default(cuid())
+  activityId  String
+  activity    CollegeActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  title       String
+  date        DateTime?
+  description String?
+  createdAt   DateTime        @default(now())
+
+  @@index([activityId])
+}
+
+// ---- 4G: ALUMNI NETWORK HUB ----
+
+model AlumniPanelEvent {
+  id              String            @id @default(cuid())
+  title           String
+  description     String
+  topic           String
+  scheduledAt     DateTime
+  durationMinutes Int               @default(60)
+  meetingLink     String?
+  maxAttendees    Int?
+  recording       String?
+  isPublic        Boolean           @default(false)
+  createdById     String
+  panelists       AlumniPanelist[]
+  rsvps           AlumniPanelRsvp[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([scheduledAt])
+}
+
+model AlumniPanelist {
+  id          String           @id @default(cuid())
+  eventId     String
+  event       AlumniPanelEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User             @relation("AlumniPanelists", fields: [userId], references: [id])
+  college     String
+  yearStarted Int?
+  bio         String?
+
+  @@unique([eventId, userId])
+}
+
+model AlumniPanelRsvp {
+  id      String           @id @default(cuid())
+  eventId String
+  event   AlumniPanelEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User             @relation("AlumniPanelRsvps", fields: [userId], references: [id])
+  status  String           // "GOING", "MAYBE", "NOT_GOING"
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+}
+
+model AlumniIntroRequest {
+  id          String    @id @default(cuid())
+  requesterId String
+  requester   User      @relation("AlumniIntroRequestsSent", fields: [requesterId], references: [id])
+  alumniId    String
+  alumni      User      @relation("AlumniIntroRequestsReceived", fields: [alumniId], references: [id])
+  message     String
+  status      String    @default("PENDING") // PENDING, ACCEPTED, DECLINED
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([requesterId])
+  @@index([alumniId])
+}
+
+// ---- 4H: AWARD CEREMONY ----
+
+model AwardCertificate {
+  id            String   @id @default(cuid())
+  userId        String
+  tier          String   // AchievementAwardTier value
+  nominationId  String   @unique
+  svgData       String   @db.Text
+  issuedAt      DateTime @default(now())
+
+  @@index([userId])
 }
