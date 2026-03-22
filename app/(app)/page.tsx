@@ -16,6 +16,8 @@ import InstructorReadinessWidget from "@/components/dashboard/instructor-readine
 import DailyChecklist from "@/components/dashboard/daily-checklist";
 import JourneyRoadmap from "@/components/dashboard/journey-roadmap";
 import NudgeStrip from "@/components/dashboard/nudge-strip";
+import AtRiskPanel from "@/components/dashboard/at-risk-panel";
+import { getAtRiskChapters } from "@/lib/governance/actions";
 import LegacyOverviewPage from "./legacy-overview-page";
 
 function isMissingTableError(error: unknown) {
@@ -110,6 +112,10 @@ export default async function OverviewPage() {
   const studentSnapshot = dashboard.role === "STUDENT"
     ? await getStudentProgressSnapshot(session.user.id)
     : null;
+
+  const atRiskChapters = dashboard.role === "ADMIN"
+    ? await getAtRiskChapters().catch(() => [])
+    : [];
 
   const roleFocus: Record<string, string[]> = {
     ADMIN: [
@@ -420,6 +426,13 @@ export default async function OverviewPage() {
       <NextActions actions={dashboard.nextActions} />
       <QueueBoard queues={dashboard.queues} />
       <KpiStrip kpis={dashboard.kpis} />
+
+      {/* Governance: At-Risk Chapters (Admin only) */}
+      {dashboard.role === "ADMIN" && atRiskChapters.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <AtRiskPanel chapters={atRiskChapters} />
+        </div>
+      )}
 
       {dashboard.role === "STUDENT" && studentSnapshot ? (
         <div className="grid two" style={{ marginTop: 16 }}>

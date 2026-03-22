@@ -457,6 +457,11 @@ model Chapter {
   parentChapterFeedbacks       ParentChapterFeedback[]
   parentSurveys                ParentSurvey[]
 
+  // Governance & Risk
+  kpiSnapshots      ChapterKpiSnapshot[]
+  opsRules          OpsRule[]
+  opsRuleViolations OpsRuleViolation[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -830,6 +835,9 @@ model User {
 
   // Curriculum Builder Studio
   curriculumDrafts CurriculumDraft[]
+
+  // Governance & Risk
+  opsRulesCreated OpsRule[] @relation("OpsRulesCreated")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -7905,4 +7913,110 @@ model CurriculumDraft {
   @@index([authorId])
   @@index([status])
   @@index([generatedTemplateId])
+}
+
+// ============================================
+// PHASE 3: GOVERNANCE & RISK CONTROLS
+// ============================================
+
+/// Periodic KPI snapshot per chapter for trend tracking and at-risk detection
+model ChapterKpiSnapshot {
+  id        String   @id @default(cuid())
+  chapterId String
+  chapter   Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  // Snapshot date (one per chapter per day max)
+  snapshotDate DateTime @default(now())
+
+  // Core KPIs
+  activeStudents        Int @default(0)
+  activeInstructors     Int @default(0)
+  pendingApplications   Int @default(0)
+  overdueQueues         Int @default(0)
+  avgResponseHours      Float? // avg hours to first action on queues
+  classesRunningCount   Int @default(0)
+  enrollmentFillPercent Float? // avg enrollment / capacity across classes
+  mentorshipPairCount   Int @default(0)
+
+  // Risk flags
+  isAtRisk  Boolean @default(false)
+  riskFlags String[] // e.g. ["no_active_instructors", "overdue_queues_high"]
+
+  createdAt DateTime @default(now())
+
+  @@unique([chapterId, snapshotDate])
+  @@index([chapterId])
+  @@index([snapshotDate])
+  @@index([isAtRisk])
+}
+
+/// SLA and operational rule definitions for escalation workflows
+enum OpsRuleSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum OpsRuleStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+model OpsRule {
+  id          String          @id @default(cuid())
+  name        String
+  description String?
+  severity    OpsRuleSeverity @default(WARNING)
+  status      OpsRuleStatus   @default(ACTIVE)
+
+  // Rule definition
+  metricKey       String   // e.g. "overdue_queues", "pending_applications", "avg_response_hours"
+  operator        String   // "gt", "gte", "lt", "lte", "eq"
+  thresholdValue  Float    // numeric threshold
+
+  // Scope
+  chapterId String? // null = global rule
+  chapter   Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  // Escalation
+  escalateToRoles String[] // e.g. ["ADMIN", "CHAPTER_LEAD"]
+  autoNotify      Boolean  @default(true)
+
+  createdById String
+  createdBy   User   @relation("OpsRulesCreated", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  violations OpsRuleViolation[]
+
+  @@index([status])
+  @@index([metricKey])
+  @@index([chapterId])
+}
+
+/// Recorded violation when an ops rule is breached
+model OpsRuleViolation {
+  id        String   @id @default(cuid())
+  ruleId    String
+  rule      OpsRule  @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  chapterId String
+  chapter   Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  actualValue    Float
+  thresholdValue Float
+  snapshotDate   DateTime
+
+  acknowledged   Boolean   @default(false)
+  acknowledgedBy String?
+  acknowledgedAt DateTime?
+  notes          String?
+
+  createdAt DateTime @default(now())
+
+  @@index([ruleId])
+  @@index([chapterId])
+  @@index([acknowledged])
+  @@index([snapshotDate])
 }
