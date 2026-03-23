@@ -245,7 +245,22 @@ export default async function MyChapterPage() {
             </div>
           </div>
 
-          {/* Pathway Progress (if available) */}
+          {/* Pathway Progress */}
+          {!spotlightPathway && (
+            <div className="card" style={{ textAlign: "center", padding: "20px 16px" }}>
+              <h3 style={{ margin: "0 0 4px" }}>Start a Pathway</h3>
+              <p style={{ color: "var(--muted)", fontSize: 13, margin: "0 0 10px" }}>
+                Explore learning pathways designed for your chapter
+              </p>
+              <Link
+                href="/pathways"
+                className="button small"
+                style={{ textDecoration: "none", fontSize: 13 }}
+              >
+                Browse Pathways
+              </Link>
+            </div>
+          )}
           {spotlightPathway && (
             <div className="card">
               <h3 style={{ margin: 0 }}>Your Pathway Progress</h3>
@@ -335,9 +350,19 @@ export default async function MyChapterPage() {
               </Link>
             </div>
             {channels.length === 0 ? (
-              <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 10 }}>
-                No channels yet.
-              </p>
+              <div style={{ marginTop: 10, textAlign: "center", padding: "12px 0" }}>
+                <p style={{ color: "var(--muted)", fontSize: 13, margin: "0 0 6px" }}>
+                  No channels yet
+                </p>
+                {canReviewFallbacks && (
+                  <Link
+                    href="/chapter/channels"
+                    style={{ fontSize: 12, color: "var(--ypp-purple)" }}
+                  >
+                    Create one →
+                  </Link>
+                )}
+              </div>
             ) : (
               <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
                 {channels.map((ch) => (
@@ -364,9 +389,11 @@ export default async function MyChapterPage() {
           <div className="card">
             <h3 style={{ margin: 0 }}>Upcoming Events</h3>
             {(!chapter?.events || chapter.events.length === 0) ? (
-              <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 10 }}>
-                No upcoming events.
-              </p>
+              <div style={{ marginTop: 10, textAlign: "center", padding: "12px 0" }}>
+                <p style={{ color: "var(--muted)", fontSize: 13, margin: 0 }}>
+                  No upcoming events — check back soon!
+                </p>
+              </div>
             ) : (
               <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
                 {chapter.events.map((event) => (
