@@ -182,19 +182,192 @@ export default function SignupPage() {
           {/* Additional fields for instructor applicants */}
           {accountType === "APPLICANT" && (
             <>
+              <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0 8px" }} />
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--muted)", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Section 1 — Personal Information
+              </p>
+
               <label className="form-label">
-                Why do you want to teach with YPP?
+                Full Legal Name (First, Middle, and Last) <span style={{ color: "#dc2626" }}>*</span>
+                <input
+                  className="input"
+                  name="legalName"
+                  placeholder="e.g. Jane Marie Smith"
+                  required
+                />
+              </label>
+              <label className="form-label">
+                Preferred First Name <span style={{ color: "#dc2626" }}>*</span>
+                <input
+                  className="input"
+                  name="preferredFirstName"
+                  placeholder="What would you like us to call you?"
+                  required
+                />
+              </label>
+              <label className="form-label">
+                Phone Number (optional)
+                <input
+                  className="input"
+                  name="phoneNumber"
+                  type="tel"
+                  placeholder="(555) 123-4567"
+                />
+              </label>
+              <label className="form-label">
+                Date of Birth (optional)
+                <input
+                  className="input"
+                  name="dateOfBirth"
+                  type="date"
+                />
+              </label>
+              <label className="form-label">
+                How did you hear about YPP? (optional)
+                <select className="input" name="hearAboutYPP" defaultValue="">
+                  <option value="">Select one</option>
+                  <option value="Social media">Social media</option>
+                  <option value="Friend or classmate">Friend or classmate</option>
+                  <option value="Teacher or counselor">Teacher or counselor</option>
+                  <option value="School announcement">School announcement</option>
+                  <option value="YPP website">YPP website</option>
+                  <option value="Other">Other</option>
+                </select>
+              </label>
+
+              <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0 8px" }} />
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--muted)", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Section 2 — Location
+              </p>
+
+              <label className="form-label">
+                What town/city do you live in? <span style={{ color: "#dc2626" }}>*</span>
+                <input
+                  className="input"
+                  name="city"
+                  placeholder="e.g. Austin"
+                  required
+                />
+              </label>
+              <label className="form-label">
+                What state/province do you live in? <span style={{ color: "#dc2626" }}>*</span>
+                <input
+                  className="input"
+                  name="stateProvince"
+                  placeholder="e.g. Texas"
+                  required
+                />
+              </label>
+              <label className="form-label">
+                What is your ZIP code? <span style={{ color: "#dc2626" }}>*</span>
+                <input
+                  className="input"
+                  name="zipCode"
+                  placeholder="e.g. 78701"
+                  required
+                />
+              </label>
+              <div>
+                <p className="form-label" style={{ marginBottom: 6 }}>
+                  What country do you live in? <span style={{ color: "#dc2626" }}>*</span>
+                </p>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, fontSize: 14 }}>
+                  <input type="radio" name="country" value="United States" defaultChecked required /> United States
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, fontSize: 14 }}>
+                  <input type="radio" name="country" value="Other" /> Other:
+                  <input
+                    className="input"
+                    name="countryOther"
+                    placeholder="Enter your country"
+                    style={{ flex: 1, marginBottom: 0 }}
+                  />
+                </label>
+              </div>
+
+              <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0 8px" }} />
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--muted)", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Section 3 — Academic Background
+              </p>
+
+              <label className="form-label">
+                High School Name <span style={{ color: "#dc2626" }}>*</span>
+                <input
+                  className="input"
+                  name="schoolName"
+                  placeholder="e.g. Lincoln High School"
+                  required
+                />
+              </label>
+              <div>
+                <p className="form-label" style={{ marginBottom: 6 }}>
+                  What year will you graduate from high school? <span style={{ color: "#dc2626" }}>*</span>
+                </p>
+                {["2026", "2027", "2028", "2029"].map((year) => (
+                  <label key={year} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, fontSize: 14 }}>
+                    <input type="radio" name="graduationYear" value={year} required /> {year}
+                  </label>
+                ))}
+              </div>
+              <label className="form-label">
+                GPA (optional)
+                <input
+                  className="input"
+                  name="gpa"
+                  placeholder="e.g. 3.8 / 4.0"
+                />
+              </label>
+              <label className="form-label">
+                Class Rank (optional)
+                <input
+                  className="input"
+                  name="classRank"
+                  placeholder="e.g. Top 10%, 25 of 300"
+                />
+              </label>
+              <label className="form-label">
+                Subjects of Interest (optional)
+                <input
+                  className="input"
+                  name="subjectsOfInterest"
+                  placeholder="e.g. Math, Computer Science, English, Biology"
+                />
+                <span style={{ display: "block", fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                  Separate subjects with commas.
+                </span>
+              </label>
+
+              <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0 8px" }} />
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--muted)", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Section 4 — Essays &amp; Background
+              </p>
+
+              <label className="form-label">
+                Why do you want to join YPP? <span style={{ color: "#dc2626" }}>*</span>
                 <textarea
                   className="input"
-                  name="motivation"
-                  placeholder="Share what motivates you to teach and what you hope to bring to students..."
+                  name="whyYPP"
+                  placeholder="Tell us why YPP excites you and what you hope to accomplish as part of this program..."
                   required
                   rows={4}
                   style={{ resize: "vertical" }}
                 />
+                <span style={{ display: "block", fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Minimum 100 characters.</span>
               </label>
               <label className="form-label">
-                Teaching or mentoring experience
+                What motivates you to want to teach? <span style={{ color: "#dc2626" }}>*</span>
+                <textarea
+                  className="input"
+                  name="motivation"
+                  placeholder="Share what inspires you to teach and what you hope to bring to your students..."
+                  required
+                  rows={4}
+                  style={{ resize: "vertical" }}
+                />
+                <span style={{ display: "block", fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Minimum 100 characters.</span>
+              </label>
+              <label className="form-label">
+                Teaching or mentoring experience <span style={{ color: "#dc2626" }}>*</span>
                 <textarea
                   className="input"
                   name="teachingExperience"
@@ -203,9 +376,48 @@ export default function SignupPage() {
                   rows={4}
                   style={{ resize: "vertical" }}
                 />
+                <span style={{ display: "block", fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Minimum 50 characters.</span>
               </label>
               <label className="form-label">
-                Interview availability
+                Extracurricular activities &amp; clubs <span style={{ color: "#dc2626" }}>*</span>
+                <textarea
+                  className="input"
+                  name="extracurriculars"
+                  placeholder="List clubs, sports, volunteer work, arts, or other activities you participate in..."
+                  required
+                  rows={3}
+                  style={{ resize: "vertical" }}
+                />
+              </label>
+              <label className="form-label">
+                Prior leadership experience <span style={{ color: "#dc2626" }}>*</span>
+                <textarea
+                  className="input"
+                  name="priorLeadership"
+                  placeholder="Describe any leadership roles you've held — in school, community, or other settings..."
+                  required
+                  rows={3}
+                  style={{ resize: "vertical" }}
+                />
+              </label>
+              <label className="form-label">
+                Special skills or certifications (optional)
+                <textarea
+                  className="input"
+                  name="specialSkills"
+                  placeholder="e.g. CPR certified, bilingual (Spanish/English), public speaking, coding, etc."
+                  rows={2}
+                  style={{ resize: "vertical" }}
+                />
+              </label>
+
+              <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0 8px" }} />
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--muted)", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Section 5 — Availability
+              </p>
+
+              <label className="form-label">
+                Interview availability <span style={{ color: "#dc2626" }}>*</span>
                 <input
                   className="input"
                   name="availability"
@@ -215,6 +427,65 @@ export default function SignupPage() {
                 <span style={{ display: "block", fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
                   When are you generally available for a short interview call?
                 </span>
+              </label>
+              <label className="form-label">
+                Hours per week you can commit <span style={{ color: "#dc2626" }}>*</span>
+                <input
+                  className="input"
+                  name="hoursPerWeek"
+                  type="number"
+                  min={1}
+                  max={40}
+                  placeholder="e.g. 5"
+                  required
+                />
+              </label>
+              <label className="form-label">
+                Preferred start date (optional)
+                <input
+                  className="input"
+                  name="preferredStartDate"
+                  type="date"
+                />
+              </label>
+
+              <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0 8px" }} />
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--muted)", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Section 6 — Referrals (Recommended)
+              </p>
+
+              <label className="form-label">
+                Student referral emails (optional)
+                <textarea
+                  className="input"
+                  name="referralEmails"
+                  placeholder="student1@example.com, student2@example.com"
+                  rows={3}
+                  style={{ resize: "vertical" }}
+                />
+                <span style={{ display: "block", fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                  RECOMMENDED: Please enter the emails of as many high school students as you would like to recommend YPP to. Please separate each email address with a comma. Referring YPP to other students using this field will help us see your devotion!
+                </span>
+              </label>
+
+              <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0 8px" }} />
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--muted)", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Section 7 — Optional Demographics
+              </p>
+              <label className="form-label">
+                Race/Ethnicity (optional — for program tracking only)
+                <select className="input" name="ethnicity" defaultValue="">
+                  <option value="">Prefer not to say</option>
+                  <option value="American Indian or Alaska Native">American Indian or Alaska Native</option>
+                  <option value="Asian or Asian American">Asian or Asian American</option>
+                  <option value="Black or African American">Black or African American</option>
+                  <option value="Hispanic or Latino">Hispanic or Latino</option>
+                  <option value="Middle Eastern or North African">Middle Eastern or North African</option>
+                  <option value="Native Hawaiian or Pacific Islander">Native Hawaiian or Pacific Islander</option>
+                  <option value="White or Caucasian">White or Caucasian</option>
+                  <option value="Two or more races">Two or more races</option>
+                  <option value="Other">Other</option>
+                </select>
               </label>
             </>
           )}

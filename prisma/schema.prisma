@@ -1247,9 +1247,56 @@ model InstructorApplication {
   applicantId          String                      @unique
   applicant            User                        @relation("InstructorApplications", fields: [applicantId], references: [id])
   status               InstructorApplicationStatus @default(SUBMITTED)
+
+  // --- Core application essays ---
   motivation           String                      @db.Text
   teachingExperience   String                      @db.Text
   availability         String
+
+  // --- Personal Information ---
+  legalName            String?
+  preferredFirstName   String?
+  phoneNumber          String?
+  dateOfBirth          String?
+  hearAboutYPP         String?
+
+  // --- Location ---
+  city                 String?
+  stateProvince        String?
+  zipCode              String?
+  country              String?
+
+  // --- Academic Background ---
+  schoolName           String?
+  graduationYear       Int?
+  gpa                  String?
+  classRank            String?
+  subjectsOfInterest   String?
+
+  // --- Essays & Background ---
+  whyYPP               String?                     @db.Text
+  extracurriculars     String?                     @db.Text
+  priorLeadership      String?                     @db.Text
+  specialSkills        String?                     @db.Text
+
+  // --- Referral ---
+  referralEmails       String?                     @db.Text
+
+  // --- Availability details ---
+  hoursPerWeek         Int?
+  preferredStartDate   String?
+
+  // --- Optional demographics ---
+  ethnicity            String?
+
+  // --- Reviewer scoring rubric ---
+  scoreAcademic        Int?
+  scoreCommunication   Int?
+  scoreLeadership      Int?
+  scoreMotivation      Int?
+  scoreFit             Int?
+
+  // --- Review workflow ---
   reviewerId           String?
   reviewer             User?                       @relation("InstructorApplicationReviews", fields: [reviewerId], references: [id])
   reviewerNotes        String?                     @db.Text
@@ -1268,6 +1315,8 @@ model InstructorApplication {
   @@index([status])
   @@index([reviewerId])
   @@index([cohortId])
+  @@index([graduationYear])
+  @@index([stateProvince])
 }
 
 model TrainingCheckpoint {
