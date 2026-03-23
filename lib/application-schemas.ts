@@ -119,6 +119,95 @@ export const interviewNoteSchema = z.object({
 export type InterviewNoteInput = z.infer<typeof interviewNoteSchema>;
 
 // ============================================
+// INSTRUCTOR APPLICATION SCHEMA
+// ============================================
+
+export const instructorApplicationSchema = z.object({
+  // Personal Information
+  legalName: z
+    .string()
+    .min(2, "Please enter your full legal name (at least 2 characters).")
+    .max(200, "Name should be under 200 characters."),
+  preferredFirstName: z
+    .string()
+    .min(1, "Please enter your preferred first name.")
+    .max(100, "Preferred name should be under 100 characters."),
+  phoneNumber: z.string().max(30, "Phone number should be under 30 characters.").optional(),
+  dateOfBirth: z.string().optional(),
+  hearAboutYPP: z.string().max(300, "Response should be under 300 characters.").optional(),
+
+  // Location
+  city: z.string().min(1, "Please enter your town or city.").max(100, "City should be under 100 characters."),
+  stateProvince: z
+    .string()
+    .min(1, "Please enter your state or province.")
+    .max(100, "State/province should be under 100 characters."),
+  zipCode: z
+    .string()
+    .min(3, "Please enter a valid ZIP or postal code.")
+    .max(20, "ZIP code should be under 20 characters."),
+  country: z.enum(["United States", "Other"], { errorMap: () => ({ message: "Please select a country." }) }),
+  countryOther: z.string().max(100).optional(),
+
+  // Academic
+  schoolName: z
+    .string()
+    .min(2, "Please enter your high school name.")
+    .max(200, "School name should be under 200 characters."),
+  graduationYear: z
+    .number({ invalid_type_error: "Please select a graduation year." })
+    .int()
+    .min(2025, "Please select a valid graduation year.")
+    .max(2030, "Please select a valid graduation year."),
+  gpa: z.string().max(20, "GPA should be under 20 characters.").optional(),
+  classRank: z.string().max(100, "Class rank should be under 100 characters.").optional(),
+  subjectsOfInterest: z.string().max(500, "Subjects should be under 500 characters.").optional(),
+
+  // Core essays
+  motivation: z
+    .string()
+    .min(100, "Please share at least 100 characters about your motivation to teach.")
+    .max(5000, "Motivation should be under 5,000 characters."),
+  whyYPP: z
+    .string()
+    .min(100, "Please share at least 100 characters about why you want to join YPP.")
+    .max(5000, "Response should be under 5,000 characters."),
+  teachingExperience: z
+    .string()
+    .min(50, "Please describe your teaching experience in at least 50 characters.")
+    .max(5000, "Teaching experience should be under 5,000 characters."),
+  extracurriculars: z
+    .string()
+    .min(30, "Please describe your extracurricular activities in at least 30 characters.")
+    .max(3000, "Response should be under 3,000 characters."),
+  priorLeadership: z
+    .string()
+    .min(30, "Please describe your leadership experience in at least 30 characters.")
+    .max(3000, "Response should be under 3,000 characters."),
+  specialSkills: z.string().max(2000, "Special skills should be under 2,000 characters.").optional(),
+
+  // Referral
+  referralEmails: z.string().max(2000, "Referral emails should be under 2,000 characters.").optional(),
+
+  // Availability
+  availability: z
+    .string()
+    .min(10, "Please describe your interview availability.")
+    .max(1000, "Availability should be under 1,000 characters."),
+  hoursPerWeek: z
+    .number({ invalid_type_error: "Please enter how many hours per week you can commit." })
+    .int()
+    .min(1, "Must commit at least 1 hour per week.")
+    .max(40, "Please enter a realistic commitment (max 40 hours)."),
+  preferredStartDate: z.string().optional(),
+
+  // Optional demographics
+  ethnicity: z.string().max(100).optional(),
+});
+
+export type InstructorApplicationInput = z.infer<typeof instructorApplicationSchema>;
+
+// ============================================
 // HELPERS
 // ============================================
 

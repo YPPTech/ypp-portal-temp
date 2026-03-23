@@ -72,17 +72,79 @@ export async function signUp(prevState: FormState, formData: FormData): Promise<
       }
     });
 
-    // If applicant, create the InstructorApplication record
+    // If applicant, create the InstructorApplication record with all fields
     if (primaryRole === RoleType.APPLICANT) {
       const motivation = getString(formData, "motivation");
       const teachingExperience = getString(formData, "teachingExperience");
       const availability = getString(formData, "availability");
+
+      // Personal info
+      const legalName = getString(formData, "legalName", false);
+      const preferredFirstName = getString(formData, "preferredFirstName", false);
+      const phoneNumber = getString(formData, "phoneNumber", false);
+      const dateOfBirth = getString(formData, "dateOfBirth", false);
+      const hearAboutYPP = getString(formData, "hearAboutYPP", false);
+
+      // Location
+      const city = getString(formData, "city", false);
+      const stateProvince = getString(formData, "stateProvince", false);
+      const zipCode = getString(formData, "zipCode", false);
+      const country = getString(formData, "country", false) || "United States";
+      const countryOther = getString(formData, "countryOther", false);
+
+      // Academic
+      const schoolName = getString(formData, "schoolName", false);
+      const graduationYearRaw = getString(formData, "graduationYear", false);
+      const graduationYear = graduationYearRaw ? parseInt(graduationYearRaw, 10) : null;
+      const gpa = getString(formData, "gpa", false);
+      const classRank = getString(formData, "classRank", false);
+      const subjectsOfInterest = getString(formData, "subjectsOfInterest", false);
+
+      // Essays
+      const whyYPP = getString(formData, "whyYPP", false);
+      const extracurriculars = getString(formData, "extracurriculars", false);
+      const priorLeadership = getString(formData, "priorLeadership", false);
+      const specialSkills = getString(formData, "specialSkills", false);
+
+      // Referral
+      const referralEmails = getString(formData, "referralEmails", false);
+
+      // Availability details
+      const hoursPerWeekRaw = getString(formData, "hoursPerWeek", false);
+      const hoursPerWeek = hoursPerWeekRaw ? parseInt(hoursPerWeekRaw, 10) : null;
+      const preferredStartDate = getString(formData, "preferredStartDate", false);
+
+      // Demographics
+      const ethnicity = getString(formData, "ethnicity", false);
+
       await prisma.instructorApplication.create({
         data: {
           applicantId: newUser.id,
           motivation,
           teachingExperience,
           availability,
+          legalName: legalName || null,
+          preferredFirstName: preferredFirstName || null,
+          phoneNumber: phoneNumber || null,
+          dateOfBirth: dateOfBirth || null,
+          hearAboutYPP: hearAboutYPP || null,
+          city: city || null,
+          stateProvince: stateProvince || null,
+          zipCode: zipCode || null,
+          country: country === "Other" ? (countryOther || "Other") : country,
+          schoolName: schoolName || null,
+          graduationYear: graduationYear && !isNaN(graduationYear) ? graduationYear : null,
+          gpa: gpa || null,
+          classRank: classRank || null,
+          subjectsOfInterest: subjectsOfInterest || null,
+          whyYPP: whyYPP || null,
+          extracurriculars: extracurriculars || null,
+          priorLeadership: priorLeadership || null,
+          specialSkills: specialSkills || null,
+          referralEmails: referralEmails || null,
+          hoursPerWeek: hoursPerWeek && !isNaN(hoursPerWeek) ? hoursPerWeek : null,
+          preferredStartDate: preferredStartDate || null,
+          ethnicity: ethnicity || null,
         },
       });
     }
