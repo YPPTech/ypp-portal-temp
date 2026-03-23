@@ -183,6 +183,22 @@ enum EventType {
   ALUMNI_EVENT
 }
 
+enum EventScope {
+  GLOBAL
+  CHAPTER
+}
+
+enum EventVisibility {
+  INTERNAL
+  PUBLIC
+}
+
+enum EventRecurrenceFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
 // New enums for Phase 1
 
 enum PositionType {
@@ -419,43 +435,70 @@ enum MentorshipAwardPolicy {
 // ============================================
 
 model Chapter {
-  id            String  @id @default(cuid())
-  name          String
-  city          String?
-  region        String?
-  partnerSchool String?
-  programNotes  String?
+  id                   String  @id @default(cuid())
+  name                 String
+  slug                 String? @unique
+  city                 String?
+  region               String?
+  partnerSchool        String?
+  programNotes         String?
+  publicProfileEnabled Boolean @default(false)
+  publicSummary        String? @db.Text
+  publicStory          String? @db.Text
+  publicContactEmail   String?
+  publicContactUrl     String?
+  calendarDescription  String? @db.Text
+  calendarThemeColor   String?
+
+  // Chapter Identity & Discovery
+  description String?
+  tagline     String?
+  logoUrl     String?
+  bannerUrl   String?
+  isPublic    Boolean           @default(true)
+  joinPolicy  ChapterJoinPolicy @default(OPEN)
 
   // Relations
-  users             User[]
-  courses           Course[]
-  events            Event[]
-  feedbacks         Feedback[]
-  positions         Position[]
-  announcements     Announcement[]
-  goalTemplates     GoalTemplate[]
-  marketingStats    MarketingStats[]
-  marketingGoals    MarketingGoal[]
-  chapterUpdates    ChapterUpdate[]
-  classTemplates    ClassTemplate[]
-  launchTasks       LaunchTask[]
-  mentorshipTracks  MentorshipTrack[]
-  rolloutCampaigns  RolloutCampaign[]
-  featureGateRules  FeatureGateRule[]
-  pathwayConfigs    ChapterPathway[]
-  classOfferings    ClassOffering[]
-  pathwayEvents     PathwayEvent[]
-  pathwayFallbackRequestsFrom PathwayFallbackRequest[] @relation("PathwayFallbackFromChapter")
-  pathwayFallbackRequestsTo   PathwayFallbackRequest[] @relation("PathwayFallbackToChapter")
-  specialPrograms   SpecialProgram[]   @relation("ChapterSpecialPrograms")
-  rubrics           Rubric[]
-  instructorCohorts InstructorCohort[]
+  users                       User[]
+  joinRequests                ChapterJoinRequest[]
+  goals                       ChapterGoal[]
+  channels                    ChapterChannel[]
+  courses                     Course[]
+  events                      Event[]
+  eventSeries                 EventSeries[]
+  feedbacks                   Feedback[]
+  positions                   Position[]
+  announcements               Announcement[]
+  goalTemplates               GoalTemplate[]
+  marketingStats              MarketingStats[]
+  marketingGoals              MarketingGoal[]
+  chapterUpdates              ChapterUpdate[]
+  classTemplates              ClassTemplate[]
+  launchTasks                 LaunchTask[]
+  mentorshipTracks            MentorshipTrack[]
+  rolloutCampaigns            RolloutCampaign[]
+  featureGateRules            FeatureGateRule[]
+  pathwayConfigs              ChapterPathway[]
+  classOfferings              ClassOffering[]
+  pathwayEvents               PathwayEvent[]
+  pathwayFallbackRequestsFrom PathwayFallbackRequest[]      @relation("PathwayFallbackFromChapter")
+  pathwayFallbackRequestsTo   PathwayFallbackRequest[]      @relation("PathwayFallbackToChapter")
+  specialPrograms             SpecialProgram[]              @relation("ChapterSpecialPrograms")
+  rubrics                     Rubric[]
+  instructorCohorts           InstructorCohort[]
+  chapterMilestones           ChapterMilestone[]
+  calendarSubscriptions       ChapterCalendarSubscription[]
 
   // Chapter President & Feedback Relations
   chapterPresidentApplications ChapterPresidentApplication[]
   chapterPresidentOnboardings  ChapterPresidentOnboarding[]
   parentChapterFeedbacks       ParentChapterFeedback[]
   parentSurveys                ParentSurvey[]
+
+  // Governance & Risk
+  kpiSnapshots      ChapterKpiSnapshot[]
+  opsRules          OpsRule[]
+  opsRuleViolations OpsRuleViolation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -557,13 +600,21 @@ model User {
   profile                                UserProfile?
 
   // Video, Calendar, Parent, Certificate, Analytics relations
-  videoProgress   VideoProgress[]
-  eventRsvps      EventRsvp[]
-  parentLinks     ParentStudent[]  @relation("ParentLinks")
-  studentLinks    ParentStudent[]  @relation("StudentLinks")
-  certificates    Certificate[]
-  analyticsEvents AnalyticsEvent[]
-  chapterUpdates  ChapterUpdate[]  @relation("ChapterUpdatesAuthored")
+  videoProgress                VideoProgress[]
+  eventRsvps                   EventRsvp[]
+  parentLinks                  ParentStudent[]               @relation("ParentLinks")
+  studentLinks                 ParentStudent[]               @relation("StudentLinks")
+  certificates                 Certificate[]
+  analyticsEvents              AnalyticsEvent[]
+  chapterUpdates               ChapterUpdate[]               @relation("ChapterUpdatesAuthored")
+  createdEvents                Event[]                       @relation("EventsCreatedBy")
+  updatedEvents                Event[]                       @relation("EventsUpdatedBy")
+  createdEventSeries           EventSeries[]                 @relation("EventSeriesCreatedBy")
+  updatedEventSeries           EventSeries[]                 @relation("EventSeriesUpdatedBy")
+  chapterMilestonesCreated     ChapterMilestone[]            @relation("ChapterMilestonesCreatedBy")
+  chapterMilestonesUpdated     ChapterMilestone[]            @relation("ChapterMilestonesUpdatedBy")
+  chapterCalendarSubscriptions ChapterCalendarSubscription[]
+  eventReminders               EventReminder[]               @relation("EventRemindersReceived")
 
   // Phase 15-20 relations
   notifications              Notification[]
@@ -700,22 +751,22 @@ model User {
   bookmarks           Bookmark[]               @relation("Bookmarks")
 
   // Phase 9: Class Management & Scheduling Relations
-  classTemplatesCreated    ClassTemplate[]         @relation("ClassTemplatesCreated")
-  classTemplatesReviewed   ClassTemplate[]         @relation("ClassTemplatesReviewed")
-  classOfferingsInstructed ClassOffering[]         @relation("ClassOfferingsInstructed")
-  classEnrollments         ClassEnrollment[]       @relation("ClassEnrollments")
-  classAttendanceRecords   ClassAttendanceRecord[] @relation("ClassAttendanceRecords")
-  classRemindersReceived   ClassReminder[]         @relation("ClassRemindersReceived")
-  classAnnouncements       ClassAnnouncement[]     @relation("ClassAnnouncementsAuthored")
-  ownedChapterPathways     ChapterPathway[]        @relation("ChapterPathwayOwner")
+  classTemplatesCreated    ClassTemplate[]          @relation("ClassTemplatesCreated")
+  classTemplatesReviewed   ClassTemplate[]          @relation("ClassTemplatesReviewed")
+  classOfferingsInstructed ClassOffering[]          @relation("ClassOfferingsInstructed")
+  classEnrollments         ClassEnrollment[]        @relation("ClassEnrollments")
+  classAttendanceRecords   ClassAttendanceRecord[]  @relation("ClassAttendanceRecords")
+  classRemindersReceived   ClassReminder[]          @relation("ClassRemindersReceived")
+  classAnnouncements       ClassAnnouncement[]      @relation("ClassAnnouncementsAuthored")
+  ownedChapterPathways     ChapterPathway[]         @relation("ChapterPathwayOwner")
   pathwayFallbackRequests  PathwayFallbackRequest[] @relation("PathwayFallbackRequestStudent")
   pathwayFallbackReviews   PathwayFallbackRequest[] @relation("PathwayFallbackReviewedBy")
-  launchTasksCreated       LaunchTask[]            @relation("LaunchTasksCreatedBy")
-  launchTasksUpdated       LaunchTask[]            @relation("LaunchTasksUpdatedBy")
-  rolloutCampaignsCreated  RolloutCampaign[]       @relation("RolloutCampaignsCreatedBy")
-  featureGateRulesTargeted FeatureGateRule[]       @relation("FeatureGateRuleTargetUser")
-  featureGateRulesCreated  FeatureGateRule[]       @relation("FeatureGateRuleCreatedBy")
-  featureGateRulesUpdated  FeatureGateRule[]       @relation("FeatureGateRuleUpdatedBy")
+  launchTasksCreated       LaunchTask[]             @relation("LaunchTasksCreatedBy")
+  launchTasksUpdated       LaunchTask[]             @relation("LaunchTasksUpdatedBy")
+  rolloutCampaignsCreated  RolloutCampaign[]        @relation("RolloutCampaignsCreatedBy")
+  featureGateRulesTargeted FeatureGateRule[]        @relation("FeatureGateRuleTargetUser")
+  featureGateRulesCreated  FeatureGateRule[]        @relation("FeatureGateRuleCreatedBy")
+  featureGateRulesUpdated  FeatureGateRule[]        @relation("FeatureGateRuleUpdatedBy")
 
   // Phase 10: Enjoyment-Focused Assignments Relations
   classAssignmentsCreated ClassAssignment[]           @relation("ClassAssignmentsCreated")
@@ -824,6 +875,12 @@ model User {
   applicationCohortsCreated            ApplicationCohort[]           @relation("ApplicationCohortsCreated")
   chapterPresidentOnboarding           ChapterPresidentOnboarding?   @relation("ChapterPresidentOnboarding")
 
+  // Chapter Join Request Relations
+  chapterJoinRequests         ChapterJoinRequest[]
+  chapterJoinRequestsReviewed ChapterJoinRequest[]    @relation("JoinRequestReviewer")
+  chapterGoalsCreated         ChapterGoal[]           @relation("ChapterGoalCreator")
+  chapterChannelMessages      ChapterChannelMessage[] @relation("ChapterChannelMessages")
+
   // Parent Feedback & Survey Relations
   parentChapterFeedbacks ParentChapterFeedback[] @relation("ParentChapterFeedbacks")
   parentFeedbackTargets  ParentChapterFeedback[] @relation("ParentFeedbackTargets")
@@ -840,6 +897,19 @@ model User {
 
   // Curriculum Builder Studio
   curriculumDrafts CurriculumDraft[]
+
+  // Goals & Responsibilities (G&R) System
+  grDocuments                GRDocument[]        @relation("GRDocuments")
+  grResourcesCreated         GRResource[]        @relation("GRResourcesCreated")
+  grTemplatesCreated         GRTemplate[]        @relation("GRTemplatesCreated")
+  grTemplatesLastEdited      GRTemplate[]        @relation("GRTemplatesLastEdited")
+  grTemplateCommentsAuthored GRTemplateComment[] @relation("GRTemplateCommentsAuthored")
+  grGoalChangesProposed      GRGoalChange[]      @relation("GRGoalChangesProposed")
+  grGoalChangesReviewed      GRGoalChange[]      @relation("GRGoalChangesReviewed")
+  grDocumentVersionsCreated  GRDocumentVersion[] @relation("GRDocumentVersionsCreated")
+
+  // Governance & Risk
+  opsRulesCreated OpsRule[] @relation("OpsRulesCreated")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -954,18 +1024,18 @@ model UserProfile {
 // ============================================
 
 model Course {
-  id                 String               @id @default(cuid())
+  id                 String                  @id @default(cuid())
   title              String
   description        String
   format             CourseFormat
   level              CourseLevel?
   interestArea       String
-  isVirtual          Boolean              @default(false)
+  isVirtual          Boolean                 @default(false)
   maxEnrollment      Int? // null = unlimited
   chapterId          String?
-  chapter            Chapter?             @relation(fields: [chapterId], references: [id])
+  chapter            Chapter?                @relation(fields: [chapterId], references: [id])
   leadInstructorId   String?
-  leadInstructor     User?                @relation("InstructorCourses", fields: [leadInstructorId], references: [id])
+  leadInstructor     User?                   @relation("InstructorCourses", fields: [leadInstructorId], references: [id])
   enrollments        Enrollment[]
   waitlistEntries    WaitlistEntry[]
   pathwaySteps       PathwayStep[]
@@ -985,8 +1055,8 @@ model Course {
   substituteRequests SubstituteRequest[]
   curriculumFeedback CurriculumFeedback[]
   studentSpotlights  StudentSpotlight[]
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
 }
 
 model Pathway {
@@ -1002,11 +1072,11 @@ model Pathway {
   certificates      Certificate[]
 
   // Pathway Integration Relations
-  cohorts         PathwayCohort[]         @relation("PathwayCohorts")
-  reflections     PathwayReflection[]     @relation("PathwayReflections")
-  events          PathwayEvent[]          @relation("PathwayEvents")
-  instructorSpecs InstructorPathwaySpec[] @relation("PathwayInstructorSpecs")
-  chapterConfigs  ChapterPathway[]        @relation("PathwayChapterConfigs")
+  cohorts          PathwayCohort[]          @relation("PathwayCohorts")
+  reflections      PathwayReflection[]      @relation("PathwayReflections")
+  events           PathwayEvent[]           @relation("PathwayEvents")
+  instructorSpecs  InstructorPathwaySpec[]  @relation("PathwayInstructorSpecs")
+  chapterConfigs   ChapterPathway[]         @relation("PathwayChapterConfigs")
   fallbackRequests PathwayFallbackRequest[]
 
   createdAt DateTime @default(now())
@@ -1034,13 +1104,13 @@ model PathwayStep {
   positionX Float? @default(0)
   positionY Float? @default(0)
 
-  pathway        Pathway             @relation(fields: [pathwayId], references: [id])
-  course         Course?             @relation(fields: [courseId], references: [id])
-  classTemplate  ClassTemplate?      @relation("ClassTemplateSteps", fields: [classTemplateId], references: [id])
-  specialProgram SpecialProgram?     @relation("SpecialProgramSteps", fields: [specialProgramId], references: [id])
-  stepUnlocks    PathwayStepUnlock[]
-  classOfferings ClassOffering[]     @relation("PathwayStepOfferings")
-  pathwayEvents  PathwayEvent[]
+  pathway          Pathway                  @relation(fields: [pathwayId], references: [id])
+  course           Course?                  @relation(fields: [courseId], references: [id])
+  classTemplate    ClassTemplate?           @relation("ClassTemplateSteps", fields: [classTemplateId], references: [id])
+  specialProgram   SpecialProgram?          @relation("SpecialProgramSteps", fields: [specialProgramId], references: [id])
+  stepUnlocks      PathwayStepUnlock[]
+  classOfferings   ClassOffering[]          @relation("PathwayStepOfferings")
+  pathwayEvents    PathwayEvent[]
   fallbackRequests PathwayFallbackRequest[]
 
   @@index([pathwayId, stepOrder])
@@ -1515,42 +1585,43 @@ model InstructorInterviewAvailabilityRequest {
 // ============================================
 
 model Mentorship {
-  id                 String              @id @default(cuid())
-  mentorId           String
-  menteeId           String
-  type               MentorshipType
-  programGroup       MentorshipProgramGroup     @default(INSTRUCTOR)
-  governanceMode     MentorshipGovernanceMode   @default(FULL_PROGRAM)
-  status             MentorshipStatus    @default(ACTIVE)
-  startDate          DateTime            @default(now())
-  endDate            DateTime?
-  notes              String?
-  trackId            String?
-  chairId            String?
-  kickoffScheduledAt DateTime?
-  kickoffCompletedAt DateTime?
+  id                      String                   @id @default(cuid())
+  mentorId                String
+  menteeId                String
+  type                    MentorshipType
+  programGroup            MentorshipProgramGroup   @default(INSTRUCTOR)
+  governanceMode          MentorshipGovernanceMode @default(FULL_PROGRAM)
+  status                  MentorshipStatus         @default(ACTIVE)
+  startDate               DateTime                 @default(now())
+  endDate                 DateTime?
+  notes                   String?
+  trackId                 String?
+  chairId                 String?
+  kickoffScheduledAt      DateTime?
+  kickoffCompletedAt      DateTime?
   // Gamification streaks
-  reflectionStreak   Int                 @default(0)
-  longestReflectionStreak Int            @default(0)
-  reviewStreak       Int                 @default(0)
-  longestReviewStreak Int                @default(0)
-  mentor             User                @relation("MentorLinks", fields: [mentorId], references: [id])
-  mentee             User                @relation("MenteeLinks", fields: [menteeId], references: [id])
-  chair              User?               @relation("MentorshipChairs", fields: [chairId], references: [id])
-  track              MentorshipTrack?    @relation(fields: [trackId], references: [id])
-  checkIns           MentorshipCheckIn[]
+  reflectionStreak        Int                      @default(0)
+  longestReflectionStreak Int                      @default(0)
+  reviewStreak            Int                      @default(0)
+  longestReviewStreak     Int                      @default(0)
+  mentor                  User                     @relation("MentorLinks", fields: [mentorId], references: [id])
+  mentee                  User                     @relation("MenteeLinks", fields: [menteeId], references: [id])
+  chair                   User?                    @relation("MentorshipChairs", fields: [chairId], references: [id])
+  track                   MentorshipTrack?         @relation(fields: [trackId], references: [id])
+  checkIns                MentorshipCheckIn[]
 
   // Mentorship Program relations
-  selfReflections MonthlySelfReflection[]
-  goalReviews     MentorGoalReview[]
-  monthlyReviews  MonthlyGoalReview[]
-  circleMembers   MentorshipCircleMember[]
-  sessions        MentorshipSession[]
-  actionItems     MentorshipActionItem[]
-  supportRequests    MentorshipRequest[]
-  resources          MentorshipResource[]
-  feedbackRequests   QuarterlyFeedbackRequest[]
-  scheduleRequests   MentorshipScheduleRequest[]
+  selfReflections  MonthlySelfReflection[]
+  goalReviews      MentorGoalReview[]
+  monthlyReviews   MonthlyGoalReview[]
+  circleMembers    MentorshipCircleMember[]
+  sessions         MentorshipSession[]
+  actionItems      MentorshipActionItem[]
+  supportRequests  MentorshipRequest[]
+  resources        MentorshipResource[]
+  feedbackRequests QuarterlyFeedbackRequest[]
+  scheduleRequests MentorshipScheduleRequest[]
+  grDocuments      GRDocument[]
 
   @@index([trackId])
   @@index([chairId])
@@ -1734,15 +1805,29 @@ model MentorshipResource {
 // ============================================
 
 model Event {
-  id           String    @id @default(cuid())
-  title        String
-  description  String
-  eventType    EventType
-  startDate    DateTime
-  endDate      DateTime
-  chapterId    String?
-  chapter      Chapter?  @relation(fields: [chapterId], references: [id])
-  isAlumniOnly Boolean   @default(false)
+  id                      String          @id @default(cuid())
+  title                   String
+  description             String
+  eventType               EventType
+  scope                   EventScope      @default(GLOBAL)
+  visibility              EventVisibility @default(PUBLIC)
+  startDate               DateTime
+  endDate                 DateTime
+  chapterId               String?
+  chapter                 Chapter?        @relation(fields: [chapterId], references: [id])
+  isAlumniOnly            Boolean         @default(false)
+  createdById             String?
+  createdBy               User?           @relation("EventsCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById             String?
+  updatedBy               User?           @relation("EventsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  seriesId                String?
+  series                  EventSeries?    @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  occurrenceOriginalStart DateTime?
+  isException             Boolean         @default(false)
+  isCancelled             Boolean         @default(false)
+  cancellationReason      String?
+  reminder24Hr            Boolean         @default(true)
+  reminder1Hr             Boolean         @default(true)
 
   // Calendar Integration
   location    String?
@@ -1751,11 +1836,49 @@ model Event {
 
   // RSVP tracking
   rsvps              EventRsvp[]
+  reminders          EventReminder[]
   attendanceSessions AttendanceSession[]
   checklists         CompetitionChecklist[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([chapterId, startDate])
+  @@index([scope, visibility, startDate])
+  @@index([seriesId, startDate])
+}
+
+model EventSeries {
+  id                  String                   @id @default(cuid())
+  title               String
+  description         String
+  eventType           EventType
+  scope               EventScope               @default(CHAPTER)
+  visibility          EventVisibility          @default(INTERNAL)
+  chapterId           String?
+  chapter             Chapter?                 @relation(fields: [chapterId], references: [id])
+  startDate           DateTime
+  endDate             DateTime
+  timezone            String                   @default("America/New_York")
+  location            String?
+  meetingUrl          String?
+  recurrenceFrequency EventRecurrenceFrequency
+  recurrenceInterval  Int                      @default(1)
+  recurrenceDays      String[]
+  recurrenceCount     Int?
+  recurrenceUntil     DateTime?
+  reminder24Hr        Boolean                  @default(true)
+  reminder1Hr         Boolean                  @default(true)
+  createdById         String?
+  createdBy           User?                    @relation("EventSeriesCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById         String?
+  updatedBy           User?                    @relation("EventSeriesUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  events              Event[]
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  @@index([chapterId, recurrenceUntil])
+  @@index([scope, visibility])
 }
 
 model EventRsvp {
@@ -1890,18 +2013,18 @@ model InterviewNote {
 }
 
 model Decision {
-  id            String      @id @default(cuid())
-  applicationId String      @unique
-  application   Application @relation(fields: [applicationId], references: [id])
-  decidedById   String
-  decidedBy     User        @relation("DecisionsMade", fields: [decidedById], references: [id])
-  accepted      Boolean
-  notes         String?
-  decidedAt     DateTime    @default(now())
+  id                String      @id @default(cuid())
+  applicationId     String      @unique
+  application       Application @relation(fields: [applicationId], references: [id])
+  decidedById       String
+  decidedBy         User        @relation("DecisionsMade", fields: [decidedById], references: [id])
+  accepted          Boolean
+  notes             String?
+  decidedAt         DateTime    @default(now())
   hiringChairStatus String?
   hiringChairNote   String?
   hiringChairId     String?
-  hiringChair       User?    @relation("HiringChairDecisions", fields: [hiringChairId], references: [id])
+  hiringChair       User?       @relation("HiringChairDecisions", fields: [hiringChairId], references: [id])
   hiringChairAt     DateTime?
 }
 
@@ -1931,18 +2054,18 @@ model Announcement {
 // ============================================
 
 model GoalTemplate {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  roleType    RoleType
+  id                     String                  @id @default(cuid())
+  title                  String
+  description            String?
+  roleType               RoleType
   mentorshipProgramGroup MentorshipProgramGroup?
-  chapterId   String?
-  chapter     Chapter? @relation(fields: [chapterId], references: [id])
-  isActive    Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  goals       Goal[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  chapterId              String?
+  chapter                Chapter?                @relation(fields: [chapterId], references: [id])
+  isActive               Boolean                 @default(true)
+  sortOrder              Int                     @default(0)
+  goals                  Goal[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
 }
 
 model Goal {
@@ -1981,16 +2104,16 @@ model ProgressUpdate {
 // ============================================
 
 model ReflectionForm {
-  id          String                 @id @default(cuid())
-  title       String
-  description String?
-  roleType    RoleType
+  id                     String                  @id @default(cuid())
+  title                  String
+  description            String?
+  roleType               RoleType
   mentorshipProgramGroup MentorshipProgramGroup?
-  questions   ReflectionQuestion[]
-  submissions ReflectionSubmission[]
-  isActive    Boolean                @default(true)
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
+  questions              ReflectionQuestion[]
+  submissions            ReflectionSubmission[]
+  isActive               Boolean                 @default(true)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
 }
 
 model ReflectionQuestion {
@@ -2043,12 +2166,12 @@ model MentorshipTrack {
   scope                    String                          @default("GLOBAL")
   chapterId                String?
   chapter                  Chapter?                        @relation(fields: [chapterId], references: [id])
-  programGroup             MentorshipProgramGroup         @default(INSTRUCTOR)
-  governanceMode           MentorshipGovernanceMode       @default(FULL_PROGRAM)
-  committeeScope           MentorshipCommitteeScope       @default(GLOBAL)
-  mentorCap                Int                            @default(3)
-  awardPolicy              MentorshipAwardPolicy          @default(ACHIEVEMENT_LADDER)
-  requiresQuarterlyReview  Boolean                        @default(true)
+  programGroup             MentorshipProgramGroup          @default(INSTRUCTOR)
+  governanceMode           MentorshipGovernanceMode        @default(FULL_PROGRAM)
+  committeeScope           MentorshipCommitteeScope        @default(GLOBAL)
+  mentorCap                Int                             @default(3)
+  awardPolicy              MentorshipAwardPolicy           @default(ACHIEVEMENT_LADDER)
+  requiresQuarterlyReview  Boolean                         @default(true)
   pointCategory            MentorshipPointCategory         @default(CUSTOM)
   isActive                 Boolean                         @default(true)
   committees               MentorCommittee[]
@@ -2372,11 +2495,11 @@ model CollegeAdvisorship {
 
 /// Meeting between college advisor and advisee with scheduling and feedback
 model CollegeAdvisorMeeting {
-  id              String              @id @default(cuid())
+  id              String               @id @default(cuid())
   advisorshipId   String
-  advisorship     CollegeAdvisorship  @relation(fields: [advisorshipId], references: [id])
+  advisorship     CollegeAdvisorship   @relation(fields: [advisorshipId], references: [id])
   scheduledAt     DateTime
-  durationMinutes Int                 @default(30)
+  durationMinutes Int                  @default(30)
   status          CollegeMeetingStatus @default(REQUESTED)
   meetingLink     String?
   topic           String?
@@ -2384,8 +2507,8 @@ model CollegeAdvisorMeeting {
   actionItems     String?
   adviseeRating   Int?
   adviseeFeedback String?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
   @@index([advisorshipId])
 }
@@ -2403,9 +2526,9 @@ model AdvisorAvailabilitySlot {
   id          String         @id @default(cuid())
   advisorId   String
   advisor     CollegeAdvisor @relation(fields: [advisorId], references: [id])
-  dayOfWeek   Int            // 0=Sunday, 6=Saturday
-  startTime   String         // "14:00"
-  endTime     String         // "15:00"
+  dayOfWeek   Int // 0=Sunday, 6=Saturday
+  startTime   String // "14:00"
+  endTime     String // "15:00"
   timezone    String         @default("America/New_York")
   isRecurring Boolean        @default(true)
   isActive    Boolean        @default(true)
@@ -2604,6 +2727,8 @@ enum NotificationType {
   MESSAGE
   SYSTEM
   CLASS_REMINDER
+  EVENT_UPDATE
+  EVENT_REMINDER
 }
 
 model Notification {
@@ -2632,6 +2757,8 @@ model NotificationPreference {
   goalReminders       Boolean  @default(true)
   courseUpdates       Boolean  @default(true)
   reflectionReminders Boolean  @default(true)
+  eventUpdates        Boolean  @default(true)
+  eventReminders      Boolean  @default(true)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
@@ -2804,6 +2931,8 @@ model FileUpload {
   entityType   String?
   createdAt    DateTime       @default(now())
 
+  grResources GRResource[]
+
   @@index([userId])
   @@index([category])
   @@index([entityId, entityType])
@@ -2888,6 +3017,14 @@ enum AuditAction {
   PARENT_LINK_REJECTED
   WAITLIST_PROMOTED
   SETTINGS_CHANGED
+  GR_TEMPLATE_CREATED
+  GR_TEMPLATE_UPDATED
+  GR_TEMPLATE_PUBLISHED
+  GR_DOCUMENT_CREATED
+  GR_DOCUMENT_UPDATED
+  GR_GOAL_CHANGE_PROPOSED
+  GR_GOAL_CHANGE_REVIEWED
+  GR_BULK_UPDATE
 }
 
 model AuditLog {
@@ -5376,13 +5513,13 @@ model ClassTemplate {
 
 // Specific offering of a class template (Feature #80, #83)
 model ClassOffering {
-  id           String        @id @default(cuid())
-  templateId   String
-  template     ClassTemplate @relation(fields: [templateId], references: [id])
-  instructorId String
-  instructor   User          @relation("ClassOfferingsInstructed", fields: [instructorId], references: [id])
+  id            String        @id @default(cuid())
+  templateId    String
+  template      ClassTemplate @relation(fields: [templateId], references: [id])
+  instructorId  String
+  instructor    User          @relation("ClassOfferingsInstructed", fields: [instructorId], references: [id])
   pathwayStepId String?
-  pathwayStep   PathwayStep? @relation("PathwayStepOfferings", fields: [pathwayStepId], references: [id])
+  pathwayStep   PathwayStep?  @relation("PathwayStepOfferings", fields: [pathwayStepId], references: [id])
 
   // Schedule (Feature #80)
   title       String // Can override template title
@@ -5422,11 +5559,11 @@ model ClassOffering {
   grandfatheredTrainingExemption Boolean             @default(false)
 
   // Relations
-  sessions      ClassSession[]
-  enrollments   ClassEnrollment[]
-  reminders     ClassReminder[]
-  assignments   ClassAssignment[]
-  announcements ClassAnnouncement[]
+  sessions         ClassSession[]
+  enrollments      ClassEnrollment[]
+  reminders        ClassReminder[]
+  assignments      ClassAssignment[]
+  announcements    ClassAnnouncement[]
   fallbackRequests PathwayFallbackRequest[]
 
   createdAt DateTime @default(now())
@@ -5547,6 +5684,62 @@ model ClassReminder {
   @@index([userId])
   @@index([scheduledFor])
   @@index([status])
+}
+
+model EventReminder {
+  id           String         @id @default(cuid())
+  eventId      String
+  event        Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User           @relation("EventRemindersReceived", fields: [userId], references: [id])
+  type         ReminderType
+  scheduledFor DateTime
+  sentAt       DateTime?
+  status       ReminderStatus @default(PENDING)
+  subject      String
+  body         String         @db.Text
+  createdAt    DateTime       @default(now())
+
+  @@unique([eventId, userId, type])
+  @@index([eventId])
+  @@index([userId])
+  @@index([scheduledFor])
+  @@index([status])
+}
+
+model ChapterMilestone {
+  id          String          @id @default(cuid())
+  chapterId   String
+  chapter     Chapter         @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  title       String
+  description String?         @db.Text
+  dueDate     DateTime
+  visibility  EventVisibility @default(INTERNAL)
+  createdById String?
+  createdBy   User?           @relation("ChapterMilestonesCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById String?
+  updatedBy   User?           @relation("ChapterMilestonesUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  calendarUid String          @unique @default(cuid())
+  isArchived  Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([chapterId, dueDate])
+  @@index([visibility, dueDate])
+}
+
+model ChapterCalendarSubscription {
+  id        String   @id @default(cuid())
+  chapterId String
+  chapter   Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feedToken String   @unique @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([chapterId, userId])
+  @@index([userId])
 }
 
 // Launch timeline task for leadership + chapter rollout coordination
@@ -7170,19 +7363,19 @@ model InstructorPathwaySpec {
 
 /// Chapter-level control over which pathways are visible and featured
 model ChapterPathway {
-  id           String   @id @default(cuid())
+  id           String                  @id @default(cuid())
   chapterId    String
-  chapter      Chapter  @relation(fields: [chapterId], references: [id])
+  chapter      Chapter                 @relation(fields: [chapterId], references: [id])
   pathwayId    String
-  pathway      Pathway  @relation("PathwayChapterConfigs", fields: [pathwayId], references: [id])
-  isAvailable  Boolean  @default(true) // chapter can hide a global pathway
-  isFeatured   Boolean  @default(false) // featured pathways appear first
+  pathway      Pathway                 @relation("PathwayChapterConfigs", fields: [pathwayId], references: [id])
+  isAvailable  Boolean                 @default(true) // chapter can hide a global pathway
+  isFeatured   Boolean                 @default(false) // featured pathways appear first
   runStatus    ChapterPathwayRunStatus @default(NOT_OFFERED)
   ownerId      String?
-  owner        User?    @relation("ChapterPathwayOwner", fields: [ownerId], references: [id])
-  displayOrder Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  owner        User?                   @relation("ChapterPathwayOwner", fields: [ownerId], references: [id])
+  displayOrder Int                     @default(0)
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
 
   @@unique([chapterId, pathwayId])
   @@index([chapterId])
@@ -7873,9 +8066,9 @@ model ClassAnnouncement {
   authorId   String
   author     User          @relation("ClassAnnouncementsAuthored", fields: [authorId], references: [id])
 
-  title     String
-  body      String        @db.Text
-  isPinned  Boolean       @default(false)
+  title    String
+  body     String  @db.Text
+  isPinned Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -7903,17 +8096,17 @@ enum CurriculumDraftStatus {
 
 /// Token-based stakeholder feedback request (360-degree quarterly review)
 model QuarterlyFeedbackRequest {
-  id           String   @id @default(cuid())
-  mentorshipId String
-  mentorship   Mentorship @relation(fields: [mentorshipId], references: [id], onDelete: Cascade)
-  reviewId     String?
-  review       MentorGoalReview? @relation("FeedbackRequests", fields: [reviewId], references: [id], onDelete: SetNull)
+  id            String                      @id @default(cuid())
+  mentorshipId  String
+  mentorship    Mentorship                  @relation(fields: [mentorshipId], references: [id], onDelete: Cascade)
+  reviewId      String?
+  review        MentorGoalReview?           @relation("FeedbackRequests", fields: [reviewId], references: [id], onDelete: SetNull)
   quarterNumber Int
   requestedById String
-  requestedBy   User     @relation("FeedbackRequestsCreated", fields: [requestedById], references: [id])
-  token         String   @unique @default(cuid())
+  requestedBy   User                        @relation("FeedbackRequestsCreated", fields: [requestedById], references: [id])
+  token         String                      @unique @default(cuid())
   responses     QuarterlyFeedbackResponse[]
-  createdAt     DateTime @default(now())
+  createdAt     DateTime                    @default(now())
 
   @@index([mentorshipId])
   @@index([reviewId])
@@ -7926,64 +8119,609 @@ model QuarterlyFeedbackResponse {
   request         QuarterlyFeedbackRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
   respondentName  String
   respondentEmail String?
-  respondentRole  String   // "Parent", "Student", "School Official", "Leadership"
-  overallRating   Int      // 1-5
+  respondentRole  String // "Parent", "Student", "School Official", "Leadership"
+  overallRating   Int // 1-5
   strengths       String
   areasForGrowth  String
   additionalNotes String?
-  submittedAt     DateTime @default(now())
+  submittedAt     DateTime                 @default(now())
 
   @@index([requestId])
 }
 
 /// Mentee-initiated meeting scheduling request with mentor
 model MentorshipScheduleRequest {
-  id           String     @id @default(cuid())
-  mentorshipId String
-  mentorship   Mentorship @relation(fields: [mentorshipId], references: [id], onDelete: Cascade)
-  requestedById String
-  requestedBy  User       @relation("ScheduleRequestsCreated", fields: [requestedById], references: [id])
-  sessionType  MentorshipSessionType @default(CHECK_IN)
-  title        String
-  notes        String?
-  preferredSlots Json     @default("[]") // Array of ISO datetime strings the requester prefers
-  status       String     @default("PENDING") // PENDING, CONFIRMED, DECLINED, CANCELLED
-  confirmedAt  DateTime?
-  scheduledAt  DateTime?
-  meetingLink  String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id             String                @id @default(cuid())
+  mentorshipId   String
+  mentorship     Mentorship            @relation(fields: [mentorshipId], references: [id], onDelete: Cascade)
+  requestedById  String
+  requestedBy    User                  @relation("ScheduleRequestsCreated", fields: [requestedById], references: [id])
+  sessionType    MentorshipSessionType @default(CHECK_IN)
+  title          String
+  notes          String?
+  preferredSlots Json                  @default("[]") // Array of ISO datetime strings the requester prefers
+  status         String                @default("PENDING") // PENDING, CONFIRMED, DECLINED, CANCELLED
+  confirmedAt    DateTime?
+  scheduledAt    DateTime?
+  meetingLink    String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
 
   @@index([mentorshipId])
   @@index([requestedById])
 }
 
 model CurriculumDraft {
-  id           String                @id @default(cuid())
-  authorId     String
-  author       User                  @relation(fields: [authorId], references: [id])
-  title        String                @default("")
-  description  String?               @db.Text
-  interestArea String                @default("")
-  outcomes     String[]
-  courseConfig Json                  @default("{\"durationWeeks\":8,\"sessionsPerWeek\":1,\"classDurationMin\":60,\"targetAgeGroup\":\"\",\"deliveryModes\":[\"VIRTUAL\"],\"difficultyLevel\":\"LEVEL_101\",\"minStudents\":3,\"maxStudents\":25,\"idealSize\":12,\"estimatedHours\":8}")
-  weeklyPlans  Json                  @default("[]")
-  understandingChecks Json           @default("{\"answers\":{},\"lastScorePct\":null,\"passed\":false,\"completedAt\":null}")
-  reviewRubric Json?
-  reviewNotes  String?               @db.Text
-  reviewedById String?
-  reviewedAt   DateTime?
-  submittedAt  DateTime?
-  approvedAt   DateTime?
+  id                  String                @id @default(cuid())
+  authorId            String
+  author              User                  @relation(fields: [authorId], references: [id])
+  title               String                @default("")
+  description         String?               @db.Text
+  interestArea        String                @default("")
+  outcomes            String[]
+  courseConfig        Json                  @default("{\"durationWeeks\":8,\"sessionsPerWeek\":1,\"classDurationMin\":60,\"targetAgeGroup\":\"\",\"deliveryModes\":[\"VIRTUAL\"],\"difficultyLevel\":\"LEVEL_101\",\"minStudents\":3,\"maxStudents\":25,\"idealSize\":12,\"estimatedHours\":8}")
+  weeklyPlans         Json                  @default("[]")
+  understandingChecks Json                  @default("{\"answers\":{},\"lastScorePct\":null,\"passed\":false,\"completedAt\":null}")
+  reviewRubric        Json?
+  reviewNotes         String?               @db.Text
+  reviewedById        String?
+  reviewedAt          DateTime?
+  submittedAt         DateTime?
+  approvedAt          DateTime?
   generatedTemplateId String?
-  status       CurriculumDraftStatus @default(IN_PROGRESS)
-  completedAt  DateTime?
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
+  status              CurriculumDraftStatus @default(IN_PROGRESS)
+  completedAt         DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
 
   @@index([authorId])
   @@index([status])
   @@index([generatedTemplateId])
+}
+
+// GOALS & RESPONSIBILITIES (G&R) SYSTEM
+// ============================================
+
+enum GRTimePhase {
+  FIRST_MONTH
+  FIRST_QUARTER
+  FULL_YEAR
+}
+
+enum GRDocumentStatus {
+  DRAFT
+  PENDING_APPROVAL
+  ACTIVE
+  ARCHIVED
+}
+
+enum GRGoalChangeStatus {
+  PROPOSED
+  APPROVED
+  REJECTED
+}
+
+// ============================================
+// PHASE 3: GOVERNANCE & RISK CONTROLS
+// ============================================
+
+/// Periodic KPI snapshot per chapter for trend tracking and at-risk detection
+model ChapterKpiSnapshot {
+  id        String  @id @default(cuid())
+  chapterId String
+  chapter   Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  // Snapshot date (one per chapter per day max)
+  snapshotDate DateTime @default(now())
+
+  // Core KPIs
+  activeStudents        Int    @default(0)
+  activeInstructors     Int    @default(0)
+  pendingApplications   Int    @default(0)
+  overdueQueues         Int    @default(0)
+  avgResponseHours      Float? // avg hours to first action on queues
+  classesRunningCount   Int    @default(0)
+  enrollmentFillPercent Float? // avg enrollment / capacity across classes
+  mentorshipPairCount   Int    @default(0)
+
+  // Growth & Engagement KPIs
+  retentionRate      Float? // % members active in last 30 days
+  newMembersThisWeek Int    @default(0)
+  eventsThisWeek     Int    @default(0)
+  postsThisWeek      Int    @default(0)
+
+  // Risk flags
+  isAtRisk  Boolean  @default(false)
+  riskFlags String[] // e.g. ["no_active_instructors", "overdue_queues_high"]
+
+  createdAt DateTime @default(now())
+
+  @@unique([chapterId, snapshotDate])
+  @@index([chapterId])
+  @@index([snapshotDate])
+  @@index([isAtRisk])
+}
+
+/// SLA and operational rule definitions for escalation workflows
+enum OpsRuleSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum OpsRuleStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+model OpsRule {
+  id          String          @id @default(cuid())
+  name        String
+  description String?
+  severity    OpsRuleSeverity @default(WARNING)
+  status      OpsRuleStatus   @default(ACTIVE)
+
+  // Rule definition
+  metricKey      String // e.g. "overdue_queues", "pending_applications", "avg_response_hours"
+  operator       String // "gt", "gte", "lt", "lte", "eq"
+  thresholdValue Float // numeric threshold
+
+  // Scope
+  chapterId String? // null = global rule
+  chapter   Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  // Escalation
+  escalateToRoles String[] // e.g. ["ADMIN", "CHAPTER_LEAD"]
+  autoNotify      Boolean  @default(true)
+
+  createdById String
+  createdBy   User   @relation("OpsRulesCreated", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  violations OpsRuleViolation[]
+
+  @@index([status])
+  @@index([metricKey])
+  @@index([chapterId])
+}
+
+/// Recorded violation when an ops rule is breached
+model OpsRuleViolation {
+  id        String  @id @default(cuid())
+  ruleId    String
+  rule      OpsRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  chapterId String
+  chapter   Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  actualValue    Float
+  thresholdValue Float
+  snapshotDate   DateTime
+
+  acknowledged   Boolean   @default(false)
+  acknowledgedBy String?
+  acknowledgedAt DateTime?
+  notes          String?
+
+  createdAt DateTime @default(now())
+
+  @@index([ruleId])
+  @@index([chapterId])
+  @@index([acknowledged])
+  @@index([snapshotDate])
+}
+
+// ============================================
+// CHAPTER DISCOVERY & JOIN FLOW
+// ============================================
+
+enum ChapterJoinPolicy {
+  OPEN
+  APPROVAL
+  INVITE_ONLY
+}
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum GRBulkUpdatePolicy {
+  NEW_ONLY
+  IMMEDIATE_ALL
+  NEXT_CYCLE
+}
+
+enum GRTemplateStatus {
+  GR_DRAFT
+  IN_REVIEW
+  GR_APPROVED
+  GR_ARCHIVED
+}
+
+enum KPISourceType {
+  AUTO_PARENT_FEEDBACK
+  AUTO_TRAINING_COMPLETION
+  AUTO_COMMUNITY_ENGAGEMENT
+  AUTO_ATTENDANCE
+  MANUAL_MENTOR_RATING
+  MANUAL_QUALITATIVE
+}
+
+/// Role-wide base template that admins author collaboratively
+model GRTemplate {
+  id              String           @id @default(cuid())
+  title           String
+  roleType        MenteeRoleType
+  officerPosition String?
+  roleMission     String           @db.Text
+  status          GRTemplateStatus @default(GR_DRAFT)
+  version         Int              @default(1)
+  publishedAt     DateTime?
+  isActive        Boolean          @default(true)
+
+  createdById    String
+  createdBy      User    @relation("GRTemplatesCreated", fields: [createdById], references: [id])
+  lastEditedById String?
+  lastEditedBy   User?   @relation("GRTemplatesLastEdited", fields: [lastEditedById], references: [id])
+
+  goals           GRTemplateGoal[]
+  successCriteria GRTemplateSuccessCriteria[]
+  resources       GRTemplateResource[]
+  comments        GRTemplateComment[]
+  versions        GRTemplateVersion[]
+  assignments     GRDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([roleType])
+  @@index([officerPosition])
+}
+
+/// Individual goals within a template, organized by time phase
+model GRTemplateGoal {
+  id          String      @id @default(cuid())
+  templateId  String
+  template    GRTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  title       String
+  description String      @db.Text
+  timePhase   GRTimePhase
+  sortOrder   Int         @default(0)
+  isActive    Boolean     @default(true)
+
+  kpiDefinitions GRKPIDefinition[]
+  documentGoals  GRDocumentGoal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([templateId, timePhase])
+}
+
+/// Structured success criteria per time phase on a template
+model GRTemplateSuccessCriteria {
+  id         String      @id @default(cuid())
+  templateId String
+  template   GRTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  timePhase  GRTimePhase
+  criteria   String      @db.Text
+  sortOrder  Int         @default(0)
+
+  documentCriteria GRDocumentSuccessCriteria[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([templateId, timePhase])
+}
+
+/// Join table linking templates to resources from the shared library
+model GRTemplateResource {
+  id         String     @id @default(cuid())
+  templateId String
+  template   GRTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  resourceId String
+  resource   GRResource @relation(fields: [resourceId], references: [id])
+  sortOrder  Int        @default(0)
+
+  @@unique([templateId, resourceId])
+}
+
+/// Shared resource library (uploads & links), reusable across G&Rs
+model GRResource {
+  id           String      @id @default(cuid())
+  title        String
+  description  String?
+  url          String
+  isUpload     Boolean     @default(false)
+  fileUploadId String?
+  fileUpload   FileUpload? @relation(fields: [fileUploadId], references: [id])
+  tags         String[]
+  isActive     Boolean     @default(true)
+  createdById  String
+  createdBy    User        @relation("GRResourcesCreated", fields: [createdById], references: [id])
+
+  templateLinks GRTemplateResource[]
+  documentLinks GRDocumentResource[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tags])
+}
+
+/// Collaborative drafting comments on templates
+model GRTemplateComment {
+  id         String     @id @default(cuid())
+  templateId String
+  template   GRTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User       @relation("GRTemplateCommentsAuthored", fields: [authorId], references: [id])
+  body       String     @db.Text
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([templateId])
+}
+
+/// Full version history for templates
+model GRTemplateVersion {
+  id         String     @id @default(cuid())
+  templateId String
+  template   GRTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  version    Int
+  snapshot   Json
+  changedBy  String
+  changeNote String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([templateId, version])
+  @@index([templateId])
+}
+
+/// Per-person G&R document, instantiated from a template plus individual customizations
+model GRDocument {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation("GRDocuments", fields: [userId], references: [id])
+  mentorshipId String
+  mentorship   Mentorship @relation(fields: [mentorshipId], references: [id])
+  templateId   String
+  template     GRTemplate @relation(fields: [templateId], references: [id])
+
+  roleMission   String           @db.Text
+  mentorInfo    Json?
+  officerInfo   Json?
+  roleStartDate DateTime
+  status        GRDocumentStatus @default(DRAFT)
+
+  goals           GRDocumentGoal[]
+  successCriteria GRDocumentSuccessCriteria[]
+  resources       GRDocumentResource[]
+  plansOfAction   GRPlanOfAction[]
+  goalChanges     GRGoalChange[]
+  versions        GRDocumentVersion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, templateId])
+  @@index([userId])
+  @@index([mentorshipId])
+}
+
+/// Individual goal instance on a person's G&R document
+model GRDocumentGoal {
+  id             String          @id @default(cuid())
+  documentId     String
+  document       GRDocument      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  templateGoalId String?
+  templateGoal   GRTemplateGoal? @relation(fields: [templateGoalId], references: [id])
+
+  title       String
+  description String      @db.Text
+  timePhase   GRTimePhase
+  sortOrder   Int         @default(0)
+  isCustom    Boolean     @default(false)
+  isActive    Boolean     @default(true)
+
+  kpiValues GRKPIValue[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([documentId, timePhase])
+}
+
+/// Per-person success criteria (copied from template, customizable)
+model GRDocumentSuccessCriteria {
+  id                 String                     @id @default(cuid())
+  documentId         String
+  document           GRDocument                 @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  templateCriteriaId String?
+  templateCriteria   GRTemplateSuccessCriteria? @relation(fields: [templateCriteriaId], references: [id])
+  timePhase          GRTimePhase
+  criteria           String                     @db.Text
+
+  @@unique([documentId, timePhase])
+}
+
+/// Links from the shared library attached to a specific person's G&R
+model GRDocumentResource {
+  id         String     @id @default(cuid())
+  documentId String
+  document   GRDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  resourceId String
+  resource   GRResource @relation(fields: [resourceId], references: [id])
+  sortOrder  Int        @default(0)
+
+  @@unique([documentId, resourceId])
+}
+
+/// Mentee-written plan of action, revised monthly alongside self-reflection
+model GRPlanOfAction {
+  id           String     @id @default(cuid())
+  documentId   String
+  document     GRDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  cycleNumber  Int
+  content      String     @db.Text
+  reflectionId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([documentId, cycleNumber])
+  @@index([documentId])
+}
+
+/// Mentor-proposed changes to a person's goals, requiring admin approval
+model GRGoalChange {
+  id           String     @id @default(cuid())
+  documentId   String
+  document     GRDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  proposedById String
+  proposedBy   User       @relation("GRGoalChangesProposed", fields: [proposedById], references: [id])
+
+  changeType   String
+  goalId       String?
+  proposedData Json
+  reason       String?
+
+  status       GRGoalChangeStatus @default(PROPOSED)
+  reviewedById String?
+  reviewedBy   User?              @relation("GRGoalChangesReviewed", fields: [reviewedById], references: [id])
+  reviewNote   String?
+  reviewedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([documentId, status])
+}
+
+/// Version history for individual G&R documents
+model GRDocumentVersion {
+  id          String     @id @default(cuid())
+  documentId  String
+  document    GRDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  version     Int
+  snapshot    Json
+  changedById String
+  changedBy   User       @relation("GRDocumentVersionsCreated", fields: [changedById], references: [id])
+  changeNote  String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([documentId, version])
+  @@index([documentId])
+}
+
+/// KPI metric definitions attached to template goals
+model GRKPIDefinition {
+  id             String         @id @default(cuid())
+  templateGoalId String
+  templateGoal   GRTemplateGoal @relation(fields: [templateGoalId], references: [id], onDelete: Cascade)
+  label          String
+  sourceType     KPISourceType
+  targetValue    String?
+  unit           String?
+
+  values GRKPIValue[]
+
+  @@index([templateGoalId])
+}
+
+/// Actual KPI measurements per person per goal
+model GRKPIValue {
+  id           String          @id @default(cuid())
+  goalId       String
+  goal         GRDocumentGoal  @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  definitionId String
+  definition   GRKPIDefinition @relation(fields: [definitionId], references: [id])
+  value        String
+  measuredAt   DateTime        @default(now())
+  isAutomatic  Boolean         @default(false)
+  notes        String?
+
+  @@index([goalId])
+  @@index([definitionId])
+}
+
+model ChapterJoinRequest {
+  id           String            @id @default(cuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id])
+  chapterId    String
+  chapter      Chapter           @relation(fields: [chapterId], references: [id])
+  message      String?
+  status       JoinRequestStatus @default(PENDING)
+  reviewedById String?
+  reviewedBy   User?             @relation("JoinRequestReviewer", fields: [reviewedById], references: [id])
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@unique([userId, chapterId])
+  @@index([chapterId, status])
+}
+
+// ============================================
+// CHAPTER CHANNELS & COMMUNITY
+// ============================================
+
+model ChapterChannel {
+  id          String   @id @default(cuid())
+  chapterId   String
+  chapter     Chapter  @relation(fields: [chapterId], references: [id])
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  messages ChapterChannelMessage[]
+
+  @@unique([chapterId, name])
+  @@index([chapterId])
+}
+
+model ChapterChannelMessage {
+  id        String         @id @default(cuid())
+  channelId String
+  channel   ChapterChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User           @relation("ChapterChannelMessages", fields: [authorId], references: [id])
+  content   String
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([channelId, createdAt])
+}
+
+// ============================================
+// CHAPTER GOALS
+// ============================================
+
+model ChapterGoal {
+  id           String     @id @default(cuid())
+  chapterId    String
+  chapter      Chapter    @relation(fields: [chapterId], references: [id])
+  createdById  String
+  createdBy    User       @relation("ChapterGoalCreator", fields: [createdById], references: [id])
+  title        String
+  description  String?
+  targetValue  Int
+  currentValue Int        @default(0)
+  unit         String // "members", "events", "enrollments", "courses"
+  deadline     DateTime?
+  status       GoalStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([chapterId, status])
 }
 
 // ============================================
@@ -8003,16 +8741,16 @@ enum KudosCategory {
 
 /// Public peer shout-out that feeds into Character & Culture bonus points
 model PeerKudos {
-  id          String         @id @default(cuid())
-  giverId     String
-  giver       User           @relation("PeerKudosGiven", fields: [giverId], references: [id])
-  receiverId  String
-  receiver    User           @relation("PeerKudosReceived", fields: [receiverId], references: [id])
-  category    KudosCategory
-  message     String
-  isPublic    Boolean        @default(true)
+  id                   String        @id @default(cuid())
+  giverId              String
+  giver                User          @relation("PeerKudosGiven", fields: [giverId], references: [id])
+  receiverId           String
+  receiver             User          @relation("PeerKudosReceived", fields: [receiverId], references: [id])
+  category             KudosCategory
+  message              String
+  isPublic             Boolean       @default(true)
   referencedInReviewId String?
-  createdAt   DateTime       @default(now())
+  createdAt            DateTime      @default(now())
 
   @@index([receiverId])
   @@index([giverId])
@@ -8033,16 +8771,16 @@ enum CollegeStage {
 }
 
 model CollegeReadinessRoadmap {
-  id             String              @id @default(cuid())
-  userId         String              @unique
-  user           User                @relation("CollegeRoadmap", fields: [userId], references: [id])
-  currentStage   CollegeStage        @default(EXPLORING)
+  id             String               @id @default(cuid())
+  userId         String               @unique
+  user           User                 @relation("CollegeRoadmap", fields: [userId], references: [id])
+  currentStage   CollegeStage         @default(EXPLORING)
   graduationYear Int?
   dreamColleges  String[]
   intendedMajors String[]
   tasks          CollegeRoadmapTask[]
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
 
   @@index([userId])
 }
@@ -8054,7 +8792,7 @@ model CollegeRoadmapTask {
   stage       CollegeStage
   title       String
   description String?
-  category    String                  // "Research", "Testing", "Essays", "Financial", "Visits"
+  category    String // "Research", "Testing", "Essays", "Financial", "Visits"
   isRequired  Boolean                 @default(false)
   isTemplate  Boolean                 @default(false)
   completedAt DateTime?
@@ -8081,9 +8819,9 @@ enum ActivityCategory {
 }
 
 model CollegeActivity {
-  id              String            @id @default(cuid())
+  id              String              @id @default(cuid())
   userId          String
-  user            User              @relation("CollegeActivities", fields: [userId], references: [id])
+  user            User                @relation("CollegeActivities", fields: [userId], references: [id])
   name            String
   category        ActivityCategory
   organization    String?
@@ -8094,14 +8832,14 @@ model CollegeActivity {
   yearsInvolved   Int?
   startDate       DateTime?
   endDate         DateTime?
-  isOngoing       Boolean           @default(true)
+  isOngoing       Boolean             @default(true)
   impactStatement String?
   advisorNotes    String?
-  isYppActivity   Boolean           @default(false) // auto-populated from portal data
-  sortOrder       Int               @default(0)
+  isYppActivity   Boolean             @default(false) // auto-populated from portal data
+  sortOrder       Int                 @default(0)
   milestones      ActivityMilestone[]
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   @@index([userId])
 }
@@ -8159,7 +8897,7 @@ model AlumniPanelRsvp {
   event   AlumniPanelEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
   userId  String
   user    User             @relation("AlumniPanelRsvps", fields: [userId], references: [id])
-  status  String           // "GOING", "MAYBE", "NOT_GOING"
+  status  String // "GOING", "MAYBE", "NOT_GOING"
 
   @@unique([eventId, userId])
   @@index([eventId])
@@ -8183,12 +8921,12 @@ model AlumniIntroRequest {
 // ---- 4H: AWARD CEREMONY ----
 
 model AwardCertificate {
-  id            String   @id @default(cuid())
-  userId        String
-  tier          String   // AchievementAwardTier value
-  nominationId  String   @unique
-  svgData       String   @db.Text
-  issuedAt      DateTime @default(now())
+  id           String   @id @default(cuid())
+  userId       String
+  tier         String // AchievementAwardTier value
+  nominationId String   @unique
+  svgData      String   @db.Text
+  issuedAt     DateTime @default(now())
 
   @@index([userId])
 }
