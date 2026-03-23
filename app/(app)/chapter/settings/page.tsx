@@ -50,6 +50,27 @@ export default async function ChapterSettingsPage() {
             <span style={{ color: "var(--ypp-purple)", fontSize: 18 }}>→</span>
           </Link>
 
+          {/* Invite Links */}
+          <Link
+            href="/chapter/invites"
+            className="card"
+            style={{
+              textDecoration: "none",
+              color: "inherit",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <div>
+              <strong style={{ fontSize: 14 }}>Invite Links</strong>
+              <p style={{ color: "var(--muted)", fontSize: 13, margin: "2px 0 0" }}>
+                Create shareable links to grow your chapter
+              </p>
+            </div>
+            <span style={{ color: "var(--ypp-purple)", fontSize: 18 }}>→</span>
+          </Link>
+
           {/* Preview Card */}
           <div className="card">
             <h3>Chapter Preview</h3>

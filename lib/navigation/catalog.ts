@@ -503,6 +503,21 @@ export const NAV_CATALOG: NavLink[] = [
       dashboardPriority: 21,
     },
     {
+      href: "/chapter/invites",
+      label: "Invite Links",
+      icon: "🔗",
+      roles: CHAPTER_LEAD_ONLY,
+      dashboardDescription: "Create and manage shareable invite links to grow your chapter.",
+      dashboardPriority: 23,
+    },
+    {
+      href: "/chapters/leaderboard",
+      label: "Chapter Leaderboard",
+      icon: "🏆",
+      dashboardDescription: "See how chapters across the network are growing.",
+      dashboardPriority: 24,
+    },
+    {
       href: "/chapter/settings",
       label: "Chapter Settings",
       icon: "⚙️",

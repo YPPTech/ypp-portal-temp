@@ -442,6 +442,7 @@ model Chapter {
   channels          ChapterChannel[]
   onboardingSteps   ChapterOnboardingStep[]
   memberOnboardingProgress MemberOnboardingProgress[]
+  invites           ChapterInvite[]
   courses           Course[]
   events            Event[]
   feedbacks         Feedback[]
@@ -839,6 +840,12 @@ model User {
   chapterGoalsCreated         ChapterGoal[]        @relation("ChapterGoalCreator")
   chapterChannelMessages      ChapterChannelMessage[] @relation("ChapterChannelMessages")
   memberOnboardingProgress    MemberOnboardingProgress[] @relation("MemberOnboardingProgress")
+  chapterInvitesCreated       ChapterInvite[]         @relation("ChapterInviteCreator")
+  chapterInviteUsed           ChapterInvite?          @relation("ChapterInviteUsedBy", fields: [joinedViaInviteId], references: [id])
+  joinedViaInviteId           String?
+  referredBy                  User?                   @relation("UserReferrals", fields: [referredById], references: [id])
+  referredById                String?
+  referrals                   User[]                  @relation("UserReferrals")
 
   // Parent Feedback & Survey Relations
   parentChapterFeedbacks ParentChapterFeedback[] @relation("ParentChapterFeedbacks")
@@ -8181,4 +8188,32 @@ model ChapterGoal {
   updatedAt    DateTime   @updatedAt
 
   @@index([chapterId, status])
+}
+
+// ============================================
+// CHAPTER INVITES & REFERRAL TRACKING
+// ============================================
+
+model ChapterInvite {
+  id          String   @id @default(cuid())
+  chapterId   String
+  chapter     Chapter  @relation(fields: [chapterId], references: [id])
+  createdById String
+  createdBy   User     @relation("ChapterInviteCreator", fields: [createdById], references: [id])
+
+  code        String   @unique   // Short shareable code (e.g. "abc123")
+  label       String?            // Friendly name (e.g. "Summer 2026 Open House")
+  maxUses     Int?               // null = unlimited
+  useCount    Int      @default(0)
+  expiresAt   DateTime?          // null = never expires
+  isActive    Boolean  @default(true)
+
+  // Who used this invite
+  usedBy      User[]   @relation("ChapterInviteUsedBy")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([chapterId])
+  @@index([code])
 }
