@@ -240,10 +240,6 @@ export async function submitSelfReflection(formData: FormData) {
     nextMonthPlans: getString(formData, `goal_${goalId}_nextMonthPlans`),
   }));
 
-  if (goalIds.length === 0) {
-    throw new Error("No goals found for your role. Contact your administrator.");
-  }
-
   // Compute reflection streak: increment if last reflection was within 45 days
   const lastReflectionDate = mentorship.selfReflections[0]?.submittedAt ?? null;
   const daysSinceLast = lastReflectionDate
