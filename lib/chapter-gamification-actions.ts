@@ -89,16 +89,16 @@ export async function getChapterMilestones() {
   if (!user?.chapterId) throw new Error("Not in a chapter");
 
   // Get or create default milestones
-  let milestones = await db.chapterMilestone.findMany({
+  let milestones = await db.chapterAchievementMilestone.findMany({
     where: { chapterId: user.chapterId },
     orderBy: [{ isUnlocked: "desc" }, { threshold: "asc" }],
   });
 
   if (milestones.length === 0) {
-    await db.chapterMilestone.createMany({
+    await db.chapterAchievementMilestone.createMany({
       data: DEFAULT_MILESTONES.map((m) => ({ ...m, chapterId: user.chapterId })),
     });
-    milestones = await db.chapterMilestone.findMany({
+    milestones = await db.chapterAchievementMilestone.findMany({
       where: { chapterId: user.chapterId },
       orderBy: [{ isUnlocked: "desc" }, { threshold: "asc" }],
     });
@@ -153,7 +153,7 @@ export async function getChapterMilestones() {
   // Persist any newly unlocked milestones
   for (const m of updated) {
     if (m.isNewlyUnlocked) {
-      await db.chapterMilestone.update({
+      await db.chapterAchievementMilestone.update({
         where: { id: m.id },
         data: {
           isUnlocked: true,
@@ -201,7 +201,7 @@ export async function getChapterGamificationSummary() {
   const userRank = rank > 0 ? rank : totalMembers; // If not in top 5, show total
 
   // Recently unlocked milestones
-  const recentMilestones = await db.chapterMilestone.findMany({
+  const recentMilestones = await db.chapterAchievementMilestone.findMany({
     where: { chapterId: user.chapterId, isUnlocked: true },
     orderBy: { unlockedAt: "desc" },
     take: 3,
@@ -260,7 +260,7 @@ export async function createCustomMilestone(formData: FormData) {
 
   if (!title || !threshold) throw new Error("Title and target are required");
 
-  await db.chapterMilestone.create({
+  await db.chapterAchievementMilestone.create({
     data: {
       chapterId: user.chapterId,
       type: "CUSTOM",

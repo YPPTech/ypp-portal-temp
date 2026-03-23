@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isRecoverablePrismaError, withPrismaFallback } from "@/lib/prisma-guard";
 
 // ============================================
 // CHAPTER COMMAND CENTER DATA
@@ -49,54 +50,110 @@ export async function getCommandCenterData() {
     allMembers,
   ] = await Promise.all([
     // Chapter basics with upcoming events and open positions
-    prisma.chapter.findUnique({
-      where: { id: chapterId },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        tagline: true,
-        logoUrl: true,
-        bannerUrl: true,
-        events: {
-          where: { startDate: { gte: now } },
-          orderBy: { startDate: "asc" },
-          take: 5,
-          select: { id: true, title: true, startDate: true, eventType: true },
-        },
-        positions: {
-          where: { isOpen: true },
+    (async () => {
+      try {
+        return await prisma.chapter.findUnique({
+          where: { id: chapterId },
           select: {
             id: true,
-            title: true,
-            type: true,
-            _count: { select: { applications: true } },
+            name: true,
+            slug: true,
+            tagline: true,
+            logoUrl: true,
+            bannerUrl: true,
+            events: {
+              where: { startDate: { gte: now } },
+              orderBy: { startDate: "asc" },
+              take: 5,
+              select: { id: true, title: true, startDate: true, eventType: true },
+            },
+            positions: {
+              where: { isOpen: true },
+              select: {
+                id: true,
+                title: true,
+                type: true,
+                _count: { select: { applications: true } },
+              },
+            },
+            announcements: {
+              where: { isActive: true },
+              orderBy: { publishedAt: "desc" },
+              take: 3,
+              select: { id: true, title: true, publishedAt: true },
+            },
+            courses: {
+              select: {
+                id: true,
+                title: true,
+                enrollments: { select: { id: true } },
+              },
+            },
           },
-        },
-        announcements: {
-          where: { isActive: true },
-          orderBy: { publishedAt: "desc" },
-          take: 3,
-          select: { id: true, title: true, publishedAt: true },
-        },
-        courses: {
+        });
+      } catch (error) {
+        if (!isRecoverablePrismaError(error)) {
+          throw error;
+        }
+
+        console.error(
+          "[getCommandCenterData] Chapter branding fields are unavailable; using basic chapter fallback.",
+          error
+        );
+
+        const basicChapter = await prisma.chapter.findUnique({
+          where: { id: chapterId },
           select: {
             id: true,
-            title: true,
-            enrollments: { select: { id: true } },
+            name: true,
+            slug: true,
           },
-        },
-      },
-    }),
+        });
+
+        return basicChapter
+          ? {
+              ...basicChapter,
+              tagline: null,
+              logoUrl: null,
+              bannerUrl: null,
+              events: [],
+              positions: [],
+              announcements: [],
+              courses: [],
+            }
+          : null;
+      }
+    })(),
 
     // Pending join requests
-    prisma.chapterJoinRequest.findMany({
-      where: { chapterId, status: "PENDING" },
-      include: {
-        user: { select: { id: true, name: true, email: true, primaryRole: true } },
-      },
-      orderBy: { createdAt: "asc" },
-    }),
+    withPrismaFallback(
+      "getCommandCenterData.pendingJoinRequests",
+      async () =>
+        prisma.chapterJoinRequest.findMany({
+          where: { chapterId, status: "PENDING" },
+          include: {
+            user: { select: { id: true, name: true, email: true, primaryRole: true } },
+          },
+          orderBy: { createdAt: "asc" },
+        }),
+      () =>
+        [] as Array<{
+          id: string;
+          userId: string;
+          chapterId: string;
+          message: string | null;
+          status: "PENDING" | "APPROVED" | "REJECTED";
+          reviewedById: string | null;
+          createdAt: Date;
+          updatedAt: Date;
+          user: {
+            id: string;
+            name: string;
+            email: string;
+            primaryRole: string;
+          };
+        }>,
+    ),
 
     // Pending applications across all open positions
     prisma.application.findMany({
@@ -127,28 +184,61 @@ export async function getCommandCenterData() {
     }),
 
     // Active chapter goals
-    prisma.chapterGoal.findMany({
-      where: { chapterId, status: "ACTIVE" },
-      orderBy: { createdAt: "desc" },
-    }),
+    withPrismaFallback(
+      "getCommandCenterData.activeGoals",
+      async () =>
+        prisma.chapterGoal.findMany({
+          where: { chapterId, status: "ACTIVE" },
+          orderBy: { createdAt: "desc" },
+        }),
+      () =>
+        [] as Array<{
+          id: string;
+          chapterId: string;
+          createdById: string;
+          title: string;
+          description: string | null;
+          targetValue: number;
+          currentValue: number;
+          unit: string;
+          deadline: Date | null;
+          status: "ACTIVE" | "COMPLETED" | "PAUSED" | "CANCELLED";
+          createdAt: Date;
+          updatedAt: Date;
+        }>,
+    ),
 
     // KPI snapshots for the last 8 weeks (for growth chart)
-    prisma.chapterKpiSnapshot.findMany({
-      where: {
-        chapterId,
-        snapshotDate: { gte: new Date(now.getTime() - 56 * 24 * 60 * 60 * 1000) },
-      },
-      orderBy: { snapshotDate: "asc" },
-      select: {
-        snapshotDate: true,
-        activeStudents: true,
-        activeInstructors: true,
-        classesRunningCount: true,
-        enrollmentFillPercent: true,
-        retentionRate: true,
-        newMembersThisWeek: true,
-      },
-    }),
+    withPrismaFallback(
+      "getCommandCenterData.kpiSnapshots",
+      async () =>
+        prisma.chapterKpiSnapshot.findMany({
+          where: {
+            chapterId,
+            snapshotDate: { gte: new Date(now.getTime() - 56 * 24 * 60 * 60 * 1000) },
+          },
+          orderBy: { snapshotDate: "asc" },
+          select: {
+            snapshotDate: true,
+            activeStudents: true,
+            activeInstructors: true,
+            classesRunningCount: true,
+            enrollmentFillPercent: true,
+            retentionRate: true,
+            newMembersThisWeek: true,
+          },
+        }),
+      () =>
+        [] as Array<{
+          snapshotDate: Date;
+          activeStudents: number;
+          activeInstructors: number;
+          classesRunningCount: number;
+          enrollmentFillPercent: number | null;
+          retentionRate: number | null;
+          newMembersThisWeek: number;
+        }>,
+    ),
 
     // All chapter members with last activity info
     prisma.user.findMany({

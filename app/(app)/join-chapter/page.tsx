@@ -5,6 +5,8 @@ import Link from "next/link";
 import { getPublicChapters } from "@/lib/chapter-join-actions";
 import { JoinChapterCard } from "./join-chapter-card";
 
+type PublicChapter = Awaited<ReturnType<typeof getPublicChapters>>[number];
+
 export default async function JoinChapterPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
@@ -42,7 +44,7 @@ export default async function JoinChapterPage() {
         </div>
       ) : (
         <div className="grid two" style={{ maxWidth: 900, margin: "0 auto" }}>
-          {chapters.map((chapter) => (
+          {chapters.map((chapter: PublicChapter) => (
             <JoinChapterCard key={chapter.id} chapter={chapter} />
           ))}
         </div>

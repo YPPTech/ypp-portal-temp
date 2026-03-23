@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { uploadFile } from "@/lib/storage";
+import { isRecoverablePrismaError } from "@/lib/prisma-guard";
 
 // ============================================
 // CHAPTER SETTINGS & PROFILE MANAGEMENT
@@ -34,22 +35,57 @@ async function requireChapterLead() {
 export async function getChapterSettings() {
   const { chapterId } = await requireChapterLead();
 
-  const chapter = await prisma.chapter.findUnique({
-    where: { id: chapterId },
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      city: true,
-      region: true,
-      description: true,
-      tagline: true,
-      logoUrl: true,
-      bannerUrl: true,
-      isPublic: true,
-      joinPolicy: true,
-    },
-  });
+  let chapter;
+  try {
+    chapter = await prisma.chapter.findUnique({
+      where: { id: chapterId },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        city: true,
+        region: true,
+        description: true,
+        tagline: true,
+        logoUrl: true,
+        bannerUrl: true,
+        isPublic: true,
+        joinPolicy: true,
+      },
+    });
+  } catch (error) {
+    if (!isRecoverablePrismaError(error)) {
+      throw error;
+    }
+
+    console.error(
+      "[getChapterSettings] Chapter profile fields are unavailable; using basic chapter fallback.",
+      error
+    );
+
+    const basicChapter = await prisma.chapter.findUnique({
+      where: { id: chapterId },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        city: true,
+        region: true,
+      },
+    });
+
+    chapter = basicChapter
+      ? {
+          ...basicChapter,
+          description: null,
+          tagline: null,
+          logoUrl: null,
+          bannerUrl: null,
+          isPublic: true,
+          joinPolicy: "OPEN" as const,
+        }
+      : null;
+  }
 
   if (!chapter) throw new Error("Chapter not found");
   return chapter;

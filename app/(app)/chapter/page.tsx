@@ -189,6 +189,13 @@ export default async function ChapterDashboardPage() {
                 ➕ New Position
               </Link>
               <Link
+                href="/chapter/calendar"
+                className="action-btn"
+                style={{ textDecoration: "none" }}
+              >
+                🗓 Chapter Calendar
+              </Link>
+              <Link
                 href="/chapter/updates"
                 className="action-btn"
                 style={{ textDecoration: "none" }}

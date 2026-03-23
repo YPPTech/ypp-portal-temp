@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { withPrismaFallback } from "@/lib/prisma-guard";
 
 // ============================================
 // CHAPTER CHANNELS & MESSAGING
@@ -30,26 +31,43 @@ async function requireChapterMember() {
 export async function getChapterChannels() {
   const { chapterId } = await requireChapterMember();
 
-  const channels = await prisma.chapterChannel.findMany({
-    where: { chapterId },
-    orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      isDefault: true,
-      _count: { select: { messages: true } },
-      messages: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
+  const channels = await withPrismaFallback(
+    "getChapterChannels",
+    async () =>
+      prisma.chapterChannel.findMany({
+        where: { chapterId },
+        orderBy: [{ isDefault: "desc" }, { name: "asc" }],
         select: {
-          content: true,
-          createdAt: true,
-          author: { select: { name: true } },
+          id: true,
+          name: true,
+          description: true,
+          isDefault: true,
+          _count: { select: { messages: true } },
+          messages: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              content: true,
+              createdAt: true,
+              author: { select: { name: true } },
+            },
+          },
         },
-      },
-    },
-  });
+      }),
+    () =>
+      [] as Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        isDefault: boolean;
+        _count: { messages: number };
+        messages: Array<{
+          content: string;
+          createdAt: Date;
+          author: { name: string };
+        }>;
+      }>,
+  );
 
   return channels;
 }

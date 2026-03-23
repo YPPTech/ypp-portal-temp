@@ -13,8 +13,14 @@ export default async function ChapterPresidentPage() {
   // Find the current user's chapter
   const currentUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    include: {
-      chapter: true,
+    select: {
+      id: true,
+      chapter: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   });
 
@@ -133,6 +139,40 @@ export default async function ChapterPresidentPage() {
               </p>
             </div>
           )}
+
+          <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <Link
+              href="/chapter/calendar"
+              style={{
+                display: "inline-block",
+                padding: "0.5rem 1rem",
+                backgroundColor: "#111827",
+                color: "#fff",
+                borderRadius: "6px",
+                textDecoration: "none",
+                fontSize: "0.875rem",
+                fontWeight: 500,
+              }}
+            >
+              Open Chapter Calendar
+            </Link>
+            <Link
+              href="/my-chapter/calendar"
+              style={{
+                display: "inline-block",
+                padding: "0.5rem 1rem",
+                backgroundColor: "#fff",
+                color: "#111827",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                textDecoration: "none",
+                fontSize: "0.875rem",
+                fontWeight: 500,
+              }}
+            >
+              View Member Calendar
+            </Link>
+          </div>
         </div>
       ) : (
         <div

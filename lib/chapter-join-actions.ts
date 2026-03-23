@@ -4,6 +4,26 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { isRecoverablePrismaError, withPrismaFallback } from "@/lib/prisma-guard";
+
+type RoleRecord = { role: string };
+type JoinRequestListItem = {
+  id: string;
+  userId: string;
+  chapterId: string;
+  message: string | null;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  reviewedById: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    primaryRole: string;
+    createdAt: Date;
+  };
+};
 
 // ============================================
 // CHAPTER DISCOVERY & JOIN FLOW
@@ -13,91 +33,180 @@ import { revalidatePath } from "next/cache";
  * Get all public chapters for the directory / discovery page.
  */
 export async function getPublicChapters() {
-  const chapters = await prisma.chapter.findMany({
-    where: { isPublic: true },
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      city: true,
-      region: true,
-      tagline: true,
-      logoUrl: true,
-      bannerUrl: true,
-      joinPolicy: true,
-      _count: {
-        select: {
-          users: true,
-          courses: true,
-          events: { where: { startDate: { gte: new Date() } } },
+  try {
+    return await prisma.chapter.findMany({
+      where: { isPublic: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        city: true,
+        region: true,
+        tagline: true,
+        logoUrl: true,
+        bannerUrl: true,
+        joinPolicy: true,
+        _count: {
+          select: {
+            users: true,
+            courses: true,
+            events: { where: { startDate: { gte: new Date() } } },
+          },
         },
       },
-    },
-    orderBy: { name: "asc" },
-  });
+      orderBy: { name: "asc" },
+    });
+  } catch (error) {
+    if (!isRecoverablePrismaError(error)) {
+      throw error;
+    }
 
-  return chapters;
+    console.error(
+      "[getPublicChapters] Chapter profile fields are unavailable; using basic chapter fallback.",
+      error
+    );
+
+    const chapters = await prisma.chapter.findMany({
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        city: true,
+        region: true,
+        _count: {
+          select: {
+            users: true,
+            courses: true,
+            events: { where: { startDate: { gte: new Date() } } },
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
+
+    return chapters.map((chapter) => ({
+      ...chapter,
+      tagline: null,
+      logoUrl: null,
+      bannerUrl: null,
+      joinPolicy: "OPEN" as const,
+    }));
+  }
 }
 
 /**
  * Get a single chapter's public profile by slug.
  */
 export async function getChapterBySlug(slug: string) {
-  const chapter = await prisma.chapter.findUnique({
-    where: { slug },
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      city: true,
-      region: true,
-      description: true,
-      tagline: true,
-      logoUrl: true,
-      bannerUrl: true,
-      joinPolicy: true,
+  try {
+    const chapter = await prisma.chapter.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        city: true,
+        region: true,
+        description: true,
+        tagline: true,
+        logoUrl: true,
+        bannerUrl: true,
+        joinPolicy: true,
+        isPublic: true,
+        publicSummary: true,
+        publicStory: true,
+        publicContactEmail: true,
+        publicContactUrl: true,
+        calendarThemeColor: true,
+        _count: {
+          select: {
+            users: true,
+            courses: true,
+            events: { where: { startDate: { gte: new Date() } } },
+          },
+        },
+        users: {
+          where: {
+            roles: { some: { role: { in: ["CHAPTER_LEAD", "ADMIN"] } } },
+          },
+          select: { id: true, name: true, primaryRole: true },
+          take: 5,
+        },
+        pathwayConfigs: {
+          where: { isAvailable: true },
+          select: {
+            pathway: { select: { id: true, name: true } },
+            isFeatured: true,
+            runStatus: true,
+          },
+          take: 10,
+        },
+        events: {
+          where: { startDate: { gte: new Date() } },
+          orderBy: { startDate: "asc" },
+          take: 3,
+          select: {
+            id: true,
+            title: true,
+            startDate: true,
+            eventType: true,
+            location: true,
+          },
+        },
+      },
+    });
+
+    if (!chapter || !chapter.isPublic) return null;
+
+    return chapter;
+  } catch (error) {
+    if (!isRecoverablePrismaError(error)) {
+      throw error;
+    }
+
+    console.error(
+      "[getChapterBySlug] Chapter profile fields are unavailable; using basic chapter fallback.",
+      error
+    );
+
+    const chapter = await prisma.chapter.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        city: true,
+        region: true,
+        publicSummary: true,
+        publicStory: true,
+        publicContactEmail: true,
+        publicContactUrl: true,
+        calendarThemeColor: true,
+        _count: {
+          select: {
+            users: true,
+            courses: true,
+            events: { where: { startDate: { gte: new Date() } } },
+          },
+        },
+      },
+    });
+
+    if (!chapter) return null;
+
+    return {
+      ...chapter,
+      description: null,
+      tagline: null,
+      logoUrl: null,
+      bannerUrl: null,
+      joinPolicy: "OPEN" as const,
       isPublic: true,
-      _count: {
-        select: {
-          users: true,
-          courses: true,
-          events: { where: { startDate: { gte: new Date() } } },
-        },
-      },
-      users: {
-        where: {
-          roles: { some: { role: { in: ["CHAPTER_LEAD", "ADMIN"] } } },
-        },
-        select: { id: true, name: true, primaryRole: true },
-        take: 5,
-      },
-      pathwayConfigs: {
-        where: { isAvailable: true },
-        select: {
-          pathway: { select: { id: true, name: true } },
-          isFeatured: true,
-          runStatus: true,
-        },
-        take: 10,
-      },
-      events: {
-        where: { startDate: { gte: new Date() } },
-        orderBy: { startDate: "asc" },
-        take: 3,
-        select: {
-          id: true,
-          title: true,
-          startDate: true,
-          eventType: true,
-          location: true,
-        },
-      },
-    },
-  });
-
-  if (!chapter || !chapter.isPublic) return null;
-
-  return chapter;
+      users: [],
+      pathwayConfigs: [],
+      events: [],
+    };
+  }
 }
 
 /**
@@ -116,10 +225,34 @@ export async function joinChapter(chapterId: string, message?: string) {
     throw new Error("You are already a member of a chapter. Leave your current chapter first.");
   }
 
-  const chapter = await prisma.chapter.findUnique({
-    where: { id: chapterId },
-    select: { id: true, joinPolicy: true, name: true },
-  });
+  let chapter:
+    | { id: string; joinPolicy: "OPEN" | "APPROVAL" | "INVITE_ONLY"; name: string }
+    | null;
+
+  try {
+    chapter = await prisma.chapter.findUnique({
+      where: { id: chapterId },
+      select: { id: true, joinPolicy: true, name: true },
+    });
+  } catch (error) {
+    if (!isRecoverablePrismaError(error)) {
+      throw error;
+    }
+
+    console.error(
+      "[joinChapter] Chapter join policy is unavailable; defaulting to OPEN while database updates finish.",
+      error
+    );
+
+    const basicChapter = await prisma.chapter.findUnique({
+      where: { id: chapterId },
+      select: { id: true, name: true },
+    });
+
+    chapter = basicChapter
+      ? { ...basicChapter, joinPolicy: "OPEN" as const }
+      : null;
+  }
 
   if (!chapter) throw new Error("Chapter not found");
 
@@ -200,19 +333,32 @@ export async function getJoinRequests() {
     include: { roles: true },
   });
 
-  const isAdmin = user?.roles.some((r) => r.role === "ADMIN");
-  const isChapterLead = user?.roles.some((r) => r.role === "CHAPTER_LEAD");
+  const isAdmin = user?.roles.some((r: RoleRecord) => r.role === "ADMIN");
+  const isChapterLead = user?.roles.some((r: RoleRecord) => r.role === "CHAPTER_LEAD");
 
   if (!isAdmin && !isChapterLead) throw new Error("Unauthorized");
   if (!user?.chapterId) throw new Error("No chapter assigned");
 
-  const requests = await prisma.chapterJoinRequest.findMany({
-    where: { chapterId: user.chapterId, status: "PENDING" },
-    include: {
-      user: { select: { id: true, name: true, email: true, primaryRole: true, createdAt: true } },
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  let requests: JoinRequestListItem[];
+  try {
+    requests = (await prisma.chapterJoinRequest.findMany({
+      where: { chapterId: user.chapterId, status: "PENDING" },
+      include: {
+        user: { select: { id: true, name: true, email: true, primaryRole: true, createdAt: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    })) as JoinRequestListItem[];
+  } catch (error) {
+    if (!isRecoverablePrismaError(error)) {
+      throw error;
+    }
+
+    console.error(
+      "[getJoinRequests] Join request tables are unavailable; returning an empty list.",
+      error
+    );
+    requests = [];
+  }
 
   return requests;
 }
@@ -229,14 +375,13 @@ export async function reviewJoinRequest(requestId: string, decision: "APPROVED" 
     include: { roles: true },
   });
 
-  const isAdmin = user?.roles.some((r) => r.role === "ADMIN");
-  const isChapterLead = user?.roles.some((r) => r.role === "CHAPTER_LEAD");
+  const isAdmin = user?.roles.some((r: RoleRecord) => r.role === "ADMIN");
+  const isChapterLead = user?.roles.some((r: RoleRecord) => r.role === "CHAPTER_LEAD");
 
   if (!isAdmin && !isChapterLead) throw new Error("Unauthorized");
 
   const request = await prisma.chapterJoinRequest.findUnique({
     where: { id: requestId },
-    include: { chapter: true },
   });
 
   if (!request) throw new Error("Request not found");
@@ -274,10 +419,15 @@ export async function getMyJoinRequestStatus(chapterId: string) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
-  const request = await prisma.chapterJoinRequest.findUnique({
-    where: { userId_chapterId: { userId: session.user.id, chapterId } },
-    select: { status: true, createdAt: true },
-  });
+  const request = await withPrismaFallback(
+    "getMyJoinRequestStatus",
+    async () =>
+      prisma.chapterJoinRequest.findUnique({
+        where: { userId_chapterId: { userId: session.user.id, chapterId } },
+        select: { status: true, createdAt: true },
+      }),
+    null as { status: "PENDING" | "APPROVED" | "REJECTED"; createdAt: Date } | null,
+  );
 
   return request;
 }

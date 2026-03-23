@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getPublicChapters } from "@/lib/chapter-join-actions";
+import { slugifyChapterName } from "@/lib/chapter-calendar";
 import { ChapterDirectoryClient } from "./chapter-directory-client";
 
 export default async function ChaptersPage() {
@@ -60,7 +61,7 @@ export default async function ChaptersPage() {
           chapters={chapters.map((c) => ({
             id: c.id,
             name: c.name,
-            slug: c.slug,
+            slug: c.slug || slugifyChapterName(c.name),
             city: c.city,
             region: c.region,
             tagline: c.tagline,

@@ -6,7 +6,7 @@ import Link from "next/link";
 type Chapter = {
   id: string;
   name: string;
-  slug: string | null;
+  slug: string;
   city: string | null;
   region: string | null;
   tagline: string | null;
@@ -163,7 +163,7 @@ export function ChapterDirectoryClient({
       ) : (
         <div className="grid two">
           {filtered.map((chapter) => {
-            const href = chapter.slug ? `/chapters/${chapter.slug}` : null;
+            const href = `/chapters/${chapter.slug}`;
             const loc = [chapter.city, chapter.region].filter(Boolean).join(", ");
 
             return (
@@ -300,15 +300,13 @@ export function ChapterDirectoryClient({
                       {chapter.joinPolicy === "INVITE_ONLY" && "Invite only"}
                     </span>
 
-                    {href ? (
-                      <Link
-                        href={href}
-                        className="button small"
-                        style={{ textDecoration: "none", fontSize: 13 }}
-                      >
-                        View Chapter
-                      </Link>
-                    ) : null}
+                    <Link
+                      href={href}
+                      className="button small"
+                      style={{ textDecoration: "none", fontSize: 13 }}
+                    >
+                      View Chapter
+                    </Link>
                   </div>
                 </div>
               </div>
