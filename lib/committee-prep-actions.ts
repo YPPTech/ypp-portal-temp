@@ -156,7 +156,7 @@ export async function generateCommitteePrepPacket(mentorshipId: string): Promise
     bandSize > 0 ? Math.min(100, Math.round(((totalPoints - prevTierMin) / bandSize) * 100)) : 100;
 
   // Tenure in months
-  const startDate = mentorship.createdAt;
+  const startDate = mentorship.startDate;
   const now = new Date();
   const tenureMonths = Math.floor(
     (now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
