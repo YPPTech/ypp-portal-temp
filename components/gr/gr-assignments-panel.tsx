@@ -64,7 +64,7 @@ export default function GRAssignmentsPanel({
     { id: "assign", label: "New Assignment" },
   ];
 
-  function handleAction(action: (fd: FormData) => Promise<void>, fd: FormData) {
+  function handleAction(action: (fd: FormData) => Promise<unknown>, fd: FormData) {
     setError(null);
     setSuccess(null);
     startTransition(async () => {
