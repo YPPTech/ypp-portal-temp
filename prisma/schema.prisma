@@ -440,6 +440,8 @@ model Chapter {
   joinRequests      ChapterJoinRequest[]
   goals             ChapterGoal[]
   channels          ChapterChannel[]
+  onboardingSteps   ChapterOnboardingStep[]
+  memberOnboardingProgress MemberOnboardingProgress[]
   courses           Course[]
   events            Event[]
   feedbacks         Feedback[]
@@ -836,6 +838,7 @@ model User {
   chapterJoinRequestsReviewed ChapterJoinRequest[] @relation("JoinRequestReviewer")
   chapterGoalsCreated         ChapterGoal[]        @relation("ChapterGoalCreator")
   chapterChannelMessages      ChapterChannelMessage[] @relation("ChapterChannelMessages")
+  memberOnboardingProgress    MemberOnboardingProgress[] @relation("MemberOnboardingProgress")
 
   // Parent Feedback & Survey Relations
   parentChapterFeedbacks ParentChapterFeedback[] @relation("ParentChapterFeedbacks")
@@ -8076,6 +8079,53 @@ model ChapterJoinRequest {
 
   @@unique([userId, chapterId])
   @@index([chapterId, status])
+}
+
+// ============================================
+// CHAPTER MEMBER ONBOARDING
+// ============================================
+
+enum OnboardingStepType {
+  INTRO_VIDEO
+  MEET_THE_TEAM
+  JOIN_CHANNELS
+  SET_INTERESTS
+  INTRODUCE_SELF
+  COMPLETE_PROFILE
+  FIRST_PATHWAY
+  CUSTOM
+}
+
+model ChapterOnboardingStep {
+  id          String             @id @default(cuid())
+  chapterId   String
+  chapter     Chapter            @relation(fields: [chapterId], references: [id])
+  title       String
+  description String?
+  type        OnboardingStepType
+  sortOrder   Int
+  isRequired  Boolean            @default(true)
+  metadata    Json?
+  createdAt   DateTime           @default(now())
+
+  progress MemberOnboardingProgress[]
+
+  @@index([chapterId, sortOrder])
+}
+
+model MemberOnboardingProgress {
+  id          String                @id @default(cuid())
+  userId      String
+  user        User                  @relation("MemberOnboardingProgress", fields: [userId], references: [id])
+  chapterId   String
+  chapter     Chapter               @relation(fields: [chapterId], references: [id])
+  stepId      String
+  step        ChapterOnboardingStep @relation(fields: [stepId], references: [id])
+  completedAt DateTime?
+  createdAt   DateTime              @default(now())
+
+  @@unique([userId, stepId])
+  @@index([userId, chapterId])
 }
 
 // ============================================
