@@ -450,10 +450,17 @@ export const NAV_CATALOG: NavLink[] = [
   ...groupLinks("Chapters", 900, [
     {
       href: "/chapters",
-      label: "Chapters",
-      icon: "🏢",
-      dashboardDescription: "View chapter network details and updates.",
+      label: "Find a Chapter",
+      icon: "🔍",
+      dashboardDescription: "Browse chapters and find a community near you.",
       dashboardPriority: 26,
+    },
+    {
+      href: "/join-chapter",
+      label: "Join a Chapter",
+      icon: "🤝",
+      dashboardDescription: "Pick a chapter to join and start your journey.",
+      dashboardPriority: 25,
     },
     {
       href: "/chapter/apply",
@@ -476,6 +483,14 @@ export const NAV_CATALOG: NavLink[] = [
       icon: "👑",
     },
     {
+      href: "/chapter/calendar",
+      label: "Chapter Calendar",
+      icon: "🗓",
+      roles: CHAPTER_LEAD_ONLY,
+      dashboardDescription: "Create chapter events, recurring series, and public calendar items.",
+      dashboardPriority: 4,
+    },
+    {
       href: "/chapter/onboarding",
       label: "CP Onboarding",
       icon: "🎓",
@@ -489,6 +504,28 @@ export const NAV_CATALOG: NavLink[] = [
       dashboardDescription: "Manage openings, candidates, interviews, and decisions.",
       dashboardPriority: 2,
       dashboardBadgeKey: "chapter_recruiting_queue",
+    },
+    {
+      href: "/chapter/channels",
+      label: "Chapter Channels",
+      icon: "💬",
+      dashboardDescription: "Discussion channels for your chapter community.",
+      dashboardPriority: 22,
+    },
+    {
+      href: "/chapter/members",
+      label: "Chapter Members",
+      icon: "👥",
+      dashboardDescription: "View and search your chapter's member directory.",
+      dashboardPriority: 21,
+    },
+    {
+      href: "/chapter/settings",
+      label: "Chapter Settings",
+      icon: "⚙️",
+      roles: CHAPTER_LEAD_ONLY,
+      dashboardDescription: "Customize your chapter profile, branding, and join policy.",
+      dashboardPriority: 20,
     },
     {
       href: "/chapter-lead/dashboard",
@@ -689,6 +726,8 @@ export const NAV_CATALOG: NavLink[] = [
     { href: "/admin/pathway-tracking", label: "Pathway Tracking", icon: "🛤", roles: ADMIN_ONLY },
     { href: "/admin/pathways", label: "Manage Pathways", icon: "🗺", roles: ADMIN_ONLY },
     { href: "/admin/audit-log", label: "Audit Log", icon: "🗒", roles: ADMIN_ONLY },
+    { href: "/admin/governance", label: "Governance & Risk", icon: "🛡", roles: ADMIN_ONLY },
+    { href: "/admin/role-matrix", label: "Role Matrix Audit", icon: "👥", roles: ADMIN_ONLY },
     { href: "/admin/volunteer-hours", label: "Volunteer Hours", icon: "⏰", roles: ADMIN_ONLY },
     { href: "/admin/export", label: "Data Export", icon: "📥", roles: ADMIN_ONLY },
     { href: "/admin/data-export", label: "Export Tools", icon: "💾", roles: ADMIN_ONLY },
