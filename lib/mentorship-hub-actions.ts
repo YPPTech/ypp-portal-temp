@@ -441,6 +441,7 @@ export async function assignSupportCircleMember(formData: FormData) {
   revalidatePath("/mentorship");
   revalidatePath(`/mentorship/mentees/${menteeId}`);
   revalidatePath("/my-mentor");
+  revalidatePath("/my-program");
 }
 
 export async function createMentorshipSession(formData: FormData) {
@@ -497,6 +498,7 @@ export async function createMentorshipSession(formData: FormData) {
   revalidatePath("/mentorship");
   revalidatePath(`/mentorship/mentees/${menteeId}`);
   revalidatePath("/my-mentor");
+  revalidatePath("/my-program");
   revalidatePath("/admin/mentorship-program");
 }
 
@@ -559,6 +561,7 @@ export async function createMentorshipActionItem(formData: FormData) {
   revalidatePath("/mentorship");
   revalidatePath(`/mentorship/mentees/${menteeId}`);
   revalidatePath("/my-mentor");
+  revalidatePath("/my-program");
 }
 
 export async function updateMentorshipActionItemStatus(formData: FormData) {
@@ -599,6 +602,7 @@ export async function updateMentorshipActionItemStatus(formData: FormData) {
   revalidatePath("/mentorship");
   revalidatePath(`/mentorship/mentees/${item.menteeId}`);
   revalidatePath("/my-mentor");
+  revalidatePath("/my-program");
 }
 
 export async function createMentorshipRequest(formData: FormData) {
@@ -655,6 +659,7 @@ export async function createMentorshipRequest(formData: FormData) {
   revalidatePath("/mentor/ask");
   revalidatePath(`/mentorship/mentees/${menteeId}`);
   revalidatePath("/my-mentor");
+  revalidatePath("/my-program");
 
   return request;
 }

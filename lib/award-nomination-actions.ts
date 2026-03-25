@@ -384,6 +384,7 @@ export async function boardApproveNomination(formData: FormData) {
 
   revalidatePath("/mentorship-program/awards");
   revalidatePath("/my-program/awards");
+  revalidatePath("/my-program");
 }
 
 /**
@@ -415,4 +416,5 @@ export async function rejectNomination(formData: FormData) {
   });
 
   revalidatePath("/mentorship-program/awards");
+  revalidatePath("/my-program");
 }

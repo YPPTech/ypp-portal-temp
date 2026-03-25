@@ -8,6 +8,7 @@ import { authOptions } from "@/lib/auth";
 import { buildContextTrail } from "@/lib/context-trail";
 import { formatEnum } from "@/lib/format-utils";
 import { getMentorshipHubData } from "@/lib/mentorship-hub";
+import { shouldRouteStudentToMyProgram } from "@/lib/my-program-portal";
 
 const HUB_GUIDE_ITEMS = [
   {
@@ -56,6 +57,10 @@ export default async function MentorshipPage() {
   const userId = session.user.id;
   const roles = session.user.roles ?? [];
 
+  if (shouldRouteStudentToMyProgram({ primaryRole: session.user.primaryRole ?? null, roles })) {
+    redirect("/my-program?notice=support-hub-moved");
+  }
+
   let trailItems: Awaited<ReturnType<typeof buildContextTrail>> = [];
   try {
     trailItems = await buildContextTrail({ route: "/mentorship", userId });
@@ -96,8 +101,8 @@ export default async function MentorshipPage() {
             Resource Commons
           </Link>
           {hub.flags.isStudent && (
-            <Link href="/my-mentor" className="button small secondary">
-              My Support Circle
+            <Link href="/my-program" className="button small secondary">
+              My Program
             </Link>
           )}
           {hub.flags.isAdmin && (

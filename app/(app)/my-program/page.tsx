@@ -1,245 +1,503 @@
 import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-import { authOptions } from "@/lib/auth";
-import { getMyProgramData } from "@/lib/self-reflection-actions";
-import { toMenteeRoleType } from "@/lib/mentee-role-utils";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "My Program — YPP Mentorship" };
+import ContextTrail from "@/components/context-trail";
+import { authOptions } from "@/lib/auth";
+import { buildContextTrail } from "@/lib/context-trail";
+import { formatEnum } from "@/lib/format-utils";
+import { updateMentorshipActionItemStatus } from "@/lib/mentorship-hub-actions";
+import { getMyProgramHubData } from "@/lib/my-program-portal";
 
-const TIER_COLORS: Record<string, string> = {
-  BRONZE: "#cd7f32",
-  SILVER: "#a8a9ad",
-  GOLD: "#d4af37",
-  LIFETIME: "#7c3aed",
+export const metadata = { title: "My Program" };
+
+const SUPPORT_OPERATOR_ROLES = new Set([
+  "MENTOR",
+  "CHAPTER_PRESIDENT",
+  "ADMIN",
+]);
+
+const NOTICE_COPY: Record<string, { title: string; body: string }> = {
+  "my-mentor-moved": {
+    title: "My Support Circle moved",
+    body: "Your support tools now live inside My Program so your next step, reflections, awards, and rewards stay together.",
+  },
+  "support-hub-moved": {
+    title: "Student support now starts in My Program",
+    body: "Mentorship is now the operator workspace. As a student, your support, action items, reflections, awards, and prizes all start here.",
+  },
 };
 
-const RATING_CONFIG: Record<string, { label: string; color: string }> = {
-  BEHIND_SCHEDULE: { label: "Behind Schedule", color: "#ef4444" },
-  GETTING_STARTED: { label: "Getting Started", color: "#eab308" },
-  ACHIEVED: { label: "Achieved", color: "#22c55e" },
-  ABOVE_AND_BEYOND: { label: "Above & Beyond", color: "#7c3aed" },
-};
+function formatDate(date: Date | string | null | undefined) {
+  if (!date) return "Not yet";
+  return new Date(date).toLocaleDateString();
+}
 
-const ROLE_LABELS: Record<string, string> = {
-  INSTRUCTOR: "Instructor",
-  CHAPTER_PRESIDENT: "Chapter President",
-  GLOBAL_LEADERSHIP: "Global Leadership",
-};
+function formatDateTime(date: Date | string | null | undefined) {
+  if (!date) return "Not scheduled yet";
+  return new Date(date).toLocaleString();
+}
 
-export default async function MyProgramPage() {
+export default async function MyProgramPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ notice?: string }>;
+}) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
 
-  const primaryRole = session.user.primaryRole ?? "";
-  const menteeRoleType = toMenteeRoleType(primaryRole);
+  const { notice: noticeKey } = await searchParams;
+  const roles = session.user.roles ?? [];
+  const hub = await getMyProgramHubData({
+    userId: session.user.id,
+    primaryRole: session.user.primaryRole ?? null,
+    roles,
+  });
 
-  // Only program participants can access this page
-  if (!menteeRoleType) redirect("/");
+  if (!hub) {
+    if (roles.some((role) => SUPPORT_OPERATOR_ROLES.has(role))) {
+      redirect("/mentorship");
+    }
+    redirect("/");
+  }
 
-  const data = await getMyProgramData();
-  if (!data) redirect("/");
+  let trailItems: Awaited<ReturnType<typeof buildContextTrail>> = [];
+  try {
+    trailItems = await buildContextTrail({ route: "/my-program", userId: session.user.id });
+  } catch {
+    trailItems = [];
+  }
 
-  const { mentorship, goals, reflections, achievementSummary } = data;
-
-  const nextCycle = (mentorship?.lastReflectionCycle ?? 0) + 1;
-  const isQuarterlyNext = nextCycle % 3 === 0;
-
-  // Determine if a reflection is due (first of any month that hasn't been submitted yet)
-  const latestReflection = reflections[0] ?? null;
+  const notice = noticeKey ? NOTICE_COPY[noticeKey] ?? null : null;
+  const support = hub.support;
+  const nextSession =
+    support?.sessions.find((sessionItem) => !sessionItem.completedAt && sessionItem.scheduledAt.getTime() >= Date.now()) ??
+    null;
+  const openActionItems = support?.actionItems.filter((item) => item.status !== "COMPLETE") ?? [];
+  const openRequests = support?.requests.filter((request) => request.status === "OPEN") ?? [];
+  const recentResources = support?.resources.slice(0, 3) ?? [];
 
   return (
     <div>
       <div className="topbar">
         <div>
-          <p className="badge">Mentorship Program</p>
+          <p className="badge">My Program</p>
           <h1 className="page-title">My Program</h1>
           <p className="page-subtitle">
-            {ROLE_LABELS[menteeRoleType]} track — monthly reflections, goal reviews, and achievement awards
+            One front door for support, reflections, action items, awards, rewards, and prize status.
           </p>
         </div>
-        {mentorship && (
-          <Link href="/my-program/reflect" className="button primary">
-            Submit Reflection
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Link href={hub.primaryAction.href} className="button primary small">
+            {hub.primaryAction.label}
           </Link>
-        )}
-      </div>
-
-      {/* KPI bar */}
-      <div className="grid four" style={{ marginBottom: "2rem" }}>
-        <div className="card">
-          <p className="kpi">{reflections.length}</p>
-          <p className="kpi-label">Reflections Submitted</p>
-        </div>
-        <div className="card">
-          <p className="kpi">{reflections.filter((r) => r.hasReleasedReview).length}</p>
-          <p className="kpi-label">Reviews Received</p>
-        </div>
-        <div className="card">
-          <p className="kpi" style={{ color: achievementSummary.currentTier ? TIER_COLORS[achievementSummary.currentTier] : "inherit" }}>
-            {achievementSummary.totalPoints}
-          </p>
-          <p className="kpi-label">Achievement Points</p>
-        </div>
-        <div className="card">
-          <p
-            className="kpi"
-            style={{ color: achievementSummary.currentTier ? TIER_COLORS[achievementSummary.currentTier] : "var(--muted)" }}
+          <Link
+            href={hub.flags.hasSupportCircle ? "/mentor/resources" : "/mentor/ask"}
+            className="button secondary small"
           >
-            {achievementSummary.currentTier ?? "—"}
-          </p>
-          <p className="kpi-label">Current Award Tier</p>
+            {hub.flags.hasSupportCircle ? "Open Resources" : "Ask A Mentor"}
+          </Link>
+          <Link href="/rewards" className="button secondary small">
+            Rewards
+          </Link>
         </div>
       </div>
 
-      <div className="grid two" style={{ marginBottom: "2rem" }}>
-        {/* Mentor card */}
-        <div className="card">
-          <p className="section-title" style={{ marginBottom: "0.75rem" }}>
-            My Mentor
-          </p>
-          {mentorship ? (
-            <>
-              <p style={{ fontWeight: 600, fontSize: "1.05rem" }}>{mentorship.mentorName}</p>
-              <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>{mentorship.mentorEmail}</p>
-              <p style={{ color: "var(--muted)", fontSize: "0.8rem", marginTop: "0.4rem" }}>
-                Since {new Date(mentorship.startDate).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-              </p>
-            </>
-          ) : (
-            <p style={{ color: "var(--muted)", fontStyle: "italic" }}>
-              No mentor assigned yet. Contact your administrator.
-            </p>
-          )}
+      {notice ? (
+        <div
+          className="card"
+          style={{
+            marginBottom: 20,
+            borderLeft: "4px solid var(--ypp-purple)",
+            background: "var(--ypp-purple-50, #faf5ff)",
+          }}
+        >
+          <strong>{notice.title}</strong>
+          <p style={{ margin: "8px 0 0", color: "var(--muted)" }}>{notice.body}</p>
         </div>
+      ) : null}
 
-        {/* Next cycle card */}
-        <div className="card" style={{ borderLeft: "4px solid var(--ypp-purple-500)" }}>
-          <p className="section-title" style={{ marginBottom: "0.75rem" }}>
-            {latestReflection ? "Next Cycle" : "First Reflection"}
-          </p>
-          {mentorship ? (
-            <>
-              <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem", marginBottom: "0.4rem" }}>
-                <span style={{ fontSize: "1.75rem", fontWeight: 700 }}>Cycle {nextCycle}</span>
-                {isQuarterlyNext && (
-                  <span className="pill" style={{ background: "var(--ypp-purple-100)", color: "var(--ypp-purple-700)" }}>
-                    Quarterly
-                  </span>
-                )}
-              </div>
-              <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
-                {isQuarterlyNext
-                  ? "This is a quarterly cycle — additional fields on projected path and promotion readiness will appear in your review."
-                  : "Monthly cycle — cover your goals, engagement, and collaboration."}
-              </p>
-              <Link href="/my-program/reflect" className="button primary small" style={{ marginTop: "1rem", display: "inline-block" }}>
-                Start Reflection →
-              </Link>
-            </>
-          ) : (
-            <p style={{ color: "var(--muted)", fontStyle: "italic" }}>
-              Assign a mentor first before submitting reflections.
+      <ContextTrail items={trailItems} />
+
+      <section className="card" style={{ marginBottom: 24 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 16,
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          <div style={{ maxWidth: 700 }}>
+            <div className="section-title">Top Next Step</div>
+            <h2 style={{ margin: "8px 0 10px" }}>{hub.primaryAction.label}</h2>
+            <p style={{ margin: 0, color: "var(--muted)" }}>{hub.primaryAction.detail}</p>
+            <p style={{ margin: "12px 0 0", fontSize: 13, color: "var(--muted)" }}>
+              Support stays practical here: {openActionItems.length} open action item
+              {openActionItems.length === 1 ? "" : "s"}, {openRequests.length} open request
+              {openRequests.length === 1 ? "" : "s"}, and {hub.recognition.rewards.pendingCount} reward
+              {hub.recognition.rewards.pendingCount === 1 ? "" : "s"} waiting.
             </p>
-          )}
-        </div>
-      </div>
-
-      {/* Goals for this role */}
-      {goals.length > 0 && (
-        <div style={{ marginBottom: "2rem" }}>
-          <p className="section-title" style={{ marginBottom: "0.75rem" }}>
-            My Goals ({goals.length})
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {goals.map((goal, i) => (
-              <div key={goal.id} className="card" style={{ padding: "0.75rem 1rem", display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
-                <span style={{ fontWeight: 700, color: "var(--ypp-purple-500)", minWidth: "1.5rem" }}>{i + 1}.</span>
-                <div>
-                  <p style={{ fontWeight: 600, margin: 0 }}>{goal.title}</p>
-                  {goal.description && (
-                    <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: "0.2rem 0 0" }}>{goal.description}</p>
-                  )}
-                </div>
-              </div>
-            ))}
           </div>
-        </div>
-      )}
-
-      {/* Reflections history */}
-      <div>
-        <p className="section-title" style={{ marginBottom: "0.75rem" }}>
-          Reflection History
-        </p>
-        {reflections.length === 0 ? (
-          <div className="card" style={{ textAlign: "center", padding: "2.5rem" }}>
-            <p style={{ color: "var(--muted)" }}>No reflections submitted yet.</p>
-            {mentorship && (
-              <Link href="/my-program/reflect" className="button primary small" style={{ marginTop: "1rem", display: "inline-block" }}>
-                Submit Your First Reflection
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Link href={hub.primaryAction.href} className="button primary small">
+              {hub.primaryAction.label}
+            </Link>
+            {hub.flags.isProgramParticipant ? (
+              <Link href="/my-program/schedule" className="button secondary small">
+                Schedule Check-In
+              </Link>
+            ) : (
+              <Link href="/reflection" className="button secondary small">
+                Reflection Center
               </Link>
             )}
           </div>
+        </div>
+      </section>
+
+      <div className="grid three" style={{ marginBottom: 24 }}>
+        <section className="card" id="support">
+          <div className="section-title">Support</div>
+          {support?.mentorship ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
+                <strong>Lead support:</strong> {support.mentorship.mentor.name}
+              </div>
+              <div>
+                <strong>Track:</strong> {support.mentorship.track?.name ?? "General support"}
+              </div>
+              <div>
+                <strong>Next session:</strong> {formatDateTime(nextSession?.scheduledAt)}
+              </div>
+              <div>
+                <strong>Circle members:</strong> {support.circleMembers.length}
+              </div>
+              <div>
+                <strong>Current review:</strong>{" "}
+                {support.currentReview?.status ? formatEnum(support.currentReview.status) : "No review started yet"}
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                <Link href="/mentor/resources" className="button secondary small">
+                  Open Resources
+                </Link>
+                <Link href="/mentor/feedback" className="button secondary small">
+                  Request Feedback
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <p style={{ margin: 0, color: "var(--muted)" }}>
+                No active support circle is assigned yet. You can still ask for help, submit reflections, and track recognition here.
+              </p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Link href="/mentor/ask" className="button primary small">
+                  Ask A Mentor
+                </Link>
+                <Link href="/mentor/resources" className="button secondary small">
+                  Browse Resources
+                </Link>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="card">
+          <div className="section-title">Reflection &amp; Review</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {hub.studentReflection ? (
+              <div>
+                <strong>{hub.studentReflection.formTitle}</strong>
+                <p style={{ margin: "6px 0 0", color: "var(--muted)", fontSize: 13 }}>
+                  {hub.studentReflection.currentStateLabel} · {hub.studentReflection.submissionsCount} submission
+                  {hub.studentReflection.submissionsCount === 1 ? "" : "s"} on file
+                </p>
+                {hub.studentReflection.latestSubmission ? (
+                  <p style={{ margin: "6px 0 0", color: "var(--muted)", fontSize: 13 }}>
+                    Latest: {formatDate(hub.studentReflection.latestSubmission.submittedAt)}
+                  </p>
+                ) : null}
+                <div style={{ marginTop: 8 }}>
+                  <Link href={hub.studentReflection.primaryHref} className="button secondary small">
+                    {hub.studentReflection.primaryLabel}
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+
+            {hub.programReflection ? (
+              <div style={{ paddingTop: hub.studentReflection ? 12 : 0, borderTop: hub.studentReflection ? "1px solid var(--border)" : "none" }}>
+                <strong>{hub.programReflection.roleLabel} program loop</strong>
+                <p style={{ margin: "6px 0 0", color: "var(--muted)", fontSize: 13 }}>
+                  {hub.programReflection.reflectionsCount} reflection cycle
+                  {hub.programReflection.reflectionsCount === 1 ? "" : "s"} completed ·{" "}
+                  {hub.programReflection.releasedReviewsCount} released review
+                  {hub.programReflection.releasedReviewsCount === 1 ? "" : "s"}
+                </p>
+                <p style={{ margin: "6px 0 0", color: "var(--muted)", fontSize: 13 }}>
+                  Mentor: {hub.programReflection.mentorName ?? "Not assigned"} · Next cycle: {hub.programReflection.nextCycle}
+                  {hub.programReflection.isQuarterlyNext ? " (quarterly)" : ""}
+                </p>
+                <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <Link href={hub.programReflection.primaryHref} className="button secondary small">
+                    {hub.programReflection.primaryLabel}
+                  </Link>
+                  <Link href="/my-program/awards" className="button secondary small">
+                    Program Awards
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+
+            {!hub.studentReflection && !hub.programReflection ? (
+              <p style={{ margin: 0, color: "var(--muted)" }}>
+                Reflection tools will appear here when your role has an active support or program cycle attached.
+              </p>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="section-title">Recognition &amp; Rewards</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div>
+              <strong>{hub.recognition.badges.count}</strong> badge{hub.recognition.badges.count === 1 ? "" : "s"} ·{" "}
+              <strong>{hub.recognition.awards.count}</strong> award{hub.recognition.awards.count === 1 ? "" : "s"} ·{" "}
+              <strong>{hub.recognition.certificates.count}</strong> certificate
+              {hub.recognition.certificates.count === 1 ? "" : "s"}
+            </div>
+            <div>
+              <strong>{hub.recognition.rewards.pendingCount}</strong> reward
+              {hub.recognition.rewards.pendingCount === 1 ? "" : "s"} ready ·{" "}
+              <strong>{hub.recognition.rewards.unopenedBoxesCount}</strong> unopened prize box
+              {hub.recognition.rewards.unopenedBoxesCount === 1 ? "" : "es"}
+            </div>
+            {hub.recognition.rewards.latestPendingLabel ? (
+              <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>
+                Next reward waiting: {hub.recognition.rewards.latestPendingLabel}
+              </p>
+            ) : null}
+            {hub.flags.isProgramParticipant ? (
+              <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>
+                {hub.recognition.program.totalPoints} program points ·{" "}
+                {hub.recognition.program.currentTier
+                  ? `${formatEnum(hub.recognition.program.currentTier)} tier`
+                  : "No tier yet"}{" "}
+                · {hub.recognition.program.pendingNominationsCount} pending nomination
+                {hub.recognition.program.pendingNominationsCount === 1 ? "" : "s"}
+              </p>
+            ) : null}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+              <Link href="/awards" className="button secondary small">
+                Awards
+              </Link>
+              <Link href="/badges" className="button secondary small">
+                Badges
+              </Link>
+              <Link href="/certificates" className="button secondary small">
+                Certificates
+              </Link>
+              <Link href="/rewards" className="button secondary small">
+                Rewards
+              </Link>
+              {hub.flags.isProgramParticipant ? (
+                <Link href="/my-program/achievement-journey" className="button secondary small">
+                  Journey
+                </Link>
+              ) : null}
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section className="card" id="action-plan" style={{ marginBottom: 24 }}>
+        <div className="section-title" style={{ marginBottom: 14 }}>Action Plan</div>
+        {openActionItems.length === 0 ? (
+          <p style={{ color: "var(--muted)", margin: 0 }}>
+            No active action items right now. Your next steps will show up here after support sessions and review cycles.
+          </p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {reflections.map((r) => {
-              const rating = r.reviewRating ? RATING_CONFIG[r.reviewRating] : null;
-              return (
-                <Link
-                  key={r.id}
-                  href={`/my-program/reflect/${r.id}`}
-                  style={{ textDecoration: "none", color: "inherit" }}
-                >
-                  <div
-                    className="card"
-                    style={{ padding: "0.75rem 1rem", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
-                  >
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <span style={{ fontWeight: 600 }}>Cycle {r.cycleNumber}</span>
-                        {r.cycleNumber % 3 === 0 && (
-                          <span className="pill" style={{ fontSize: "0.7rem", background: "var(--ypp-purple-100)", color: "var(--ypp-purple-700)" }}>
-                            Quarterly
-                          </span>
-                        )}
-                      </div>
-                      <p style={{ color: "var(--muted)", fontSize: "0.8rem", margin: "0.15rem 0 0" }}>
-                        {new Date(r.cycleMonth).toLocaleDateString("en-US", { month: "long", year: "numeric" })} ·{" "}
-                        Submitted {new Date(r.submittedAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                      {r.hasReleasedReview ? (
-                        <div style={{ textAlign: "right" }}>
-                          {rating && (
-                            <span
-                              className="pill"
-                              style={{ background: `${rating.color}22`, color: rating.color, fontSize: "0.75rem" }}
-                            >
-                              {rating.label}
-                            </span>
-                          )}
-                          {r.pointsAwarded !== null && (
-                            <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.2rem 0 0" }}>
-                              +{r.pointsAwarded} pts
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="pill pill-pending" style={{ fontSize: "0.75rem" }}>
-                          Pending Review
-                        </span>
-                      )}
-                      <span style={{ color: "var(--muted)" }}>›</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {openActionItems.map((item) => (
+              <div key={item.id} style={{ borderBottom: "1px solid var(--border)", paddingBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>{item.title}</div>
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                      {item.owner?.name ? `Owner: ${item.owner.name}` : "Shared responsibility"} ·{" "}
+                      {formatEnum(item.status)}
+                      {item.dueAt ? ` · Due ${formatDate(item.dueAt)}` : ""}
                     </div>
                   </div>
-                </Link>
-              );
-            })}
+                  <form action={updateMentorshipActionItemStatus}>
+                    <input type="hidden" name="itemId" value={item.id} />
+                    <input type="hidden" name="status" value="COMPLETE" />
+                    <button type="submit" className="button secondary small">
+                      Mark Complete
+                    </button>
+                  </form>
+                </div>
+                {item.details ? <p style={{ margin: "8px 0 0", fontSize: 13 }}>{item.details}</p> : null}
+              </div>
+            ))}
           </div>
         )}
+      </section>
+
+      <div className="grid two" style={{ marginBottom: 24 }}>
+        <section className="card">
+          <div className="section-title">Upcoming Sessions &amp; Requests</div>
+          {support?.mentorship ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <strong>Upcoming sessions</strong>
+                {nextSession ? (
+                  <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+                    {support.sessions
+                      .filter((sessionItem) => !sessionItem.completedAt && sessionItem.scheduledAt.getTime() >= Date.now())
+                      .slice(0, 3)
+                      .map((sessionItem) => (
+                        <div key={sessionItem.id}>
+                          <div style={{ fontWeight: 600 }}>{sessionItem.title}</div>
+                          <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                            {formatDateTime(sessionItem.scheduledAt)} · {formatEnum(sessionItem.type)}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <p style={{ margin: "6px 0 0", color: "var(--muted)" }}>No session is scheduled yet.</p>
+                )}
+              </div>
+
+              <div>
+                <strong>Open requests</strong>
+                {openRequests.length > 0 ? (
+                  <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+                    {openRequests.slice(0, 3).map((request) => (
+                      <div key={request.id}>
+                        <div style={{ fontWeight: 600 }}>{request.title}</div>
+                        <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                          {formatEnum(request.kind)} · {request.assignedTo?.name ? `Assigned to ${request.assignedTo.name}` : "Open to supporters"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ margin: "6px 0 0", color: "var(--muted)" }}>No open requests right now.</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p style={{ margin: 0, color: "var(--muted)" }}>
+              Once a support circle is active, your next meetings and open help requests will show up here.
+            </p>
+          )}
+        </section>
+
+        <section className="card">
+          <div className="section-title">Recognition Details</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <strong>Latest wins</strong>
+              <p style={{ margin: "6px 0 0", color: "var(--muted)" }}>
+                Badge: {hub.recognition.badges.latest?.name ?? "None yet"} · Award:{" "}
+                {hub.recognition.awards.latest?.name ?? "None yet"} · Certificate:{" "}
+                {hub.recognition.certificates.latest?.title ?? "None yet"}
+              </p>
+            </div>
+            <div>
+              <strong>Rewards and prizes</strong>
+              <p style={{ margin: "6px 0 0", color: "var(--muted)" }}>
+                This hub shows eligibility, waiting rewards, and unopened prize boxes. Claim and redemption details still live on the dedicated rewards pages.
+              </p>
+            </div>
+            {recentResources.length > 0 ? (
+              <div>
+                <strong>Shared resources</strong>
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+                  {recentResources.map((resource) => (
+                    <div key={resource.id}>
+                      <div style={{ fontWeight: 600 }}>{resource.title}</div>
+                      <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                        {formatEnum(resource.type)} · Shared by {resource.createdBy.name}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </section>
       </div>
+
+      {hub.flags.isProgramParticipant ? (
+        <div className="grid two">
+          <section className="card">
+            <div className="section-title">Program Goals</div>
+            {hub.programReflection?.goals.length ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {hub.programReflection.goals.map((goal) => (
+                  <div key={goal.id}>
+                    <div style={{ fontWeight: 700 }}>{goal.title}</div>
+                    {goal.description ? (
+                      <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>{goal.description}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: "var(--muted)", margin: 0 }}>
+                Program goals will appear here when your mentorship-program track is active.
+              </p>
+            )}
+          </section>
+
+          <section className="card">
+            <div className="section-title">Program Review Snapshot</div>
+            {hub.programReflection?.latestReflection ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div>
+                  <strong>Latest cycle:</strong> {hub.programReflection.latestReflection.cycleNumber}
+                </div>
+                <div>
+                  <strong>Submitted:</strong> {formatDate(hub.programReflection.latestReflection.submittedAt)}
+                </div>
+                <div>
+                  <strong>Released review:</strong>{" "}
+                  {hub.programReflection.latestReflection.hasReleasedReview ? "Yes" : "Not yet"}
+                </div>
+                {hub.programReflection.latestReflection.pointsAwarded != null ? (
+                  <div>
+                    <strong>Points awarded:</strong> {hub.programReflection.latestReflection.pointsAwarded}
+                  </div>
+                ) : null}
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <Link href="/my-program/reflect" className="button secondary small">
+                    Open Reflection Flow
+                  </Link>
+                  <Link href="/my-program/certificate" className="button secondary small">
+                    Certificate
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <p style={{ color: "var(--muted)", margin: 0 }}>
+                  Your first program reflection will start the review history that appears here.
+                </p>
+                <Link href="/my-program/reflect" className="button secondary small" style={{ width: "fit-content" }}>
+                  Start First Reflection
+                </Link>
+              </div>
+            )}
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

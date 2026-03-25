@@ -7,6 +7,7 @@ type CatalogInput = Omit<NavLink, "group" | "priority" | "coreEligible"> & {
 const INSTRUCTOR_ROLES: NavRole[] = ["INSTRUCTOR", "ADMIN", "CHAPTER_PRESIDENT"];
 const INSTRUCTOR_AND_APPLICANT_ROLES: NavRole[] = ["APPLICANT", "INSTRUCTOR", "ADMIN", "CHAPTER_PRESIDENT"];
 const MENTOR_ROLES: NavRole[] = ["MENTOR", "CHAPTER_PRESIDENT", "ADMIN"];
+const MY_PROGRAM_ROLES: NavRole[] = ["STUDENT", "INSTRUCTOR", "CHAPTER_PRESIDENT", "ADMIN", "STAFF"];
 const APPLICANT_ROLES: NavRole[] = ["APPLICANT", "STUDENT", "INSTRUCTOR", "STAFF", "ADMIN"];
 const INTERVIEW_ROLES: NavRole[] = ["STUDENT", "INSTRUCTOR", "STAFF", "ADMIN", "CHAPTER_PRESIDENT"];
 const ADMIN_ONLY: NavRole[] = ["ADMIN"];
@@ -342,7 +343,9 @@ export const NAV_CATALOG: NavLink[] = [
       href: "/mentorship",
       label: "Mentorship",
       icon: "🤝",
-      dashboardDescription: "Open mentorship activity, assignments, and support history.",
+      roles: MENTOR_ROLES,
+      searchAliases: ["Support Hub", "Mentor Workspace"],
+      dashboardDescription: "Open the mentor and operator workspace for circles, queues, and support operations.",
       dashboardPriority: 16,
     },
     {
@@ -362,7 +365,6 @@ export const NAV_CATALOG: NavLink[] = [
       dashboardDescription: "Approve or return monthly goal reviews waiting on chair action.",
       dashboardPriority: 6,
     },
-    { href: "/my-mentor", label: "My Mentor", icon: "🧑‍🏫", roles: STUDENT_ONLY },
     {
       href: "/mentorship/unlock-sections",
       label: "Unlock Sections",
@@ -375,8 +377,9 @@ export const NAV_CATALOG: NavLink[] = [
       href: "/my-program",
       label: "My Program",
       icon: "🎯",
-      roles: ["INSTRUCTOR", "CHAPTER_PRESIDENT", "ADMIN", "STAFF"] as NavRole[],
-      dashboardDescription: "Submit monthly reflections and view goal reviews for the YPP Mentorship Program.",
+      roles: MY_PROGRAM_ROLES,
+      searchAliases: ["My Mentor", "Support Hub", "Program Hub"],
+      dashboardDescription: "Open your support hub for reflections, action items, awards, rewards, and recognition.",
     },
     {
       href: "/my-program/gr",

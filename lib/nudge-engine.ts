@@ -141,6 +141,7 @@ export async function getNudgesForRoute(
     "/badges": ["BADGE_CLOSE", "MILESTONE"],
     "/challenges": ["BADGE_CLOSE", "ENCOURAGEMENT"],
     "/mentorship": ["MENTEE_UPDATE", "GOAL_REMINDER"],
+    "/my-program": ["MENTEE_UPDATE", "GOAL_REMINDER", "MILESTONE"],
     "/": ["BADGE_CLOSE", "PATHWAY_PROGRESS", "SECTION_UNLOCKED", "MILESTONE"],
   };
 

@@ -115,8 +115,8 @@ export default async function PathwayMentorsPage({ params }: { params: { id: str
         <div className="card" style={{ marginBottom: 16, borderLeft: "4px solid var(--green-500, #48bb78)" }}>
           <p style={{ margin: 0, fontSize: 14 }}>
             You already have a mentor assigned.{" "}
-            <Link href="/mentorship" style={{ color: "var(--ypp-purple)" }}>
-              View your mentorship →
+            <Link href="/my-program" style={{ color: "var(--ypp-purple)" }}>
+              Open My Program →
             </Link>
           </p>
         </div>

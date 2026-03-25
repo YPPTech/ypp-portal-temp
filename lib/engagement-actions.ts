@@ -357,6 +357,8 @@ export async function redeemRandomReward(rewardId: string) {
   }
 
   revalidatePath("/dashboard");
+  revalidatePath("/rewards");
+  revalidatePath("/my-program");
   return { rewardType: reward.rewardType, xpAmount: reward.xpAmount };
 }
 
@@ -606,6 +608,7 @@ export async function openMysteryBox(boxId: string) {
 
   revalidatePath("/dashboard");
   revalidatePath("/rewards");
+  revalidatePath("/my-program");
   return {
     rewardType: box.rewardType,
     rewardTitle: box.rewardTitle,

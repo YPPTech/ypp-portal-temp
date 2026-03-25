@@ -26,12 +26,12 @@ export const CORE_NAV_MAP: Record<NavRole, string[]> = {
   ],
   STUDENT: [
     "/",
+    "/my-program",
     "/activities",
     "/challenges",
     "/incubator",
     "/pathways",
     "/my-classes",
-    "/goals",
     "/messages"
   ],
   INSTRUCTOR: [

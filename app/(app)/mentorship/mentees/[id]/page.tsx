@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { FieldLabel } from "@/components/field-help";
 import { MentorshipGuideCard } from "@/components/mentorship-guide-card";
+import { formatEnum } from "@/lib/format-utils";
 import {
   SUPPORT_ROLE_META,
   getSupportWorkspaceData,
@@ -14,6 +15,7 @@ import {
   createMentorshipSession,
   updateMentorshipActionItemStatus,
 } from "@/lib/mentorship-hub-actions";
+import { getCompactRecognitionSnapshot } from "@/lib/my-program-portal";
 
 const WORKSPACE_GUIDE_ITEMS = [
   {
@@ -57,11 +59,14 @@ export default async function MenteeDetailPage({
     redirect("/login");
   }
 
-  const workspace = await getSupportWorkspaceData({
-    viewerId: session.user.id,
-    roles: session.user.roles ?? [],
-    menteeId,
-  });
+  const [workspace, recognition] = await Promise.all([
+    getSupportWorkspaceData({
+      viewerId: session.user.id,
+      roles: session.user.roles ?? [],
+      menteeId,
+    }),
+    getCompactRecognitionSnapshot(menteeId),
+  ]);
 
   if (!workspace) {
     notFound();
@@ -169,7 +174,7 @@ export default async function MenteeDetailPage({
         </div>
       </div>
 
-      <div className="grid two" style={{ marginBottom: 24 }}>
+      <div className="grid three" style={{ marginBottom: 24 }}>
         <section className="card">
           <div className="section-title">Profile</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -212,6 +217,40 @@ export default async function MenteeDetailPage({
             <div>
               <strong>Latest track:</strong> {workspace.mentorship?.track?.name ?? "No track assigned"}
             </div>
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="section-title">Recognition Snapshot</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div>
+              <strong>Student wins:</strong> {recognition.badgeCount} badge
+              {recognition.badgeCount === 1 ? "" : "s"}, {recognition.awardCount} award
+              {recognition.awardCount === 1 ? "" : "s"}, {recognition.certificateCount} certificate
+              {recognition.certificateCount === 1 ? "" : "s"}
+            </div>
+            <div>
+              <strong>Rewards waiting:</strong> {recognition.pendingRewardsCount} reward
+              {recognition.pendingRewardsCount === 1 ? "" : "s"} and {recognition.unopenedBoxesCount} unopened prize box
+              {recognition.unopenedBoxesCount === 1 ? "" : "es"}
+            </div>
+            <div>
+              <strong>Program tier:</strong>{" "}
+              {recognition.currentTier ? formatEnum(recognition.currentTier) : "No tier yet"} ·{" "}
+              {recognition.totalPoints} point{recognition.totalPoints === 1 ? "" : "s"}
+            </div>
+            <div>
+              <strong>Pending nominations:</strong> {recognition.pendingProgramNominationsCount}
+            </div>
+            {(recognition.latestBadgeName || recognition.latestAwardName || recognition.latestCertificateTitle) ? (
+              <p style={{ margin: "6px 0 0", color: "var(--muted)", fontSize: 13 }}>
+                Latest: {recognition.latestBadgeName ?? recognition.latestAwardName ?? recognition.latestCertificateTitle}
+              </p>
+            ) : (
+              <p style={{ margin: "6px 0 0", color: "var(--muted)", fontSize: 13 }}>
+                Recognition context lives here so mentors can spot momentum without leaving the workspace.
+              </p>
+            )}
           </div>
         </section>
       </div>

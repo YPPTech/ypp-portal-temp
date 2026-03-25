@@ -47,6 +47,7 @@ const ROUTE_CONTEXT_MAP: Record<string, RouteConfig> = {
   "/badges": { relatedPathways: true },
   "/challenges": { relatedBadges: true, fetchChallenges: true },
   "/mentorship": { fetchMentorship: true, menteeGoals: true },
+  "/my-program": { fetchMentorship: true, menteeGoals: true },
   "/projects": { relatedPathways: true, relatedBadges: true },
   "/instructor-training": { relatedBadges: true },
 };
@@ -309,7 +310,7 @@ async function addMentorshipTrail(
   if (menteeships.length > 0) {
     items.push({
       label: `Mentor: ${menteeships[0].mentor.name}`,
-      href: "/mentorship",
+      href: "/my-program",
       icon: "🤝",
       type: "mentorship",
     });

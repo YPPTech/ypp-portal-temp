@@ -365,6 +365,7 @@ export async function submitReflection(formData: FormData) {
   revalidatePath("/reflection");
   revalidatePath("/reflection/history");
   revalidatePath("/mentorship");
+  revalidatePath("/my-program");
   return submission;
 }
 
