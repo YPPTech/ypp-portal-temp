@@ -8,170 +8,294 @@ type ActionItem = {
   priority: number;
 };
 
-type JoinRequest = {
+type OpsCard = {
   id: string;
-  user: { id: string; name: string; email: string; primaryRole: string };
-  createdAt: Date;
+  queue:
+    | "stale_interview_scheduling"
+    | "today_next_interviews"
+    | "join_requests"
+    | "new_applications"
+    | "inactive_members"
+    | "upcoming_deadlines";
+  title: string;
+  subtitle: string;
+  href: string;
+  chapterName: string;
+  ownerName: string;
+  ageHours: number;
+  status: string;
+  nextAction: string;
+  escalationState: string;
+  scheduledAt: string | null;
 };
 
-type PendingApplication = {
-  id: string;
-  applicant: { id: string; name: string };
-  position: { id: string; title: string };
-  submittedAt: Date;
+const QUEUE_META: Record<
+  OpsCard["queue"],
+  {
+    icon: string;
+    title: string;
+    background: string;
+    border: string;
+    text: string;
+  }
+> = {
+  stale_interview_scheduling: {
+    icon: "Schedule",
+    title: "Stale Interview Scheduling",
+    background: "rgba(254, 242, 242, 0.95)",
+    border: "rgba(239, 68, 68, 0.18)",
+    text: "#b91c1c",
+  },
+  today_next_interviews: {
+    icon: "Booked",
+    title: "Today And Next Interviews",
+    background: "rgba(239, 246, 255, 0.95)",
+    border: "rgba(59, 130, 246, 0.18)",
+    text: "#1d4ed8",
+  },
+  join_requests: {
+    icon: "Join",
+    title: "Join Requests",
+    background: "rgba(250, 245, 255, 0.96)",
+    border: "rgba(168, 85, 247, 0.18)",
+    text: "#7c3aed",
+  },
+  new_applications: {
+    icon: "Apply",
+    title: "New Applications",
+    background: "rgba(240, 253, 250, 0.96)",
+    border: "rgba(16, 185, 129, 0.18)",
+    text: "#047857",
+  },
+  inactive_members: {
+    icon: "Member",
+    title: "Inactive Members",
+    background: "rgba(255, 251, 235, 0.96)",
+    border: "rgba(245, 158, 11, 0.18)",
+    text: "#92400e",
+  },
+  upcoming_deadlines: {
+    icon: "Next",
+    title: "Upcoming Deadlines And Events",
+    background: "rgba(248, 250, 252, 0.96)",
+    border: "rgba(100, 116, 139, 0.18)",
+    text: "#475569",
+  },
 };
 
-const TYPE_ICONS: Record<string, string> = {
-  join_requests: "🤝",
-  applications: "📋",
-  inactive_members: "⚠️",
-};
+function formatAge(hours: number) {
+  if (hours < 1) {
+    return `${Math.max(1, Math.round(hours * 60))}m`;
+  }
+  if (hours < 24) {
+    return `${hours.toFixed(hours >= 10 ? 0 : 1)}h`;
+  }
+  const days = hours / 24;
+  return `${days.toFixed(days >= 10 ? 0 : 1)}d`;
+}
 
-const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
-  join_requests: { bg: "#ede9fe", text: "#6d28d9" },
-  applications: { bg: "#e0f2fe", text: "#075985" },
-  inactive_members: { bg: "#fef3c7", text: "#92400e" },
-};
+function QueueCard({ card }: { card: OpsCard }) {
+  const meta = QUEUE_META[card.queue];
+
+  return (
+    <Link
+      href={card.href}
+      style={{
+        display: "block",
+        textDecoration: "none",
+        color: "inherit",
+        borderRadius: 18,
+        padding: "0.95rem",
+        background: meta.background,
+        border: `1px solid ${meta.border}`,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: meta.text }}>
+            {meta.icon}
+          </div>
+          <div style={{ fontWeight: 700, marginTop: 6 }}>{card.title}</div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>{card.subtitle}</div>
+        </div>
+        <div style={{ textAlign: "right", flexShrink: 0 }}>
+          <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Age
+          </div>
+          <div style={{ fontWeight: 800, marginTop: 4 }}>{formatAge(card.ageHours)}</div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+          gap: 10,
+          marginTop: 14,
+          fontSize: 12,
+        }}
+      >
+        <div>
+          <div style={{ color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Owner</div>
+          <div style={{ marginTop: 4, fontWeight: 700 }}>{card.ownerName}</div>
+        </div>
+        <div>
+          <div style={{ color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Status</div>
+          <div style={{ marginTop: 4, fontWeight: 700 }}>{card.status}</div>
+        </div>
+        <div>
+          <div style={{ color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Next action</div>
+          <div style={{ marginTop: 4, fontWeight: 700 }}>{card.nextAction}</div>
+        </div>
+        <div>
+          <div style={{ color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Escalation</div>
+          <div style={{ marginTop: 4, fontWeight: 700 }}>{card.escalationState}</div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 12, fontSize: 12, color: "var(--muted)" }}>
+        <span>{card.chapterName}</span>
+        {card.scheduledAt ? <span>{new Date(card.scheduledAt).toLocaleString()}</span> : null}
+      </div>
+    </Link>
+  );
+}
+
+function QueueSection({
+  queue,
+  cards,
+}: {
+  queue: OpsCard["queue"];
+  cards: OpsCard[];
+}) {
+  const meta = QUEUE_META[queue];
+
+  return (
+    <div
+      style={{
+        borderRadius: 22,
+        border: `1px solid ${meta.border}`,
+        background: "rgba(255,255,255,0.94)",
+        padding: "1rem",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: meta.text }}>
+            {meta.icon}
+          </div>
+          <h3 style={{ margin: "6px 0 0", fontSize: 18 }}>{meta.title}</h3>
+        </div>
+        <div
+          style={{
+            minWidth: 42,
+            height: 42,
+            borderRadius: 14,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: meta.background,
+            color: meta.text,
+            fontWeight: 800,
+          }}
+        >
+          {cards.length}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
+        {cards.length === 0 ? (
+          <div style={{ color: "var(--muted)", fontSize: 13 }}>Nothing queued right now.</div>
+        ) : (
+          cards.slice(0, 2).map((card) => <QueueCard key={card.id} card={card} />)
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function ActionCenter({
   actionItems,
-  pendingJoinRequests,
-  pendingApplications,
+  opsQueues,
 }: {
   actionItems: ActionItem[];
-  pendingJoinRequests: JoinRequest[];
-  pendingApplications: PendingApplication[];
+  opsQueues: {
+    staleInterviewScheduling: OpsCard[];
+    todayNextInterviewBookings: OpsCard[];
+    joinRequests: OpsCard[];
+    newApplications: OpsCard[];
+    inactiveMembers: OpsCard[];
+    upcomingDeadlines: OpsCard[];
+  };
 }) {
-  if (actionItems.length === 0) {
-    return (
-      <div className="card" style={{ textAlign: "center", padding: 32 }}>
-        <p style={{ fontSize: 24, marginBottom: 8 }}>✅</p>
-        <p style={{ fontWeight: 600 }}>All caught up!</p>
-        <p style={{ color: "var(--muted)", fontSize: 14 }}>
-          No pending items need your attention right now.
-        </p>
-      </div>
-    );
-  }
+  const queueOrder: Array<{ queue: OpsCard["queue"]; cards: OpsCard[] }> = [
+    { queue: "stale_interview_scheduling", cards: opsQueues.staleInterviewScheduling },
+    { queue: "today_next_interviews", cards: opsQueues.todayNextInterviewBookings },
+    { queue: "join_requests", cards: opsQueues.joinRequests },
+    { queue: "new_applications", cards: opsQueues.newApplications },
+    { queue: "inactive_members", cards: opsQueues.inactiveMembers },
+    { queue: "upcoming_deadlines", cards: opsQueues.upcomingDeadlines },
+  ];
 
   return (
-    <div className="card">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2 style={{ margin: 0 }}>Needs Your Attention</h2>
-        <span
-          style={{
-            background: "#fee2e2",
-            color: "#991b1b",
-            fontSize: 12,
-            fontWeight: 700,
-            padding: "2px 8px",
-            borderRadius: 10,
-          }}
-        >
-          {actionItems.reduce((sum, a) => sum + a.count, 0)}
-        </span>
-      </div>
-
-      <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-        {actionItems.map((item) => {
-          const colors = TYPE_COLORS[item.type] ?? { bg: "#f3f4f6", text: "#374151" };
-          return (
+    <div
+      className="card"
+      style={{
+        padding: 20,
+        borderRadius: 24,
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%)",
+        boxShadow: "0 18px 50px rgba(15, 23, 42, 0.08)",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#1d4ed8" }}>
+            Chapter OS
+          </div>
+          <h2 style={{ margin: "8px 0 0" }}>Action Center</h2>
+          <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 6 }}>
+            Every queue keeps owner, age, status, next action, and escalation state visible.
+          </div>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {actionItems.map((item) => (
             <Link
               key={item.type}
               href={item.href}
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "10px 14px",
-                borderRadius: 10,
-                background: colors.bg,
-                color: colors.text,
                 textDecoration: "none",
-                fontSize: 14,
-                fontWeight: 500,
-                transition: "opacity 0.15s",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                borderRadius: 999,
+                padding: "0.45rem 0.8rem",
+                border: "1px solid rgba(148, 163, 184, 0.18)",
+                background: "rgba(255,255,255,0.9)",
+                color: "inherit",
+                fontSize: 12,
+                fontWeight: 700,
               }}
             >
-              <span>
-                {TYPE_ICONS[item.type] ?? "📌"} {item.label}
-              </span>
-              <span
-                style={{
-                  fontWeight: 700,
-                  fontSize: 16,
-                }}
-              >
-                {item.count}
-              </span>
+              <span>{item.label}</span>
+              <span style={{ color: "#1d4ed8" }}>{item.count}</span>
             </Link>
-          );
-        })}
+          ))}
+        </div>
       </div>
 
-      {/* Preview of join requests */}
-      {pendingJoinRequests.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-            Pending Join Requests
-          </p>
-          <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-            {pendingJoinRequests.slice(0, 3).map((req) => (
-              <div
-                key={req.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  fontSize: 13,
-                }}
-              >
-                <div
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: "50%",
-                    background: "var(--ypp-purple)",
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    flexShrink: 0,
-                  }}
-                >
-                  {req.user.name.charAt(0)}
-                </div>
-                <span>{req.user.name}</span>
-                <span style={{ color: "var(--muted)" }}>{req.user.email}</span>
-              </div>
-            ))}
-            {pendingJoinRequests.length > 3 && (
-              <Link href="/chapter/settings" style={{ fontSize: 12, color: "var(--ypp-purple)" }}>
-                +{pendingJoinRequests.length - 3} more
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Preview of applications */}
-      {pendingApplications.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-            Recent Applications
-          </p>
-          <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-            {pendingApplications.slice(0, 3).map((app) => (
-              <div key={app.id} style={{ fontSize: 13 }}>
-                <strong>{app.applicant.name}</strong>
-                <span style={{ color: "var(--muted)" }}> for {app.position.title}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gap: 14,
+          marginTop: 18,
+        }}
+      >
+        {queueOrder.map(({ queue, cards }) => (
+          <QueueSection key={queue} queue={queue} cards={cards} />
+        ))}
+      </div>
     </div>
   );
 }

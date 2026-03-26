@@ -1,5 +1,3 @@
-"use server";
-
 import type { PathwayFallbackRequestStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {

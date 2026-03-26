@@ -116,6 +116,35 @@ enum InterviewOutcome {
   WAIVE
 }
 
+enum InterviewDomain {
+  HIRING
+  READINESS
+}
+
+enum InterviewSchedulingRequestStatus {
+  REQUESTED
+  BOOKED
+  RESCHEDULE_REQUESTED
+  COMPLETED
+  CANCELLED
+  DECLINED
+}
+
+enum InterviewAvailabilityScope {
+  ALL
+  HIRING
+  READINESS
+}
+
+enum InterviewAvailabilityOverrideType {
+  OPEN
+  BLOCKED
+}
+
+enum ConversationContextType {
+  INTERVIEW
+}
+
 enum MentorshipType {
   INSTRUCTOR
   STUDENT
@@ -483,6 +512,9 @@ model Chapter {
   mentorshipTracks            MentorshipTrack[]
   rolloutCampaigns            RolloutCampaign[]
   featureGateRules            FeatureGateRule[]
+  interviewAvailabilityRules  InterviewAvailabilityRule[]
+  interviewAvailabilityOverrides InterviewAvailabilityOverride[]
+  interviewSchedulingRequests InterviewSchedulingRequest[]
   pathwayConfigs              ChapterPathway[]
   classOfferings              ClassOffering[]
   pathwayEvents               PathwayEvent[]
@@ -542,6 +574,11 @@ model User {
   applicationInterviewSlots      InterviewSlot[]                          @relation("ApplicationInterviewer")
   interviewAvailabilityRequests  InstructorInterviewAvailabilityRequest[] @relation("InstructorInterviewAvailabilityRequests")
   interviewAvailabilityReviews   InstructorInterviewAvailabilityRequest[] @relation("InstructorInterviewAvailabilityReviews")
+  interviewAvailabilityRules     InterviewAvailabilityRule[]              @relation("InterviewAvailabilityRules")
+  interviewAvailabilityOverrides InterviewAvailabilityOverride[]          @relation("InterviewAvailabilityOverrides")
+  interviewSchedulingRequestsCreated InterviewSchedulingRequest[]         @relation("InterviewSchedulingRequestsCreated")
+  interviewSchedulingRequestsAsInterviewee InterviewSchedulingRequest[]   @relation("InterviewSchedulingRequestsAsInterviewee")
+  interviewSchedulingRequestsAsInterviewer InterviewSchedulingRequest[]   @relation("InterviewSchedulingRequestsAsInterviewer")
   approvals                      InstructorApproval[]
   mentorPairs                    Mentorship[]                             @relation("MentorLinks")
   menteePairs                    Mentorship[]                             @relation("MenteeLinks")
@@ -1597,6 +1634,7 @@ model InstructorInterviewGate {
   reviewNotes          String?
   slots                InstructorInterviewSlot[]
   availabilityRequests InstructorInterviewAvailabilityRequest[]
+  schedulingRequests   InterviewSchedulingRequest[]
   createdAt            DateTime                                 @default(now())
   updatedAt            DateTime                                 @updatedAt
 }
@@ -1641,6 +1679,103 @@ model InstructorInterviewAvailabilityRequest {
 
   @@index([gateId, status])
   @@index([instructorId, status])
+}
+
+model InterviewAvailabilityRule {
+  id            String                    @id @default(cuid())
+  interviewerId String
+  interviewer   User                      @relation("InterviewAvailabilityRules", fields: [interviewerId], references: [id], onDelete: Cascade)
+  chapterId     String?
+  chapter       Chapter?                  @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+  scope         InterviewAvailabilityScope @default(ALL)
+  dayOfWeek     Int
+  startTime     String
+  endTime       String
+  timezone      String                    @default("America/New_York")
+  slotDuration  Int                       @default(30)
+  bufferMinutes Int                       @default(10)
+  meetingLink   String?
+  locationLabel String?
+  isActive      Boolean                   @default(true)
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  overrides InterviewAvailabilityOverride[]
+
+  @@index([interviewerId, isActive])
+  @@index([chapterId, isActive])
+  @@index([scope, isActive])
+}
+
+model InterviewAvailabilityOverride {
+  id            String                        @id @default(cuid())
+  interviewerId String
+  interviewer   User                          @relation("InterviewAvailabilityOverrides", fields: [interviewerId], references: [id], onDelete: Cascade)
+  chapterId     String?
+  chapter       Chapter?                      @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+  ruleId        String?
+  rule          InterviewAvailabilityRule?    @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  scope         InterviewAvailabilityScope    @default(ALL)
+  type          InterviewAvailabilityOverrideType
+  startsAt      DateTime
+  endsAt        DateTime
+  timezone      String                        @default("America/New_York")
+  slotDuration  Int?
+  bufferMinutes Int?
+  meetingLink   String?
+  locationLabel String?
+  note          String?
+  isActive      Boolean                       @default(true)
+  createdAt     DateTime                      @default(now())
+  updatedAt     DateTime                      @updatedAt
+
+  @@index([interviewerId, isActive, startsAt])
+  @@index([chapterId, isActive, startsAt])
+  @@index([ruleId])
+}
+
+model InterviewSchedulingRequest {
+  id                    String                          @id @default(cuid())
+  domain                InterviewDomain
+  status                InterviewSchedulingRequestStatus @default(REQUESTED)
+  chapterId             String?
+  chapter               Chapter?                        @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+  applicationId         String?
+  application           Application?                    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  gateId                String?
+  gate                  InstructorInterviewGate?        @relation(fields: [gateId], references: [id], onDelete: Cascade)
+  intervieweeId         String
+  interviewee           User                            @relation("InterviewSchedulingRequestsAsInterviewee", fields: [intervieweeId], references: [id], onDelete: Cascade)
+  interviewerId         String
+  interviewer           User                            @relation("InterviewSchedulingRequestsAsInterviewer", fields: [interviewerId], references: [id], onDelete: Cascade)
+  requestedById         String
+  requestedBy           User                            @relation("InterviewSchedulingRequestsCreated", fields: [requestedById], references: [id], onDelete: Cascade)
+  requestedStartAt      DateTime
+  requestedEndAt        DateTime?
+  scheduledAt           DateTime?
+  duration              Int                             @default(30)
+  meetingLink           String?
+  sourceTimezone        String                          @default("America/New_York")
+  note                  String?
+  conversationId        String?                         @unique
+  conversation          Conversation?                   @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  bookedAt              DateTime?
+  completedAt           DateTime?
+  cancelledAt           DateTime?
+  rescheduleRequestedAt DateTime?
+  chapterEscalatedAt    DateTime?
+  adminEscalatedAt      DateTime?
+  reminder24SentAt      DateTime?
+  reminder2SentAt       DateTime?
+  createdAt             DateTime                        @default(now())
+  updatedAt             DateTime                        @updatedAt
+
+  @@index([domain, status])
+  @@index([chapterId, status, createdAt])
+  @@index([intervieweeId, status])
+  @@index([interviewerId, status])
+  @@index([applicationId, status])
+  @@index([gateId, status])
 }
 
 // ============================================
@@ -2032,6 +2167,7 @@ model Application {
   additionalMaterials String?
   interviewSlots      InterviewSlot[]
   interviewNotes      InterviewNote[]
+  schedulingRequests  InterviewSchedulingRequest[]
   decision            Decision?
   submittedAt         DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
@@ -2831,13 +2967,19 @@ model NotificationPreference {
 // ============================================
 
 model Conversation {
-  id           String                    @id @default(cuid())
-  subject      String?
-  isGroup      Boolean                   @default(false)
-  participants ConversationParticipant[]
-  messages     Message[]
-  createdAt    DateTime                  @default(now())
-  updatedAt    DateTime                  @updatedAt
+  id                String                    @id @default(cuid())
+  subject           String?
+  isGroup           Boolean                   @default(false)
+  contextType       ConversationContextType?
+  interviewDomain   InterviewDomain?
+  interviewEntityId String?
+  participants      ConversationParticipant[]
+  messages          Message[]
+  interviewRequest  InterviewSchedulingRequest?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@unique([interviewDomain, interviewEntityId])
 }
 
 model ConversationParticipant {

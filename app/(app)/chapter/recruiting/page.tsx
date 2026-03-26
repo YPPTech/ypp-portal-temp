@@ -78,6 +78,10 @@ export default async function ChapterRecruitingPage({
 
   const chapterId = user.chapterId;
 
+  if (activeTab === "interviews") {
+    redirect(`/interviews/schedule?domain=HIRING&chapter=${chapterId}`);
+  }
+
   const [positions, applications, interviewQueue] = await Promise.all([
     prisma.position.findMany({
       where: { chapterId },
@@ -320,58 +324,6 @@ export default async function ChapterRecruitingPage({
                 })}
               </tbody>
             </table>
-          )}
-        </div>
-      ) : null}
-
-      {activeTab === "interviews" ? (
-        <div className="card" style={{ marginBottom: 20 }}>
-          <h3>Interview Queue</h3>
-          <div
-            style={{
-              border: "1px solid #c4b5fd",
-              background: "#faf5ff",
-              borderRadius: 8,
-              padding: "10px 12px",
-              marginBottom: 12,
-            }}
-          >
-            <p style={{ margin: "0 0 8px", fontSize: 13 }}>
-              Interview execution is now centralized in Interview Command Center.
-            </p>
-            <Link
-              href="/interviews?scope=hiring&view=team&state=needs_action"
-              className="button small outline"
-              style={{ textDecoration: "none" }}
-            >
-              Open Interview Command Center
-            </Link>
-          </div>
-          {interviewQueue.length === 0 ? (
-            <p className="empty">No interview slots waiting on action.</p>
-          ) : (
-            <div style={{ display: "grid", gap: 10 }}>
-              {interviewQueue.map((slot) => (
-                <div key={slot.id} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12 }}>
-                  <p style={{ margin: 0, fontWeight: 600 }}>{slot.application.applicant.name} · {slot.application.position.title}</p>
-                  <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--muted)" }}>
-                    {slot.status.replace(/_/g, " ")} · {formatDate(slot.scheduledAt)} · {slot.duration} min
-                  </p>
-                  <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <Link
-                      href={`/interviews?scope=hiring&view=team&state=needs_action`}
-                      className="button small"
-                      style={{ textDecoration: "none" }}
-                    >
-                      Work in Command Center
-                    </Link>
-                    <Link href={`/applications/${slot.applicationId}`} className="button small outline" style={{ textDecoration: "none" }}>
-                      Open Application
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
           )}
         </div>
       ) : null}

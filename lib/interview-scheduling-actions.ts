@@ -4,578 +4,2643 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
+import {
+  ConversationContextType,
+  InterviewAvailabilityOverrideType,
+  InterviewAvailabilityScope,
+  InterviewDomain,
+  InterviewSchedulingRequestStatus,
+  InterviewSlotSource,
+  Prisma,
+} from "@prisma/client";
 import { createSystemNotification } from "@/lib/notification-actions";
+import {
+  ACTIVE_INTERVIEW_REQUEST_STATUSES,
+  generateInterviewSlots,
+  getInterviewRequestAgeBase,
+  isInterviewRequestAtRisk,
+  rangesOverlap,
+  type AvailabilityOverrideLike,
+  type AvailabilityRuleLike,
+  type BusyInterval,
+  type WarningInterval,
+} from "@/lib/interview-scheduling-shared";
+import { getEnabledFeatureKeysForUser } from "@/lib/feature-gates";
+import { sendApplicationStatusEmail, sendNotificationEmail } from "@/lib/email";
 
-// ============================================
-// AUTH HELPERS
-// ============================================
+const DEFAULT_WINDOW_DAYS = 21;
+const FINAL_APPLICATION_STATUSES = ["ACCEPTED", "REJECTED", "WITHDRAWN"] as const;
+const ACTIVE_SLOT_STATUSES = ["POSTED", "CONFIRMED"] as const;
 
-async function requireSession() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) throw new Error("Unauthorized");
-  return session as typeof session & { user: { id: string; roles?: string[] } };
+type SessionUser = Awaited<ReturnType<typeof getServerSession>> & {
+  user: {
+    id: string;
+    roles?: string[];
+    primaryRole?: string | null;
+  };
+};
+
+type ViewerContext = {
+  userId: string;
+  userName: string;
+  roles: string[];
+  primaryRole: string | null;
+  chapterId: string | null;
+  isAdmin: boolean;
+  isChapterLead: boolean;
+  isDesignatedInterviewer: boolean;
+  isReviewer: boolean;
+  isInstructor: boolean;
+};
+
+type InterviewerOption = {
+  id: string;
+  name: string;
+  primaryRole: string;
+  chapterId: string | null;
+  chapterName: string | null;
+};
+
+type SlotContext = {
+  meetingLink: string | null;
+  locationLabel: string | null;
+  duration: number;
+  sourceTimezone: string;
+};
+
+type HiringWorkflowRecord = Prisma.ApplicationGetPayload<{
+  include: {
+    applicant: {
+      select: { id: true; name: true; email: true };
+    };
+    position: {
+      select: {
+        title: true;
+        chapterId: true;
+        chapter: { select: { id: true; name: true } };
+      };
+    };
+    interviewSlots: true;
+  };
+}>;
+
+type ReadinessWorkflowRecord = Prisma.InstructorInterviewGateGetPayload<{
+  include: {
+    instructor: {
+      select: {
+        id: true;
+        name: true;
+        email: true;
+        chapterId: true;
+        chapter: { select: { id: true; name: true } };
+      };
+    };
+    slots: true;
+  };
+}>;
+
+export interface InterviewCalendarSlotView {
+  slotKey: string;
+  interviewerId: string;
+  interviewerName: string;
+  interviewerRole: string;
+  startsAt: string;
+  endsAt: string;
+  duration: number;
+  timezone: string;
+  meetingLink: string | null;
+  locationLabel: string | null;
+  warningLabels: string[];
+}
+
+export interface InterviewWorkflowView {
+  id: string;
+  domain: InterviewDomain;
+  workflowId: string;
+  chapterId: string | null;
+  chapterName: string;
+  title: string;
+  subtitle: string;
+  intervieweeId: string;
+  intervieweeName: string;
+  intervieweeEmail: string;
+  interviewerId: string | null;
+  interviewerName: string | null;
+  interviewerRole: string | null;
+  ownerName: string;
+  status:
+    | "UNSCHEDULED"
+    | "AWAITING_RESPONSE"
+    | "BOOKED"
+    | "RESCHEDULE_REQUESTED"
+    | "STALE"
+    | "COMPLETED"
+    | "CANCELLED";
+  statusLabel: string;
+  ageHours: number;
+  isAtRisk: boolean;
+  scheduledAt: string | null;
+  duration: number | null;
+  meetingLink: string | null;
+  sourceTimezone: string | null;
+  note: string | null;
+  activeRequestId: string | null;
+  conversationId: string | null;
+  warnings: string[];
+  openSlots: InterviewCalendarSlotView[];
+  detailHref: string;
+}
+
+export interface InterviewAvailabilityRuleView {
+  id: string;
+  interviewerId: string;
+  chapterId: string | null;
+  scope: InterviewAvailabilityScope;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  timezone: string;
+  slotDuration: number;
+  bufferMinutes: number;
+  meetingLink: string | null;
+  locationLabel: string | null;
+}
+
+export interface InterviewAvailabilityOverrideView {
+  id: string;
+  interviewerId: string;
+  chapterId: string | null;
+  scope: InterviewAvailabilityScope;
+  type: InterviewAvailabilityOverrideType;
+  startsAt: string;
+  endsAt: string;
+  timezone: string;
+  slotDuration: number | null;
+  bufferMinutes: number | null;
+  meetingLink: string | null;
+  locationLabel: string | null;
+  note: string | null;
+}
+
+export interface InterviewCalendarView {
+  interviewerId: string;
+  interviewerName: string;
+  interviewerRole: string;
+  chapterId: string | null;
+  chapterName: string | null;
+  rules: InterviewAvailabilityRuleView[];
+  overrides: InterviewAvailabilityOverrideView[];
+  nextOpenSlots: InterviewCalendarSlotView[];
+}
+
+export interface InterviewSchedulePageData {
+  viewer: {
+    userId: string;
+    userName: string;
+    roles: string[];
+    primaryRole: string | null;
+    chapterId: string | null;
+    isAdmin: boolean;
+    isReviewer: boolean;
+    isChapterLead: boolean;
+    isDesignatedInterviewer: boolean;
+    isInstructor: boolean;
+  };
+  summary: {
+    total: number;
+    needsScheduling: number;
+    booked: number;
+    rescheduleRequested: number;
+    atRisk: number;
+  };
+  workflows: InterviewWorkflowView[];
+  calendars: InterviewCalendarView[];
+  interviewerOptions: InterviewerOption[];
 }
 
 function getString(formData: FormData, key: string, required = true): string {
   const value = formData.get(key);
-  if (required && (!value || String(value).trim() === "")) throw new Error(`Missing: ${key}`);
+  if (required && (!value || String(value).trim() === "")) {
+    throw new Error(`Missing: ${key}`);
+  }
   return value ? String(value).trim() : "";
 }
 
-function getNumber(formData: FormData, key: string, fallback: number): number {
+function getOptionalDateTime(raw: string | null | undefined) {
+  if (!raw) return null;
+  const value = new Date(raw);
+  if (Number.isNaN(value.getTime())) {
+    throw new Error("Invalid date/time value");
+  }
+  return value;
+}
+
+function getNumber(formData: FormData, key: string, fallback: number) {
   const raw = formData.get(key);
   if (!raw || String(raw).trim() === "") return fallback;
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-// ============================================
-// TYPES
-// ============================================
-
-export interface InterviewSlotData {
-  id: string;
-  scheduledAt: string;
-  duration: number;
-  status: string;
-  meetingLink: string | null;
-  notes: string | null;
-  source: string;
-  confirmedAt: string | null;
-  completedAt: string | null;
-  createdBy: string;
+async function requireSession(): Promise<SessionUser> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+  return session as SessionUser;
 }
 
-export interface AvailabilityRequestData {
-  id: string;
-  preferredSlots: Array<{ start: string; end?: string }>;
-  note: string | null;
-  status: string;
-  instructorName: string;
-  instructorId: string;
-  reviewNotes: string | null;
-  createdAt: string;
-}
+async function getViewerContext(): Promise<ViewerContext> {
+  const session = await requireSession();
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    include: {
+      roles: { select: { role: true } },
+    },
+  });
 
-export interface InterviewScheduleItem {
-  id: string;
-  type: "HIRING" | "READINESS";
-  // Common fields
-  personName: string;
-  personEmail: string;
-  chapterName: string;
-  gateStatus: string;
-  outcome: string | null;
-  slots: InterviewSlotData[];
-  // Readiness-specific
-  gateId?: string;
-  instructorId?: string;
-  pendingRequests: AvailabilityRequestData[];
-  // Hiring-specific
-  applicationId?: string;
-  positionTitle?: string;
-}
+  if (!user) {
+    throw new Error("User not found");
+  }
 
-export interface InterviewSchedulePageData {
-  items: InterviewScheduleItem[];
-  viewer: {
-    userId: string;
-    roles: string[];
-    isAdmin: boolean;
-    isReviewer: boolean;
-    isInstructor: boolean;
+  const roles = user.roles.map((role) => role.role);
+  const featureKeys = new Set(
+    await getEnabledFeatureKeysForUser({
+      userId: user.id,
+      chapterId: user.chapterId,
+      roles,
+      primaryRole: user.primaryRole,
+    }).catch(() => [])
+  );
+
+  return {
+    userId: user.id,
+    userName: user.name,
+    roles,
+    primaryRole: user.primaryRole,
+    chapterId: user.chapterId,
+    isAdmin: roles.includes("ADMIN"),
+    isChapterLead: roles.includes("CHAPTER_PRESIDENT"),
+    isDesignatedInterviewer: featureKeys.has("INTERVIEWER"),
+    isReviewer:
+      roles.includes("ADMIN") ||
+      roles.includes("CHAPTER_PRESIDENT") ||
+      featureKeys.has("INTERVIEWER"),
+    isInstructor: roles.includes("INSTRUCTOR"),
   };
 }
 
-// ============================================
-// FETCH: INTERVIEW SCHEDULE DATA
-// ============================================
+function scopeAllowsDomain(scope: InterviewAvailabilityScope, domain: InterviewDomain) {
+  return scope === "ALL" || scope === domain;
+}
 
-export async function getInterviewScheduleData(): Promise<InterviewSchedulePageData> {
-  const session = await requireSession();
-  const userId = session.user.id;
-  const roles = session.user.roles ?? [];
-  const isAdmin = roles.includes("ADMIN");
-  const isChapterLead = roles.includes("CHAPTER_PRESIDENT");
-  const isInstructor = roles.includes("INSTRUCTOR");
-  const isReviewer = isAdmin || isChapterLead;
+function hoursBetween(from: Date, to: Date) {
+  return Math.max(0, Math.round(((to.getTime() - from.getTime()) / 36e5) * 10) / 10);
+}
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, chapterId: true },
+function describeWorkflowStatus(status: InterviewWorkflowView["status"]) {
+  switch (status) {
+    case "UNSCHEDULED":
+      return "Needs scheduling";
+    case "AWAITING_RESPONSE":
+      return "Awaiting response";
+    case "BOOKED":
+      return "Booked";
+    case "RESCHEDULE_REQUESTED":
+      return "Reschedule requested";
+    case "STALE":
+      return "At risk";
+    case "COMPLETED":
+      return "Completed";
+    case "CANCELLED":
+      return "Cancelled";
+    default:
+      return status;
+  }
+}
+
+async function getEligibleInterviewers(chapterId: string | null, includeAllAdmins = true) {
+  const candidates = await prisma.user.findMany({
+    where: includeAllAdmins
+      ? chapterId
+        ? {
+            OR: [
+              { roles: { some: { role: "ADMIN" } } },
+              { chapterId },
+            ],
+          }
+        : undefined
+      : chapterId
+      ? { chapterId }
+      : { id: "__none__" },
+    include: {
+      roles: { select: { role: true } },
+      chapter: { select: { id: true, name: true } },
+    },
+    orderBy: { name: "asc" },
   });
 
-  const items: InterviewScheduleItem[] = [];
+  const eligible: InterviewerOption[] = [];
 
-  // ---- READINESS INTERVIEWS ----
-  if (isReviewer) {
-    // Reviewers see all gates (admin) or their chapter's gates
-    const gates = await prisma.instructorInterviewGate.findMany({
-      where: isAdmin
-        ? { status: { notIn: ["PASSED", "WAIVED"] } }
-        : {
-            status: { notIn: ["PASSED", "WAIVED"] },
-            instructor: { chapterId: user?.chapterId ?? "__no_chapter__" },
-          },
-      include: {
-        instructor: {
-          select: { id: true, name: true, email: true, chapter: { select: { name: true } } },
-        },
-        slots: { orderBy: { scheduledAt: "asc" } },
-        availabilityRequests: {
-          where: { status: "PENDING" },
-          orderBy: { createdAt: "desc" },
-          include: {
-            instructor: { select: { id: true, name: true } },
-          },
-        },
-      },
-      orderBy: { updatedAt: "desc" },
-    });
+  for (const user of candidates) {
+    const roles = user.roles.map((role) => role.role);
+    const featureKeys = new Set(
+      await getEnabledFeatureKeysForUser({
+        userId: user.id,
+        chapterId: user.chapterId,
+        roles,
+        primaryRole: user.primaryRole,
+      }).catch(() => [])
+    );
 
-    for (const gate of gates) {
-      items.push({
-        id: gate.id,
-        type: "READINESS",
-        personName: gate.instructor.name ?? "Instructor",
-        personEmail: gate.instructor.email ?? "",
-        chapterName: gate.instructor.chapter?.name ?? "No chapter",
-        gateStatus: gate.status,
-        outcome: gate.outcome,
-        gateId: gate.id,
-        instructorId: gate.instructorId,
-        slots: gate.slots.map((s) => ({
-          id: s.id,
-          scheduledAt: s.scheduledAt.toISOString(),
-          duration: s.duration,
-          status: s.status,
-          meetingLink: s.meetingLink,
-          notes: s.notes,
-          source: s.source,
-          confirmedAt: s.confirmedAt?.toISOString() ?? null,
-          completedAt: s.completedAt?.toISOString() ?? null,
-          createdBy: s.createdById,
-        })),
-        pendingRequests: gate.availabilityRequests.map((r) => ({
-          id: r.id,
-          preferredSlots: r.preferredSlots as Array<{ start: string; end?: string }>,
-          note: r.note,
-          status: r.status,
-          instructorName: r.instructor.name ?? "Instructor",
-          instructorId: r.instructorId,
-          reviewNotes: r.reviewNotes,
-          createdAt: r.createdAt.toISOString(),
-        })),
-      });
-    }
-  } else if (isInstructor) {
-    // Instructor sees own gate
-    const gate = await prisma.instructorInterviewGate.findUnique({
-      where: { instructorId: userId },
-      include: {
-        instructor: {
-          select: { id: true, name: true, email: true, chapter: { select: { name: true } } },
-        },
-        slots: { orderBy: { scheduledAt: "asc" } },
-        availabilityRequests: {
-          where: { instructorId: userId },
-          orderBy: { createdAt: "desc" },
-          include: {
-            instructor: { select: { id: true, name: true } },
-          },
-        },
-      },
-    });
-
-    if (gate && gate.status !== "PASSED" && gate.status !== "WAIVED") {
-      items.push({
-        id: gate.id,
-        type: "READINESS",
-        personName: gate.instructor.name ?? "You",
-        personEmail: gate.instructor.email ?? "",
-        chapterName: gate.instructor.chapter?.name ?? "No chapter",
-        gateStatus: gate.status,
-        outcome: gate.outcome,
-        gateId: gate.id,
-        instructorId: gate.instructorId,
-        slots: gate.slots.map((s) => ({
-          id: s.id,
-          scheduledAt: s.scheduledAt.toISOString(),
-          duration: s.duration,
-          status: s.status,
-          meetingLink: s.meetingLink,
-          notes: s.notes,
-          source: s.source,
-          confirmedAt: s.confirmedAt?.toISOString() ?? null,
-          completedAt: s.completedAt?.toISOString() ?? null,
-          createdBy: s.createdById,
-        })),
-        pendingRequests: gate.availabilityRequests.map((r) => ({
-          id: r.id,
-          preferredSlots: r.preferredSlots as Array<{ start: string; end?: string }>,
-          note: r.note,
-          status: r.status,
-          instructorName: r.instructor.name ?? "You",
-          instructorId: r.instructorId,
-          reviewNotes: r.reviewNotes,
-          createdAt: r.createdAt.toISOString(),
-        })),
+    if (
+      roles.includes("ADMIN") ||
+      roles.includes("CHAPTER_PRESIDENT") ||
+      featureKeys.has("INTERVIEWER")
+    ) {
+      eligible.push({
+        id: user.id,
+        name: user.name,
+        primaryRole: user.primaryRole,
+        chapterId: user.chapterId,
+        chapterName: user.chapter?.name ?? null,
       });
     }
   }
 
-  // ---- HIRING INTERVIEWS ----
-  // Show applications with pending interview scheduling
-  if (isReviewer) {
-    const applications = await prisma.application.findMany({
-      where: {
-        status: { notIn: ["ACCEPTED", "REJECTED", "WITHDRAWN"] },
-        decision: null,
-        position: {
-          interviewRequired: true,
-          ...(isAdmin ? {} : { chapterId: user?.chapterId ?? "__no_chapter__" }),
-        },
-      },
-      include: {
-        applicant: { select: { id: true, name: true, email: true } },
-        position: {
-          select: { title: true, chapter: { select: { name: true } } },
-        },
-        interviewSlots: { orderBy: { scheduledAt: "asc" } },
-      },
-      orderBy: { submittedAt: "desc" },
-    });
+  return eligible;
+}
 
-    for (const app of applications) {
-      items.push({
-        id: app.id,
-        type: "HIRING",
-        personName: app.applicant.name ?? "Applicant",
-        personEmail: app.applicant.email ?? "",
-        chapterName: app.position.chapter?.name ?? "Global",
-        gateStatus: app.status,
-        outcome: null,
-        applicationId: app.id,
-        positionTitle: app.position.title,
-        slots: app.interviewSlots.map((s) => ({
-          id: s.id,
-          scheduledAt: s.scheduledAt.toISOString(),
-          duration: s.duration,
-          status: s.status,
-          meetingLink: s.meetingLink,
-          notes: null,
-          source: "REVIEWER_POSTED",
-          confirmedAt: s.confirmedAt?.toISOString() ?? null,
-          completedAt: s.completedAt?.toISOString() ?? null,
-          createdBy: s.interviewerId ?? "",
-        })),
-        pendingRequests: [],
-      });
-    }
+async function getChapterOperatorIds(chapterId: string | null) {
+  const orWhere: Prisma.UserWhereInput[] = [
+    { roles: { some: { role: "ADMIN" } } },
+  ];
+
+  if (chapterId) {
+    orWhere.push({
+      chapterId,
+      roles: { some: { role: "CHAPTER_PRESIDENT" } },
+    });
+  }
+
+  const users = await prisma.user.findMany({
+    where: {
+      OR: orWhere,
+    },
+    select: { id: true },
+  });
+
+  return users.map((user) => user.id);
+}
+
+async function syncConversationParticipants(conversationId: string, participantIds: string[]) {
+  const existing = await prisma.conversationParticipant.findMany({
+    where: { conversationId },
+    select: { userId: true },
+  });
+  const existingIds = new Set(existing.map((participant) => participant.userId));
+  const missingIds = participantIds.filter((id) => !existingIds.has(id));
+  if (missingIds.length === 0) return;
+
+  await prisma.conversationParticipant.createMany({
+    data: missingIds.map((userId) => ({ conversationId, userId })),
+    skipDuplicates: true,
+  });
+}
+
+async function ensureInterviewConversation({
+  requestId,
+  domain,
+  subject,
+  participantIds,
+  senderId,
+  initialMessage,
+}: {
+  requestId: string;
+  domain: InterviewDomain;
+  subject: string;
+  participantIds: string[];
+  senderId: string;
+  initialMessage: string;
+}) {
+  const existing = await prisma.conversation.findFirst({
+    where: {
+      contextType: ConversationContextType.INTERVIEW,
+      interviewDomain: domain,
+      interviewEntityId: requestId,
+    },
+    select: { id: true },
+  });
+
+  if (existing) {
+    await syncConversationParticipants(existing.id, participantIds);
+    return existing.id;
+  }
+
+  const conversation = await prisma.conversation.create({
+    data: {
+      subject,
+      isGroup: participantIds.length > 2,
+      contextType: ConversationContextType.INTERVIEW,
+      interviewDomain: domain,
+      interviewEntityId: requestId,
+      participants: {
+        create: participantIds.map((userId) => ({ userId })),
+      },
+      messages: {
+        create: {
+          senderId,
+          content: initialMessage,
+        },
+      },
+    },
+    select: { id: true },
+  });
+
+  return conversation.id;
+}
+
+async function createInterviewRequestConversation({
+  requestId,
+  domain,
+  chapterId,
+  interviewerId,
+  intervieweeId,
+  title,
+  requesterId,
+  initialMessage,
+}: {
+  requestId: string;
+  domain: InterviewDomain;
+  chapterId: string | null;
+  interviewerId: string;
+  intervieweeId: string;
+  title: string;
+  requesterId: string;
+  initialMessage: string;
+}) {
+  const operatorIds = await getChapterOperatorIds(chapterId);
+  const participantIds = Array.from(
+    new Set([intervieweeId, interviewerId, ...operatorIds].filter(Boolean))
+  );
+
+  return ensureInterviewConversation({
+    requestId,
+    domain,
+    subject: title,
+    participantIds,
+    senderId: requesterId,
+    initialMessage,
+  });
+}
+
+async function createThreadMessage(conversationId: string, senderId: string, content: string) {
+  await prisma.$transaction([
+    prisma.message.create({
+      data: {
+        conversationId,
+        senderId,
+        content,
+      },
+    }),
+    prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    }),
+  ]);
+}
+
+async function getCalendarResources({
+  chapterIds,
+  interviewerIds,
+  rangeEnd,
+}: {
+  chapterIds: string[];
+  interviewerIds: string[];
+  rangeEnd: Date;
+}) {
+  const [rules, overrides, hiringSlots, readinessSlots, requests, chapterEvents] =
+    await Promise.all([
+      prisma.interviewAvailabilityRule.findMany({
+        where: {
+          isActive: true,
+          interviewerId: { in: interviewerIds.length > 0 ? interviewerIds : ["__none__"] },
+        },
+        include: {
+          interviewer: {
+            select: {
+              id: true,
+              name: true,
+              primaryRole: true,
+              chapter: { select: { id: true, name: true } },
+            },
+          },
+        },
+        orderBy: [{ interviewer: { name: "asc" } }, { dayOfWeek: "asc" }, { startTime: "asc" }],
+      }),
+      prisma.interviewAvailabilityOverride.findMany({
+        where: {
+          isActive: true,
+          interviewerId: { in: interviewerIds.length > 0 ? interviewerIds : ["__none__"] },
+          endsAt: { gte: new Date() },
+        },
+        orderBy: { startsAt: "asc" },
+      }),
+      prisma.interviewSlot.findMany({
+        where: {
+          interviewerId: { in: interviewerIds.length > 0 ? interviewerIds : ["__none__"] },
+          status: { in: [...ACTIVE_SLOT_STATUSES] },
+          scheduledAt: { lte: rangeEnd },
+        },
+        select: {
+          interviewerId: true,
+          scheduledAt: true,
+          duration: true,
+        },
+      }),
+      prisma.instructorInterviewSlot.findMany({
+        where: {
+          createdById: { in: interviewerIds.length > 0 ? interviewerIds : ["__none__"] },
+          status: { in: [...ACTIVE_SLOT_STATUSES] },
+          scheduledAt: { lte: rangeEnd },
+        },
+        select: {
+          createdById: true,
+          scheduledAt: true,
+          duration: true,
+        },
+      }),
+      prisma.interviewSchedulingRequest.findMany({
+        where: {
+          interviewerId: { in: interviewerIds.length > 0 ? interviewerIds : ["__none__"] },
+          status: { in: ACTIVE_INTERVIEW_REQUEST_STATUSES },
+          scheduledAt: { not: null, lte: rangeEnd },
+        },
+        select: {
+          interviewerId: true,
+          scheduledAt: true,
+          duration: true,
+        },
+      }),
+      prisma.event.findMany({
+        where: {
+          chapterId: { in: chapterIds.length > 0 ? chapterIds : ["__none__"] },
+          startDate: { lte: rangeEnd },
+          endDate: { gte: new Date() },
+        },
+        select: {
+          chapterId: true,
+          title: true,
+          startDate: true,
+          endDate: true,
+        },
+      }),
+    ]);
+
+  const busyByInterviewer = new Map<string, BusyInterval[]>();
+  for (const slot of hiringSlots) {
+    if (!slot.interviewerId) continue;
+    const existing = busyByInterviewer.get(slot.interviewerId) ?? [];
+    existing.push({
+      startsAt: slot.scheduledAt,
+      endsAt: new Date(slot.scheduledAt.getTime() + slot.duration * 60_000),
+      label: "Hiring interview",
+    });
+    busyByInterviewer.set(slot.interviewerId, existing);
+  }
+  for (const slot of readinessSlots) {
+    const existing = busyByInterviewer.get(slot.createdById) ?? [];
+    existing.push({
+      startsAt: slot.scheduledAt,
+      endsAt: new Date(slot.scheduledAt.getTime() + slot.duration * 60_000),
+      label: "Readiness interview",
+    });
+    busyByInterviewer.set(slot.createdById, existing);
+  }
+  for (const request of requests) {
+    if (!request.scheduledAt) continue;
+    const existing = busyByInterviewer.get(request.interviewerId) ?? [];
+    existing.push({
+      startsAt: request.scheduledAt,
+      endsAt: new Date(request.scheduledAt.getTime() + request.duration * 60_000),
+      label: "Interview booking",
+    });
+    busyByInterviewer.set(request.interviewerId, existing);
+  }
+
+  const warningsByChapter = new Map<string, WarningInterval[]>();
+  for (const event of chapterEvents) {
+    if (!event.chapterId) continue;
+    const existing = warningsByChapter.get(event.chapterId) ?? [];
+    existing.push({
+      startsAt: event.startDate,
+      endsAt: event.endDate,
+      label: `Chapter event: ${event.title}`,
+    });
+    warningsByChapter.set(event.chapterId, existing);
   }
 
   return {
-    items,
-    viewer: {
-      userId,
-      roles,
-      isAdmin,
-      isReviewer,
-      isInstructor,
-    },
+    rules,
+    overrides,
+    busyByInterviewer,
+    warningsByChapter,
   };
 }
 
-// ============================================
-// ACTION: POST INTERVIEW SLOTS (READINESS)
-// ============================================
-
-export async function scheduleInterviewSlots(formData: FormData) {
-  const session = await requireSession();
-  const roles = session.user.roles ?? [];
-  const isAdmin = roles.includes("ADMIN");
-  const isChapterLead = roles.includes("CHAPTER_PRESIDENT");
-
-  if (!isAdmin && !isChapterLead) throw new Error("Unauthorized - reviewer role required");
-
-  const instructorId = getString(formData, "instructorId");
-  const gateId = getString(formData, "gateId");
-  const duration = getNumber(formData, "duration", 30);
-  const meetingLink = getString(formData, "meetingLink", false);
-
-  // Parse up to 5 slot dates
-  const slotDates: Date[] = [];
-  for (let i = 1; i <= 5; i++) {
-    const raw = getString(formData, `slot${i}`, false);
-    if (!raw) continue;
-    const parsed = new Date(raw);
-    if (isNaN(parsed.getTime())) throw new Error(`Invalid date for slot ${i}`);
-    slotDates.push(parsed);
-  }
-
-  if (slotDates.length === 0) throw new Error("Add at least one interview slot.");
-
-  // Deduplicate
-  const deduped = Array.from(
-    new Map(slotDates.map((d) => [d.toISOString(), d])).values()
-  );
-
-  // Verify gate exists and is schedulable
-  const gate = await prisma.instructorInterviewGate.findUnique({
-    where: { id: gateId },
-    select: { id: true, instructorId: true, status: true },
-  });
-
-  if (!gate) throw new Error("Interview gate not found");
-  if (gate.instructorId !== instructorId) throw new Error("Gate/instructor mismatch");
-  if (gate.status === "PASSED" || gate.status === "WAIVED") {
-    throw new Error("Interview is already complete.");
-  }
-
-  // Filter out existing slots
-  const existing = await prisma.instructorInterviewSlot.findMany({
-    where: { gateId, scheduledAt: { in: deduped } },
-    select: { scheduledAt: true },
-  });
-  const existingTimes = new Set(existing.map((s) => s.scheduledAt.toISOString()));
-  const toCreate = deduped.filter((d) => !existingTimes.has(d.toISOString()));
-
-  if (toCreate.length === 0) throw new Error("All selected times already have slots.");
-
-  const result = await prisma.instructorInterviewSlot.createMany({
-    data: toCreate.map((scheduledAt) => ({
-      gateId,
-      createdById: session.user.id,
-      source: "REVIEWER_POSTED" as const,
-      status: "POSTED" as const,
-      scheduledAt,
-      duration,
-      meetingLink: meetingLink || null,
-    })),
-    skipDuplicates: true,
-  });
-
-  await createSystemNotification(
-    instructorId,
-    "SYSTEM",
-    "Interview Slots Available",
-    `${result.count} new interview slot${result.count > 1 ? "s" : ""} posted for you.`,
-    "/interviews/schedule"
-  );
-
-  revalidatePath("/interviews/schedule");
-  revalidatePath("/interviews");
-  return { success: true, count: result.count };
+function toRuleView(rule: Awaited<ReturnType<typeof getCalendarResources>>["rules"][number]): InterviewAvailabilityRuleView {
+  return {
+    id: rule.id,
+    interviewerId: rule.interviewerId,
+    chapterId: rule.chapterId,
+    scope: rule.scope,
+    dayOfWeek: rule.dayOfWeek,
+    startTime: rule.startTime,
+    endTime: rule.endTime,
+    timezone: rule.timezone,
+    slotDuration: rule.slotDuration,
+    bufferMinutes: rule.bufferMinutes,
+    meetingLink: rule.meetingLink,
+    locationLabel: rule.locationLabel,
+  };
 }
 
-// ============================================
-// ACTION: ACCEPT AVAILABILITY REQUEST
-// ============================================
-
-export async function acceptAvailabilityAndSchedule(formData: FormData) {
-  const session = await requireSession();
-  const roles = session.user.roles ?? [];
-  const isAdmin = roles.includes("ADMIN");
-  const isChapterLead = roles.includes("CHAPTER_PRESIDENT");
-
-  if (!isAdmin && !isChapterLead) throw new Error("Unauthorized - reviewer role required");
-
-  const requestId = getString(formData, "requestId");
-  const scheduledAt = new Date(getString(formData, "scheduledAt"));
-  const duration = getNumber(formData, "duration", 30);
-  const meetingLink = getString(formData, "meetingLink", false);
-
-  if (isNaN(scheduledAt.getTime())) throw new Error("Invalid date");
-
-  const request = await prisma.instructorInterviewAvailabilityRequest.findUnique({
-    where: { id: requestId },
-    select: { id: true, gateId: true, instructorId: true, status: true },
-  });
-
-  if (!request) throw new Error("Request not found");
-  if (request.status !== "PENDING") throw new Error("Request is no longer pending");
-
-  await prisma.$transaction([
-    prisma.instructorInterviewAvailabilityRequest.update({
-      where: { id: requestId },
-      data: { status: "ACCEPTED", reviewedById: session.user.id, reviewedAt: new Date() },
-    }),
-    prisma.instructorInterviewSlot.upsert({
-      where: { gateId_scheduledAt: { gateId: request.gateId, scheduledAt } },
-      create: {
-        gateId: request.gateId,
-        createdById: session.user.id,
-        source: "INSTRUCTOR_REQUESTED",
-        status: "CONFIRMED",
-        scheduledAt,
-        duration,
-        meetingLink: meetingLink || null,
-        confirmedAt: new Date(),
-      },
-      update: {
-        status: "CONFIRMED",
-        duration,
-        meetingLink: meetingLink || null,
-        confirmedAt: new Date(),
-      },
-    }),
-    // Decline other pending requests for same gate
-    prisma.instructorInterviewAvailabilityRequest.updateMany({
-      where: { gateId: request.gateId, status: "PENDING", id: { not: request.id } },
-      data: {
-        status: "DECLINED",
-        reviewedById: session.user.id,
-        reviewedAt: new Date(),
-        reviewNotes: "A different availability request was accepted.",
-      },
-    }),
-    prisma.instructorInterviewGate.update({
-      where: { id: request.gateId },
-      data: { status: "SCHEDULED", scheduledAt },
-    }),
-  ]);
-
-  await createSystemNotification(
-    request.instructorId,
-    "SYSTEM",
-    "Interview Scheduled",
-    "Your interview availability request was accepted and your interview is scheduled.",
-    "/interviews/schedule"
-  );
-
-  revalidatePath("/interviews/schedule");
-  revalidatePath("/interviews");
-  return { success: true };
+function toOverrideView(
+  override: AvailabilityOverrideLike & { chapterId?: string | null }
+): InterviewAvailabilityOverrideView {
+  return {
+    id: override.id,
+    interviewerId: override.interviewerId,
+    chapterId: override.chapterId ?? null,
+    scope: override.scope,
+    type: override.type,
+    startsAt: override.startsAt.toISOString(),
+    endsAt: override.endsAt.toISOString(),
+    timezone: override.timezone,
+    slotDuration: override.slotDuration,
+    bufferMinutes: override.bufferMinutes,
+    meetingLink: override.meetingLink,
+    locationLabel: override.locationLabel,
+    note: override.note,
+  };
 }
 
-// ============================================
-// ACTION: CANCEL A SLOT (reviewer)
-// ============================================
+function toSlotView(
+  slot: ReturnType<typeof generateInterviewSlots>[number],
+  interviewerName: string,
+  interviewerRole: string
+): InterviewCalendarSlotView {
+  return {
+    slotKey: slot.slotKey,
+    interviewerId: slot.interviewerId,
+    interviewerName,
+    interviewerRole,
+    startsAt: slot.startsAt.toISOString(),
+    endsAt: slot.endsAt.toISOString(),
+    duration: slot.duration,
+    timezone: slot.timezone,
+    meetingLink: slot.meetingLink,
+    locationLabel: slot.locationLabel,
+    warningLabels: slot.warningLabels,
+  };
+}
 
-export async function cancelInterviewSlot(formData: FormData) {
-  const session = await requireSession();
-  const roles = session.user.roles ?? [];
-  const isAdmin = roles.includes("ADMIN");
-  const isChapterLead = roles.includes("CHAPTER_PRESIDENT");
+async function processInterviewAutomation() {
+  const now = new Date();
+  const in24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const in2Hours = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+  const before24Hours = new Date(now.getTime() + 23 * 60 * 60 * 1000);
+  const before2Hours = new Date(now.getTime() + 90 * 60 * 1000);
 
-  if (!isAdmin && !isChapterLead) throw new Error("Unauthorized");
+  const [twentyFourHourReminders, twoHourReminders, staleChapterEscalations, staleAdminEscalations] =
+    await Promise.all([
+      prisma.interviewSchedulingRequest.findMany({
+        where: {
+          status: "BOOKED",
+          scheduledAt: {
+            gte: before24Hours,
+            lte: in24Hours,
+          },
+          reminder24SentAt: null,
+        },
+        include: {
+          interviewee: { select: { id: true, name: true, email: true } },
+          interviewer: { select: { id: true, name: true, email: true } },
+        },
+      }),
+      prisma.interviewSchedulingRequest.findMany({
+        where: {
+          status: "BOOKED",
+          scheduledAt: {
+            gte: before2Hours,
+            lte: in2Hours,
+          },
+          reminder2SentAt: null,
+        },
+        include: {
+          interviewee: { select: { id: true, name: true, email: true } },
+          interviewer: { select: { id: true, name: true, email: true } },
+        },
+      }),
+      prisma.interviewSchedulingRequest.findMany({
+        where: {
+          status: { in: ["REQUESTED", "RESCHEDULE_REQUESTED"] },
+          chapterEscalatedAt: null,
+        },
+        select: {
+          id: true,
+          status: true,
+          chapterId: true,
+          interviewee: { select: { name: true } },
+          interviewer: { select: { name: true } },
+          createdAt: true,
+          rescheduleRequestedAt: true,
+        },
+      }),
+      prisma.interviewSchedulingRequest.findMany({
+        where: {
+          status: { in: ["REQUESTED", "RESCHEDULE_REQUESTED"] },
+          chapterEscalatedAt: { not: null },
+          adminEscalatedAt: null,
+        },
+        select: {
+          id: true,
+          interviewee: { select: { name: true } },
+          interviewer: { select: { name: true } },
+          chapterEscalatedAt: true,
+        },
+      }),
+    ]);
 
-  const slotId = getString(formData, "slotId");
+  for (const request of twentyFourHourReminders) {
+    if (!request.scheduledAt) continue;
+    const when = request.scheduledAt.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
 
-  const slot = await prisma.instructorInterviewSlot.findUnique({
-    where: { id: slotId },
-    select: {
-      id: true,
-      status: true,
-      gateId: true,
-      gate: { select: { instructorId: true, status: true } },
+    await Promise.all([
+      createSystemNotification(
+        request.intervieweeId,
+        "SYSTEM",
+        "Interview tomorrow",
+        `Your interview with ${request.interviewer.name} is scheduled for ${when}.`,
+        `/interviews/schedule`
+      ),
+      createSystemNotification(
+        request.interviewerId,
+        "SYSTEM",
+        "Interview tomorrow",
+        `Your interview with ${request.interviewee.name} is scheduled for ${when}.`,
+        `/interviews/schedule`
+      ),
+      prisma.interviewSchedulingRequest.update({
+        where: { id: request.id },
+        data: { reminder24SentAt: new Date() },
+      }),
+    ]);
+  }
+
+  for (const request of twoHourReminders) {
+    if (!request.scheduledAt) continue;
+    const when = request.scheduledAt.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+    await Promise.all([
+      createSystemNotification(
+        request.intervieweeId,
+        "SYSTEM",
+        "Interview coming up",
+        `Your interview with ${request.interviewer.name} starts at ${when}.`,
+        `/interviews/schedule`
+      ),
+      createSystemNotification(
+        request.interviewerId,
+        "SYSTEM",
+        "Interview coming up",
+        `Your interview with ${request.interviewee.name} starts at ${when}.`,
+        `/interviews/schedule`
+      ),
+      prisma.interviewSchedulingRequest.update({
+        where: { id: request.id },
+        data: { reminder2SentAt: new Date() },
+      }),
+    ]);
+  }
+
+  for (const request of staleChapterEscalations) {
+    if (
+      !isInterviewRequestAtRisk({
+        createdAt: request.createdAt,
+        rescheduleRequestedAt: request.rescheduleRequestedAt,
+        status: request.status,
+        now,
+      })
+    ) {
+      continue;
+    }
+
+    const operatorIds = await getChapterOperatorIds(request.chapterId);
+    for (const operatorId of operatorIds) {
+      await createSystemNotification(
+        operatorId,
+        "SYSTEM",
+        "Interview scheduling is at risk",
+        `${request.interviewee.name} and ${request.interviewer.name} need scheduling attention.`,
+        `/interviews/schedule`
+      );
+    }
+
+    await prisma.interviewSchedulingRequest.update({
+      where: { id: request.id },
+      data: { chapterEscalatedAt: new Date() },
+    });
+  }
+
+  for (const request of staleAdminEscalations) {
+    if (!request.chapterEscalatedAt) continue;
+    if (now.getTime() - request.chapterEscalatedAt.getTime() < 24 * 60 * 60 * 1000) continue;
+
+    const adminUsers = await prisma.user.findMany({
+      where: { roles: { some: { role: "ADMIN" } } },
+      select: { id: true },
+    });
+
+    for (const admin of adminUsers) {
+      await createSystemNotification(
+        admin.id,
+        "SYSTEM",
+        "Admin escalation: interview scheduling stalled",
+        `${request.interviewee.name} and ${request.interviewer.name} still need scheduling help.`,
+        `/interviews/schedule`
+      );
+    }
+
+    await prisma.interviewSchedulingRequest.update({
+      where: { id: request.id },
+      data: { adminEscalatedAt: new Date() },
+    });
+  }
+}
+
+async function backfillLegacyRequestForHiringSlot(slot: {
+  id: string;
+  applicationId: string;
+  scheduledAt: Date;
+  duration: number;
+  meetingLink: string | null;
+  interviewerId: string | null;
+  confirmedAt?: Date | null;
+  application: {
+    applicantId: string;
+    applicant: { name: string; email: string | null };
+    position: {
+      title: string;
+      chapterId: string | null;
+      chapter: { name: string } | null;
+    };
+  };
+}) {
+  if (!slot.interviewerId) return null;
+  const existing = await prisma.interviewSchedulingRequest.findFirst({
+    where: {
+      domain: "HIRING",
+      applicationId: slot.applicationId,
+      status: { in: ACTIVE_INTERVIEW_REQUEST_STATUSES },
+    },
+    include: {
+      interviewer: {
+        select: { id: true, name: true, primaryRole: true },
+      },
+    },
+  });
+  if (existing) return existing;
+
+  const request = await prisma.interviewSchedulingRequest.create({
+    data: {
+      domain: "HIRING",
+      status: "BOOKED",
+      chapterId: slot.application.position.chapterId,
+      applicationId: slot.applicationId,
+      intervieweeId: slot.application.applicantId,
+      interviewerId: slot.interviewerId,
+      requestedById: slot.application.applicantId,
+      requestedStartAt: slot.scheduledAt,
+      requestedEndAt: new Date(slot.scheduledAt.getTime() + slot.duration * 60_000),
+      scheduledAt: slot.scheduledAt,
+      duration: slot.duration,
+      meetingLink: slot.meetingLink,
+      sourceTimezone: "America/New_York",
+      bookedAt: slot.confirmedAt ?? slot.scheduledAt,
     },
   });
 
-  if (!slot) throw new Error("Slot not found");
-  if (slot.status === "COMPLETED") throw new Error("Cannot cancel a completed slot");
+  const conversationId = await createInterviewRequestConversation({
+    requestId: request.id,
+    domain: "HIRING",
+    chapterId: slot.application.position.chapterId,
+    interviewerId: slot.interviewerId,
+    intervieweeId: slot.application.applicantId,
+    title: `Interview: ${slot.application.position.title}`,
+    requesterId: slot.application.applicantId,
+    initialMessage: `${slot.application.applicant.name} booked an interview for ${slot.scheduledAt.toLocaleString()}.`,
+  });
 
-  const wasConfirmed = slot.status === "CONFIRMED";
-
-  await prisma.$transaction([
-    prisma.instructorInterviewSlot.update({
-      where: { id: slotId },
-      data: { status: "CANCELLED" },
-    }),
-    // If this was the confirmed slot, revert gate to REQUIRED
-    ...(wasConfirmed
-      ? [
-          prisma.instructorInterviewGate.update({
-            where: { id: slot.gateId },
-            data: { status: "REQUIRED", scheduledAt: null },
-          }),
-        ]
-      : []),
-  ]);
-
-  await createSystemNotification(
-    slot.gate.instructorId,
-    "SYSTEM",
-    "Interview Slot Cancelled",
-    wasConfirmed
-      ? "Your confirmed interview slot was cancelled. Please schedule a new time."
-      : "An interview slot was removed.",
-    "/interviews/schedule"
-  );
-
-  revalidatePath("/interviews/schedule");
-  revalidatePath("/interviews");
-  return { success: true };
+  return prisma.interviewSchedulingRequest.update({
+    where: { id: request.id },
+    data: { conversationId },
+    include: {
+      interviewer: {
+        select: { id: true, name: true, primaryRole: true },
+      },
+    },
+  });
 }
 
-// ============================================
-// ACTION: POST HIRING INTERVIEW SLOTS
-// ============================================
+async function backfillLegacyRequestForReadinessSlot(slot: {
+  id: string;
+  gateId: string;
+  scheduledAt: Date;
+  duration: number;
+  meetingLink: string | null;
+  createdById: string;
+  confirmedAt?: Date | null;
+  gate: {
+    instructorId: string;
+    instructor: { name: string; email: string | null };
+  };
+}) {
+  const existing = await prisma.interviewSchedulingRequest.findFirst({
+    where: {
+      domain: "READINESS",
+      gateId: slot.gateId,
+      status: { in: ACTIVE_INTERVIEW_REQUEST_STATUSES },
+    },
+    include: {
+      interviewer: {
+        select: { id: true, name: true, primaryRole: true },
+      },
+    },
+  });
+  if (existing) return existing;
 
-export async function scheduleHiringInterviewSlots(formData: FormData) {
-  const session = await requireSession();
-  const roles = session.user.roles ?? [];
-  const isAdmin = roles.includes("ADMIN");
-  const isChapterLead = roles.includes("CHAPTER_PRESIDENT");
+  const instructor = await prisma.user.findUnique({
+    where: { id: slot.gate.instructorId },
+    select: { chapterId: true },
+  });
 
-  if (!isAdmin && !isChapterLead) throw new Error("Unauthorized - reviewer role required");
+  const request = await prisma.interviewSchedulingRequest.create({
+    data: {
+      domain: "READINESS",
+      status: "BOOKED",
+      chapterId: instructor?.chapterId ?? null,
+      gateId: slot.gateId,
+      intervieweeId: slot.gate.instructorId,
+      interviewerId: slot.createdById,
+      requestedById: slot.gate.instructorId,
+      requestedStartAt: slot.scheduledAt,
+      requestedEndAt: new Date(slot.scheduledAt.getTime() + slot.duration * 60_000),
+      scheduledAt: slot.scheduledAt,
+      duration: slot.duration,
+      meetingLink: slot.meetingLink,
+      sourceTimezone: "America/New_York",
+      bookedAt: slot.confirmedAt ?? slot.scheduledAt,
+    },
+  });
 
-  const applicationId = getString(formData, "applicationId");
-  const duration = getNumber(formData, "duration", 30);
-  const meetingLink = getString(formData, "meetingLink", false);
+  const conversationId = await createInterviewRequestConversation({
+    requestId: request.id,
+    domain: "READINESS",
+    chapterId: instructor?.chapterId ?? null,
+    interviewerId: slot.createdById,
+    intervieweeId: slot.gate.instructorId,
+    title: "Instructor readiness interview",
+    requesterId: slot.gate.instructorId,
+    initialMessage: `${slot.gate.instructor.name} booked a readiness interview for ${slot.scheduledAt.toLocaleString()}.`,
+  });
 
-  const slotDates: Date[] = [];
-  for (let i = 1; i <= 5; i++) {
-    const raw = getString(formData, `slot${i}`, false);
-    if (!raw) continue;
-    const parsed = new Date(raw);
-    if (isNaN(parsed.getTime())) throw new Error(`Invalid date for slot ${i}`);
-    slotDates.push(parsed);
+  return prisma.interviewSchedulingRequest.update({
+    where: { id: request.id },
+    data: { conversationId },
+    include: {
+      interviewer: {
+        select: { id: true, name: true, primaryRole: true },
+      },
+    },
+  });
+}
+
+async function getActiveSchedulingRequest(
+  domain: InterviewDomain,
+  workflowId: string
+) {
+  return prisma.interviewSchedulingRequest.findFirst({
+    where:
+      domain === "HIRING"
+        ? { domain, applicationId: workflowId, status: { in: ACTIVE_INTERVIEW_REQUEST_STATUSES } }
+        : { domain, gateId: workflowId, status: { in: ACTIVE_INTERVIEW_REQUEST_STATUSES } },
+    include: {
+      interviewer: {
+        select: { id: true, name: true, primaryRole: true },
+      },
+    },
+    orderBy: [{ updatedAt: "desc" }],
+  });
+}
+
+async function buildWorkflowViewForHiring({
+  application,
+  viewer,
+  rules,
+  overrides,
+  busyByInterviewer,
+  warningsByChapter,
+  interviewerDirectory,
+}: {
+  application: HiringWorkflowRecord;
+  viewer: ViewerContext;
+  rules: Awaited<ReturnType<typeof getCalendarResources>>["rules"];
+  overrides: Awaited<ReturnType<typeof getCalendarResources>>["overrides"];
+  busyByInterviewer: Map<string, BusyInterval[]>;
+  warningsByChapter: Map<string, WarningInterval[]>;
+  interviewerDirectory: Map<string, InterviewerOption>;
+}): Promise<InterviewWorkflowView> {
+  const confirmedSlot = application.interviewSlots.find((slot) => slot.status === "CONFIRMED");
+  const completedSlot = application.interviewSlots.find((slot) => slot.status === "COMPLETED");
+  let activeRequest = await getActiveSchedulingRequest("HIRING", application.id);
+
+  if (!activeRequest && confirmedSlot) {
+    activeRequest = await backfillLegacyRequestForHiringSlot({
+      id: confirmedSlot.id,
+      applicationId: application.id,
+      scheduledAt: confirmedSlot.scheduledAt,
+      duration: confirmedSlot.duration,
+      meetingLink: confirmedSlot.meetingLink,
+      interviewerId: confirmedSlot.interviewerId,
+      application: {
+        applicantId: application.applicantId,
+        applicant: {
+          name: application.applicant.name ?? "Applicant",
+          email: application.applicant.email,
+        },
+        position: {
+          title: application.position.title,
+          chapterId: application.position.chapterId,
+          chapter: application.position.chapter,
+        },
+      },
+      confirmedAt: confirmedSlot.confirmedAt,
+    });
   }
 
-  if (slotDates.length === 0) throw new Error("Add at least one interview slot.");
-
-  const deduped = Array.from(
-    new Map(slotDates.map((d) => [d.toISOString(), d])).values()
+  const relevantInterviewers = Array.from(
+    new Set(
+      rules
+        .filter(
+          (rule) =>
+            (rule.chapterId ?? rule.interviewer.chapter?.id) === application.position.chapterId &&
+            scopeAllowsDomain(rule.scope, "HIRING")
+        )
+        .map((rule) => rule.interviewerId)
+    )
   );
 
-  const app = await prisma.application.findUnique({
-    where: { id: applicationId },
-    select: { id: true, applicantId: true, position: { select: { title: true } } },
-  });
+  const shouldShowOpenSlots =
+    !completedSlot &&
+    (!confirmedSlot || activeRequest?.status === "RESCHEDULE_REQUESTED");
 
-  if (!app) throw new Error("Application not found");
+  const openSlots = shouldShowOpenSlots
+    ? relevantInterviewers.flatMap((interviewerId) => {
+        const calendarOwner = interviewerDirectory.get(interviewerId);
+        if (!calendarOwner) return [];
+        return generateInterviewSlots({
+          interviewerId,
+          domain: "HIRING",
+          rules: rules.filter((rule) => rule.interviewerId === interviewerId) as AvailabilityRuleLike[],
+          overrides: overrides.filter((override) => override.interviewerId === interviewerId) as AvailabilityOverrideLike[],
+          busyIntervals: busyByInterviewer.get(interviewerId) ?? [],
+          warningIntervals: application.position.chapterId
+            ? warningsByChapter.get(application.position.chapterId) ?? []
+            : [],
+          rangeStart: new Date(),
+          days: DEFAULT_WINDOW_DAYS,
+        })
+          .slice(0, 8)
+          .map((slot) =>
+            toSlotView(slot, calendarOwner.name, calendarOwner.primaryRole.replace(/_/g, " "))
+          );
+      })
+    : [];
 
-  const existing = await prisma.interviewSlot.findMany({
-    where: { applicationId, scheduledAt: { in: deduped } },
-    select: { scheduledAt: true },
-  });
-  const existingTimes = new Set(existing.map((s) => s.scheduledAt.toISOString()));
-  const toCreate = deduped.filter((d) => !existingTimes.has(d.toISOString()));
+  const ageBase = activeRequest
+    ? getInterviewRequestAgeBase({
+        createdAt: activeRequest.createdAt,
+        rescheduleRequestedAt: activeRequest.rescheduleRequestedAt,
+      })
+    : application.submittedAt;
+  const ageHours = hoursBetween(ageBase, new Date());
+  const isAtRisk = activeRequest
+    ? isInterviewRequestAtRisk({
+        createdAt: activeRequest.createdAt,
+        rescheduleRequestedAt: activeRequest.rescheduleRequestedAt,
+        status: activeRequest.status,
+      })
+    : !confirmedSlot && Date.now() - application.submittedAt.getTime() >= 24 * 60 * 60 * 1000;
 
-  if (toCreate.length === 0) throw new Error("All selected times already have slots.");
+  let status: InterviewWorkflowView["status"] = "UNSCHEDULED";
+  if (completedSlot) status = "COMPLETED";
+  else if (activeRequest?.status === "RESCHEDULE_REQUESTED") status = "RESCHEDULE_REQUESTED";
+  else if (activeRequest?.status === "REQUESTED") status = "AWAITING_RESPONSE";
+  else if (activeRequest?.status === "CANCELLED") status = "CANCELLED";
+  else if (confirmedSlot || activeRequest?.status === "BOOKED") status = "BOOKED";
+  if (isAtRisk && (status === "UNSCHEDULED" || status === "AWAITING_RESPONSE" || status === "RESCHEDULE_REQUESTED")) {
+    status = "STALE";
+  }
 
-  const result = await prisma.interviewSlot.createMany({
-    data: toCreate.map((scheduledAt) => ({
-      applicationId,
-      status: "POSTED" as const,
-      scheduledAt,
-      duration,
-      meetingLink: meetingLink || null,
-      interviewerId: session.user.id,
-    })),
-    skipDuplicates: true,
-  });
+  const interviewerInfo = activeRequest?.interviewerId
+    ? interviewerDirectory.get(activeRequest.interviewerId) ?? null
+    : confirmedSlot?.interviewerId
+    ? interviewerDirectory.get(confirmedSlot.interviewerId) ?? null
+    : null;
 
-  await createSystemNotification(
-    app.applicantId,
-    "SYSTEM",
-    "Interview Slots Available",
-    `${result.count} interview slot${result.count > 1 ? "s" : ""} posted for "${app.position.title}".`,
-    `/applications/${applicationId}`
+  return {
+    id: `HIRING:${application.id}`,
+    domain: "HIRING",
+    workflowId: application.id,
+    chapterId: application.position.chapterId,
+    chapterName: application.position.chapter?.name ?? "Global",
+    title: application.position.title,
+    subtitle: application.applicant.name ?? "Applicant",
+    intervieweeId: application.applicantId,
+    intervieweeName: application.applicant.name ?? "Applicant",
+    intervieweeEmail: application.applicant.email ?? "",
+    interviewerId: interviewerInfo?.id ?? confirmedSlot?.interviewerId ?? activeRequest?.interviewerId ?? null,
+    interviewerName: interviewerInfo?.name ?? activeRequest?.interviewer.name ?? null,
+    interviewerRole: interviewerInfo?.primaryRole.replace(/_/g, " ") ?? null,
+    ownerName: interviewerInfo?.name ?? application.position.chapter?.name ?? "Chapter team",
+    status,
+    statusLabel: describeWorkflowStatus(status),
+    ageHours,
+    isAtRisk,
+    scheduledAt: activeRequest?.scheduledAt?.toISOString() ?? confirmedSlot?.scheduledAt.toISOString() ?? completedSlot?.scheduledAt.toISOString() ?? null,
+    duration: activeRequest?.duration ?? confirmedSlot?.duration ?? completedSlot?.duration ?? null,
+    meetingLink: activeRequest?.meetingLink ?? confirmedSlot?.meetingLink ?? completedSlot?.meetingLink ?? null,
+    sourceTimezone: activeRequest?.sourceTimezone ?? "America/New_York",
+    note: activeRequest?.note ?? null,
+    activeRequestId: activeRequest?.id ?? null,
+    conversationId: activeRequest?.conversationId ?? null,
+    warnings: openSlots.flatMap((slot) => slot.warningLabels).slice(0, 3),
+    openSlots,
+    detailHref: `/applications/${application.id}`,
+  };
+}
+
+async function buildWorkflowViewForReadiness({
+  gate,
+  viewer,
+  rules,
+  overrides,
+  busyByInterviewer,
+  warningsByChapter,
+  interviewerDirectory,
+}: {
+  gate: ReadinessWorkflowRecord;
+  viewer: ViewerContext;
+  rules: Awaited<ReturnType<typeof getCalendarResources>>["rules"];
+  overrides: Awaited<ReturnType<typeof getCalendarResources>>["overrides"];
+  busyByInterviewer: Map<string, BusyInterval[]>;
+  warningsByChapter: Map<string, WarningInterval[]>;
+  interviewerDirectory: Map<string, InterviewerOption>;
+}): Promise<InterviewWorkflowView> {
+  const confirmedSlot = gate.slots.find((slot) => slot.status === "CONFIRMED");
+  const completedSlot = gate.slots.find((slot) => slot.status === "COMPLETED");
+  let activeRequest = await getActiveSchedulingRequest("READINESS", gate.id);
+
+  if (!activeRequest && confirmedSlot) {
+    activeRequest = await backfillLegacyRequestForReadinessSlot({
+      id: confirmedSlot.id,
+      gateId: gate.id,
+      scheduledAt: confirmedSlot.scheduledAt,
+      duration: confirmedSlot.duration,
+      meetingLink: confirmedSlot.meetingLink,
+      createdById: confirmedSlot.createdById,
+      gate: {
+        instructorId: gate.instructorId,
+        instructor: {
+          name: gate.instructor.name ?? "Instructor",
+          email: gate.instructor.email,
+        },
+      },
+      confirmedAt: confirmedSlot.confirmedAt,
+    });
+  }
+
+  const chapterId = gate.instructor.chapter?.id ?? gate.instructor.chapterId ?? null;
+  const relevantInterviewers = Array.from(
+    new Set(
+      rules
+        .filter(
+          (rule) =>
+            (rule.chapterId ?? rule.interviewer.chapter?.id) === chapterId &&
+            scopeAllowsDomain(rule.scope, "READINESS")
+        )
+        .map((rule) => rule.interviewerId)
+    )
   );
+
+  const shouldShowOpenSlots =
+    !completedSlot &&
+    (!confirmedSlot || activeRequest?.status === "RESCHEDULE_REQUESTED");
+
+  const openSlots = shouldShowOpenSlots
+    ? relevantInterviewers.flatMap((interviewerId) => {
+        const calendarOwner = interviewerDirectory.get(interviewerId);
+        if (!calendarOwner) return [];
+        return generateInterviewSlots({
+          interviewerId,
+          domain: "READINESS",
+          rules: rules.filter((rule) => rule.interviewerId === interviewerId) as AvailabilityRuleLike[],
+          overrides: overrides.filter((override) => override.interviewerId === interviewerId) as AvailabilityOverrideLike[],
+          busyIntervals: busyByInterviewer.get(interviewerId) ?? [],
+          warningIntervals: chapterId ? warningsByChapter.get(chapterId) ?? [] : [],
+          rangeStart: new Date(),
+          days: DEFAULT_WINDOW_DAYS,
+        })
+          .slice(0, 8)
+          .map((slot) =>
+            toSlotView(slot, calendarOwner.name, calendarOwner.primaryRole.replace(/_/g, " "))
+          );
+      })
+    : [];
+
+  const ageBase = activeRequest
+    ? getInterviewRequestAgeBase({
+        createdAt: activeRequest.createdAt,
+        rescheduleRequestedAt: activeRequest.rescheduleRequestedAt,
+      })
+    : gate.createdAt;
+  const ageHours = hoursBetween(ageBase, new Date());
+  const isAtRisk = activeRequest
+    ? isInterviewRequestAtRisk({
+        createdAt: activeRequest.createdAt,
+        rescheduleRequestedAt: activeRequest.rescheduleRequestedAt,
+        status: activeRequest.status,
+      })
+    : !confirmedSlot && Date.now() - gate.createdAt.getTime() >= 24 * 60 * 60 * 1000;
+
+  let status: InterviewWorkflowView["status"] = "UNSCHEDULED";
+  if (completedSlot || gate.status === "COMPLETED" || gate.status === "PASSED" || gate.status === "WAIVED") status = "COMPLETED";
+  else if (activeRequest?.status === "RESCHEDULE_REQUESTED") status = "RESCHEDULE_REQUESTED";
+  else if (activeRequest?.status === "REQUESTED") status = "AWAITING_RESPONSE";
+  else if (activeRequest?.status === "CANCELLED") status = "CANCELLED";
+  else if (confirmedSlot || activeRequest?.status === "BOOKED" || gate.status === "SCHEDULED") status = "BOOKED";
+  if (isAtRisk && (status === "UNSCHEDULED" || status === "AWAITING_RESPONSE" || status === "RESCHEDULE_REQUESTED")) {
+    status = "STALE";
+  }
+
+  const interviewerInfo = activeRequest?.interviewerId
+    ? interviewerDirectory.get(activeRequest.interviewerId) ?? null
+    : confirmedSlot?.createdById
+    ? interviewerDirectory.get(confirmedSlot.createdById) ?? null
+    : null;
+
+  return {
+    id: `READINESS:${gate.id}`,
+    domain: "READINESS",
+    workflowId: gate.id,
+    chapterId,
+    chapterName: gate.instructor.chapter?.name ?? "No chapter",
+    title: "Instructor readiness interview",
+    subtitle: gate.instructor.name ?? "Instructor",
+    intervieweeId: gate.instructorId,
+    intervieweeName: gate.instructor.name ?? "Instructor",
+    intervieweeEmail: gate.instructor.email ?? "",
+    interviewerId: interviewerInfo?.id ?? activeRequest?.interviewerId ?? confirmedSlot?.createdById ?? null,
+    interviewerName: interviewerInfo?.name ?? activeRequest?.interviewer.name ?? null,
+    interviewerRole: interviewerInfo?.primaryRole.replace(/_/g, " ") ?? null,
+    ownerName: interviewerInfo?.name ?? gate.instructor.chapter?.name ?? "Chapter team",
+    status,
+    statusLabel: describeWorkflowStatus(status),
+    ageHours,
+    isAtRisk,
+    scheduledAt: activeRequest?.scheduledAt?.toISOString() ?? confirmedSlot?.scheduledAt.toISOString() ?? completedSlot?.scheduledAt.toISOString() ?? gate.scheduledAt?.toISOString() ?? null,
+    duration: activeRequest?.duration ?? confirmedSlot?.duration ?? completedSlot?.duration ?? null,
+    meetingLink: activeRequest?.meetingLink ?? confirmedSlot?.meetingLink ?? completedSlot?.meetingLink ?? null,
+    sourceTimezone: activeRequest?.sourceTimezone ?? "America/New_York",
+    note: activeRequest?.note ?? null,
+    activeRequestId: activeRequest?.id ?? null,
+    conversationId: activeRequest?.conversationId ?? null,
+    warnings: openSlots.flatMap((slot) => slot.warningLabels).slice(0, 3),
+    openSlots,
+    detailHref: `/interviews?scope=readiness&view=${viewer.isReviewer ? "team" : "mine"}`,
+  };
+}
+
+export async function getInterviewScheduleData(): Promise<InterviewSchedulePageData> {
+  const viewer = await getViewerContext();
+  await processInterviewAutomation();
+
+  const isInterviewParticipant =
+    viewer.isReviewer ||
+    viewer.isInstructor ||
+    viewer.roles.includes("STUDENT") ||
+    viewer.roles.includes("APPLICANT") ||
+    viewer.primaryRole === "APPLICANT";
+
+  if (!isInterviewParticipant) {
+    throw new Error("You do not have access to interview scheduling.");
+  }
+
+  const now = new Date();
+  const rangeEnd = new Date(now.getTime() + DEFAULT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+  const interviewerOptions = await getEligibleInterviewers(viewer.chapterId, viewer.isAdmin);
+  const interviewerDirectory = new Map(interviewerOptions.map((option) => [option.id, option]));
+
+  const chapterIds = Array.from(
+    new Set(interviewerOptions.map((option) => option.chapterId).filter(Boolean) as string[])
+  );
+  const { rules, overrides, busyByInterviewer, warningsByChapter } = await getCalendarResources({
+    chapterIds,
+    interviewerIds: interviewerOptions.map((option) => option.id),
+    rangeEnd,
+  });
+
+  const workflows: InterviewWorkflowView[] = [];
+
+  if (viewer.isReviewer) {
+    const [applications, gates] = await Promise.all([
+      prisma.application.findMany({
+        where: {
+          position: viewer.isAdmin
+            ? { interviewRequired: true }
+            : { interviewRequired: true, chapterId: viewer.chapterId ?? "__none__" },
+          status: { notIn: [...FINAL_APPLICATION_STATUSES] },
+        },
+        include: {
+          applicant: {
+            select: { id: true, name: true, email: true },
+          },
+          position: {
+            select: {
+              title: true,
+              chapterId: true,
+              chapter: { select: { id: true, name: true } },
+            },
+          },
+          interviewSlots: {
+            orderBy: { scheduledAt: "asc" },
+          },
+        },
+        orderBy: { submittedAt: "asc" },
+      }),
+      prisma.instructorInterviewGate.findMany({
+        where: viewer.isAdmin
+          ? { status: { notIn: ["PASSED", "WAIVED"] } }
+          : {
+              instructor: { chapterId: viewer.chapterId ?? "__none__" },
+              status: { notIn: ["PASSED", "WAIVED"] },
+            },
+        include: {
+          instructor: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              chapterId: true,
+              chapter: { select: { id: true, name: true } },
+            },
+          },
+          slots: {
+            orderBy: { scheduledAt: "asc" },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      }),
+    ]);
+
+    for (const application of applications) {
+      workflows.push(
+        await buildWorkflowViewForHiring({
+          application,
+          viewer,
+          rules,
+          overrides,
+          busyByInterviewer,
+          warningsByChapter,
+          interviewerDirectory,
+        })
+      );
+    }
+
+    for (const gate of gates) {
+      workflows.push(
+        await buildWorkflowViewForReadiness({
+          gate,
+          viewer,
+          rules,
+          overrides,
+          busyByInterviewer,
+          warningsByChapter,
+          interviewerDirectory,
+        })
+      );
+    }
+  } else {
+    const [applications, gate] = await Promise.all([
+      prisma.application.findMany({
+        where: {
+          applicantId: viewer.userId,
+          status: { notIn: [...FINAL_APPLICATION_STATUSES] },
+          position: { interviewRequired: true },
+        },
+        include: {
+          applicant: {
+            select: { id: true, name: true, email: true },
+          },
+          position: {
+            select: {
+              title: true,
+              chapterId: true,
+              chapter: { select: { id: true, name: true } },
+            },
+          },
+          interviewSlots: {
+            orderBy: { scheduledAt: "asc" },
+          },
+        },
+        orderBy: { submittedAt: "asc" },
+      }),
+      viewer.isInstructor
+        ? prisma.instructorInterviewGate.upsert({
+            where: { instructorId: viewer.userId },
+            create: {
+              instructorId: viewer.userId,
+              status: "REQUIRED",
+            },
+            update: {},
+            include: {
+              instructor: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  chapterId: true,
+                  chapter: { select: { id: true, name: true } },
+                },
+              },
+              slots: {
+                orderBy: { scheduledAt: "asc" },
+              },
+            },
+          })
+        : null,
+    ]);
+
+    for (const application of applications) {
+      workflows.push(
+        await buildWorkflowViewForHiring({
+          application,
+          viewer,
+          rules,
+          overrides,
+          busyByInterviewer,
+          warningsByChapter,
+          interviewerDirectory,
+        })
+      );
+    }
+
+    if (gate) {
+      workflows.push(
+        await buildWorkflowViewForReadiness({
+          gate,
+          viewer,
+          rules,
+          overrides,
+          busyByInterviewer,
+          warningsByChapter,
+          interviewerDirectory,
+        })
+      );
+    }
+  }
+
+  workflows.sort((left, right) => {
+    if (left.isAtRisk !== right.isAtRisk) return left.isAtRisk ? -1 : 1;
+    if (left.status === right.status) return right.ageHours - left.ageHours;
+    return left.status.localeCompare(right.status);
+  });
+
+  const calendarsByInterviewer = new Map<string, InterviewCalendarView>();
+  for (const interviewer of interviewerOptions) {
+    calendarsByInterviewer.set(interviewer.id, {
+      interviewerId: interviewer.id,
+      interviewerName: interviewer.name,
+      interviewerRole: interviewer.primaryRole.replace(/_/g, " "),
+      chapterId: interviewer.chapterId,
+      chapterName: interviewer.chapterName,
+      rules: [],
+      overrides: [],
+      nextOpenSlots: [],
+    });
+  }
+
+  for (const rule of rules) {
+    const owner = interviewerDirectory.get(rule.interviewerId);
+    if (!owner) continue;
+    const current = calendarsByInterviewer.get(rule.interviewerId) ?? {
+      interviewerId: rule.interviewerId,
+      interviewerName: owner.name,
+      interviewerRole: owner.primaryRole.replace(/_/g, " "),
+      chapterId: owner.chapterId,
+      chapterName: owner.chapterName,
+      rules: [],
+      overrides: [],
+      nextOpenSlots: [],
+    };
+    current.rules.push(toRuleView(rule));
+    calendarsByInterviewer.set(rule.interviewerId, current);
+  }
+
+  for (const override of overrides) {
+    const current = calendarsByInterviewer.get(override.interviewerId);
+    if (!current) continue;
+    current.overrides.push(toOverrideView(override));
+  }
+
+  for (const [interviewerId, calendar] of calendarsByInterviewer.entries()) {
+    const owner = interviewerDirectory.get(interviewerId);
+    if (!owner) continue;
+    calendar.nextOpenSlots = generateInterviewSlots({
+      interviewerId,
+      domain: "HIRING",
+      rules: rules.filter((rule) => rule.interviewerId === interviewerId) as AvailabilityRuleLike[],
+      overrides: overrides.filter((override) => override.interviewerId === interviewerId) as AvailabilityOverrideLike[],
+      busyIntervals: busyByInterviewer.get(interviewerId) ?? [],
+      warningIntervals: owner.chapterId ? warningsByChapter.get(owner.chapterId) ?? [] : [],
+      rangeStart: now,
+      days: 14,
+    })
+      .slice(0, 6)
+      .map((slot) =>
+        toSlotView(slot, owner.name, owner.primaryRole.replace(/_/g, " "))
+      );
+  }
+
+  return {
+    viewer: {
+      userId: viewer.userId,
+      userName: viewer.userName,
+      roles: viewer.roles,
+      primaryRole: viewer.primaryRole,
+      chapterId: viewer.chapterId,
+      isAdmin: viewer.isAdmin,
+      isReviewer: viewer.isReviewer,
+      isChapterLead: viewer.isChapterLead,
+      isDesignatedInterviewer: viewer.isDesignatedInterviewer,
+      isInstructor: viewer.isInstructor,
+    },
+    summary: {
+      total: workflows.length,
+      needsScheduling: workflows.filter((workflow) => workflow.status === "UNSCHEDULED").length,
+      booked: workflows.filter((workflow) => workflow.status === "BOOKED").length,
+      rescheduleRequested: workflows.filter((workflow) => workflow.status === "RESCHEDULE_REQUESTED").length,
+      atRisk: workflows.filter((workflow) => workflow.isAtRisk).length,
+    },
+    workflows,
+    calendars: Array.from(calendarsByInterviewer.values()).sort((left, right) =>
+      left.interviewerName.localeCompare(right.interviewerName)
+    ),
+    interviewerOptions,
+  };
+}
+
+function ensureViewerCanManageInterviewer(viewer: ViewerContext, interviewer: InterviewerOption) {
+  if (viewer.isAdmin) return;
+  if (!viewer.isReviewer) {
+    throw new Error("Only reviewers can manage interviewer calendars.");
+  }
+  if (!viewer.chapterId || interviewer.chapterId !== viewer.chapterId) {
+    throw new Error("You can only manage interviewer calendars in your own chapter.");
+  }
+}
+
+export async function createInterviewAvailabilityRule(formData: FormData) {
+  const viewer = await getViewerContext();
+  if (!viewer.isReviewer) {
+    throw new Error("Only reviewers can manage interview availability.");
+  }
+
+  const interviewerId = getString(formData, "interviewerId");
+  const interviewer = (await getEligibleInterviewers(viewer.chapterId, viewer.isAdmin)).find(
+    (option) => option.id === interviewerId
+  );
+  if (!interviewer) {
+    throw new Error("Interviewer not found or not eligible.");
+  }
+
+  ensureViewerCanManageInterviewer(viewer, interviewer);
+
+  const dayOfWeek = Number(getString(formData, "dayOfWeek"));
+  const startTime = getString(formData, "startTime");
+  const endTime = getString(formData, "endTime");
+  const timezone = getString(formData, "timezone", false) || "America/New_York";
+  const scope = (getString(formData, "scope", false) || "ALL") as InterviewAvailabilityScope;
+  const slotDuration = getNumber(formData, "slotDuration", 30);
+  const bufferMinutes = getNumber(formData, "bufferMinutes", 10);
+  const meetingLink = getString(formData, "meetingLink", false) || null;
+  const locationLabel = getString(formData, "locationLabel", false) || null;
+
+  await prisma.interviewAvailabilityRule.create({
+    data: {
+      interviewerId,
+      chapterId: interviewer.chapterId,
+      dayOfWeek,
+      startTime,
+      endTime,
+      timezone,
+      scope,
+      slotDuration,
+      bufferMinutes,
+      meetingLink,
+      locationLabel,
+    },
+  });
 
   revalidatePath("/interviews/schedule");
-  revalidatePath("/interviews");
-  return { success: true, count: result.count };
+  revalidatePath("/chapter");
+}
+
+export async function deactivateInterviewAvailabilityRule(formData: FormData) {
+  const viewer = await getViewerContext();
+  if (!viewer.isReviewer) {
+    throw new Error("Only reviewers can manage interview availability.");
+  }
+
+  const ruleId = getString(formData, "ruleId");
+  const rule = await prisma.interviewAvailabilityRule.findUnique({
+    where: { id: ruleId },
+    select: {
+      id: true,
+      interviewerId: true,
+      chapterId: true,
+    },
+  });
+  if (!rule) throw new Error("Availability rule not found.");
+
+  const interviewer = {
+    id: rule.interviewerId,
+    name: "",
+    primaryRole: "STAFF",
+    chapterId: rule.chapterId,
+    chapterName: null,
+  } satisfies InterviewerOption;
+  ensureViewerCanManageInterviewer(viewer, interviewer);
+
+  await prisma.interviewAvailabilityRule.update({
+    where: { id: ruleId },
+    data: { isActive: false },
+  });
+
+  revalidatePath("/interviews/schedule");
+  revalidatePath("/chapter");
+}
+
+export async function createInterviewAvailabilityOverride(formData: FormData) {
+  const viewer = await getViewerContext();
+  if (!viewer.isReviewer) {
+    throw new Error("Only reviewers can manage interview availability.");
+  }
+
+  const interviewerId = getString(formData, "interviewerId");
+  const interviewer = (await getEligibleInterviewers(viewer.chapterId, viewer.isAdmin)).find(
+    (option) => option.id === interviewerId
+  );
+  if (!interviewer) {
+    throw new Error("Interviewer not found or not eligible.");
+  }
+
+  ensureViewerCanManageInterviewer(viewer, interviewer);
+
+  const type = (getString(formData, "type") as InterviewAvailabilityOverrideType);
+  const scope = (getString(formData, "scope", false) || "ALL") as InterviewAvailabilityScope;
+  const startsAt = getOptionalDateTime(getString(formData, "startsAt"));
+  const endsAt = getOptionalDateTime(getString(formData, "endsAt"));
+  if (!startsAt || !endsAt) throw new Error("Start and end time are required.");
+  if (startsAt >= endsAt) throw new Error("Override end time must be after the start time.");
+
+  await prisma.interviewAvailabilityOverride.create({
+    data: {
+      interviewerId,
+      chapterId: interviewer.chapterId,
+      type,
+      scope,
+      startsAt,
+      endsAt,
+      timezone: getString(formData, "timezone", false) || "America/New_York",
+      slotDuration: formData.get("slotDuration") ? getNumber(formData, "slotDuration", 30) : null,
+      bufferMinutes: formData.get("bufferMinutes") ? getNumber(formData, "bufferMinutes", 10) : null,
+      meetingLink: getString(formData, "meetingLink", false) || null,
+      locationLabel: getString(formData, "locationLabel", false) || null,
+      note: getString(formData, "note", false) || null,
+    },
+  });
+
+  revalidatePath("/interviews/schedule");
+  revalidatePath("/chapter");
+}
+
+export async function deactivateInterviewAvailabilityOverride(formData: FormData) {
+  const viewer = await getViewerContext();
+  if (!viewer.isReviewer) {
+    throw new Error("Only reviewers can manage interview availability.");
+  }
+
+  const overrideId = getString(formData, "overrideId");
+  const override = await prisma.interviewAvailabilityOverride.findUnique({
+    where: { id: overrideId },
+    select: {
+      id: true,
+      interviewerId: true,
+      chapterId: true,
+    },
+  });
+  if (!override) throw new Error("Availability override not found.");
+
+  const interviewer = {
+    id: override.interviewerId,
+    name: "",
+    primaryRole: "STAFF",
+    chapterId: override.chapterId,
+    chapterName: null,
+  } satisfies InterviewerOption;
+  ensureViewerCanManageInterviewer(viewer, interviewer);
+
+  await prisma.interviewAvailabilityOverride.update({
+    where: { id: overrideId },
+    data: { isActive: false },
+  });
+
+  revalidatePath("/interviews/schedule");
+  revalidatePath("/chapter");
+}
+
+async function resolveInterviewerSlotContext({
+  interviewerId,
+  domain,
+  scheduledAt,
+  requestedDuration,
+}: {
+  interviewerId: string;
+  domain: InterviewDomain;
+  scheduledAt: Date;
+  requestedDuration: number;
+}): Promise<SlotContext> {
+  const rangeStart = new Date(scheduledAt);
+  rangeStart.setHours(0, 0, 0, 0);
+
+  const rangeEnd = new Date(rangeStart.getTime() + 2 * 24 * 60 * 60 * 1000);
+  const interviewer = await prisma.user.findUnique({
+    where: { id: interviewerId },
+    select: { chapterId: true },
+  });
+
+  const { rules, overrides } = await getCalendarResources({
+    chapterIds: interviewer?.chapterId ? [interviewer.chapterId] : [],
+    interviewerIds: [interviewerId],
+    rangeEnd,
+  });
+
+  const matchingSlot = generateInterviewSlots({
+    interviewerId,
+    domain,
+    rules: rules.filter((rule) => rule.interviewerId === interviewerId) as AvailabilityRuleLike[],
+    overrides: overrides.filter((override) => override.interviewerId === interviewerId) as AvailabilityOverrideLike[],
+    busyIntervals: [],
+    rangeStart,
+    days: 2,
+  }).find((slot) => slot.startsAt.getTime() === scheduledAt.getTime());
+
+  if (!matchingSlot) {
+    throw new Error("That interview time is no longer inside an active interviewer calendar.");
+  }
+
+  return {
+    duration: matchingSlot.duration ?? requestedDuration,
+    meetingLink: matchingSlot.meetingLink,
+    locationLabel: matchingSlot.locationLabel,
+    sourceTimezone: matchingSlot.timezone,
+  };
+}
+
+async function assertNoBookingConflict({
+  interviewerId,
+  intervieweeId,
+  scheduledAt,
+  duration,
+  ignoreRequestId,
+  ignoreApplicationId,
+  ignoreGateId,
+}: {
+  interviewerId: string;
+  intervieweeId: string;
+  scheduledAt: Date;
+  duration: number;
+  ignoreRequestId?: string | null;
+  ignoreApplicationId?: string | null;
+  ignoreGateId?: string | null;
+}) {
+  const endsAt = new Date(scheduledAt.getTime() + duration * 60_000);
+
+  const [
+    interviewerRequests,
+    intervieweeRequests,
+    interviewerHiringSlots,
+    intervieweeHiringSlots,
+    interviewerReadinessSlots,
+    intervieweeReadinessSlots,
+  ] = await Promise.all([
+    prisma.interviewSchedulingRequest.findMany({
+      where: {
+        interviewerId,
+        scheduledAt: { not: null },
+        status: { in: ["BOOKED", "RESCHEDULE_REQUESTED"] },
+        ...(ignoreRequestId ? { id: { not: ignoreRequestId } } : {}),
+      },
+      select: { scheduledAt: true, duration: true },
+    }),
+    prisma.interviewSchedulingRequest.findMany({
+      where: {
+        intervieweeId,
+        scheduledAt: { not: null },
+        status: { in: ["BOOKED", "RESCHEDULE_REQUESTED"] },
+        ...(ignoreRequestId ? { id: { not: ignoreRequestId } } : {}),
+      },
+      select: { scheduledAt: true, duration: true },
+    }),
+    prisma.interviewSlot.findMany({
+      where: {
+        interviewerId,
+        status: "CONFIRMED",
+        ...(ignoreApplicationId ? { applicationId: { not: ignoreApplicationId } } : {}),
+      },
+      select: { scheduledAt: true, duration: true },
+    }),
+    prisma.interviewSlot.findMany({
+      where: {
+        application: { applicantId: intervieweeId },
+        status: "CONFIRMED",
+        ...(ignoreApplicationId ? { applicationId: { not: ignoreApplicationId } } : {}),
+      },
+      select: { scheduledAt: true, duration: true },
+    }),
+    prisma.instructorInterviewSlot.findMany({
+      where: {
+        createdById: interviewerId,
+        status: "CONFIRMED",
+        ...(ignoreGateId ? { gateId: { not: ignoreGateId } } : {}),
+      },
+      select: { scheduledAt: true, duration: true },
+    }),
+    prisma.instructorInterviewSlot.findMany({
+      where: {
+        gate: { instructorId: intervieweeId },
+        status: "CONFIRMED",
+        ...(ignoreGateId ? { gateId: { not: ignoreGateId } } : {}),
+      },
+      select: { scheduledAt: true, duration: true },
+    }),
+  ]);
+
+  const allBusyIntervals = [
+    ...interviewerRequests,
+    ...intervieweeRequests,
+    ...interviewerHiringSlots,
+    ...intervieweeHiringSlots,
+    ...interviewerReadinessSlots,
+    ...intervieweeReadinessSlots,
+  ];
+
+  for (const interval of allBusyIntervals) {
+    if (!interval.scheduledAt) continue;
+    const intervalEndsAt = new Date(interval.scheduledAt.getTime() + interval.duration * 60_000);
+    if (rangesOverlap(scheduledAt, endsAt, interval.scheduledAt, intervalEndsAt)) {
+      throw new Error("That interview time conflicts with an existing booking.");
+    }
+  }
+}
+
+async function syncHiringBooking({
+  applicationId,
+  interviewerId,
+  scheduledAt,
+  duration,
+  meetingLink,
+}: {
+  applicationId: string;
+  interviewerId: string;
+  scheduledAt: Date;
+  duration: number;
+  meetingLink: string | null;
+}) {
+  await prisma.$transaction([
+    prisma.interviewSlot.updateMany({
+      where: {
+        applicationId,
+        status: { in: ["POSTED", "CONFIRMED"] },
+      },
+      data: {
+        status: "CANCELLED",
+        isConfirmed: false,
+      },
+    }),
+    prisma.interviewSlot.create({
+      data: {
+        applicationId,
+        interviewerId,
+        status: "CONFIRMED",
+        isConfirmed: true,
+        scheduledAt,
+        duration,
+        meetingLink,
+        confirmedAt: new Date(),
+      },
+    }),
+    prisma.application.update({
+      where: { id: applicationId },
+      data: { status: "INTERVIEW_SCHEDULED" },
+    }),
+  ]);
+}
+
+async function syncReadinessBooking({
+  gateId,
+  interviewerId,
+  scheduledAt,
+  duration,
+  meetingLink,
+  source,
+}: {
+  gateId: string;
+  interviewerId: string;
+  scheduledAt: Date;
+  duration: number;
+  meetingLink: string | null;
+  source: InterviewSlotSource;
+}) {
+  await prisma.$transaction([
+    prisma.instructorInterviewSlot.updateMany({
+      where: {
+        gateId,
+        status: { in: ["POSTED", "CONFIRMED"] },
+      },
+      data: { status: "CANCELLED" },
+    }),
+    prisma.instructorInterviewSlot.create({
+      data: {
+        gateId,
+        createdById: interviewerId,
+        source,
+        status: "CONFIRMED",
+        scheduledAt,
+        duration,
+        meetingLink,
+        confirmedAt: new Date(),
+      },
+    }),
+    prisma.instructorInterviewGate.update({
+      where: { id: gateId },
+      data: {
+        status: "SCHEDULED",
+        scheduledAt,
+      },
+    }),
+  ]);
+}
+
+function bookingInitialMessage({
+  actorName,
+  intervieweeName,
+  interviewerName,
+  scheduledAt,
+  domain,
+}: {
+  actorName: string;
+  intervieweeName: string;
+  interviewerName: string;
+  scheduledAt: Date;
+  domain: InterviewDomain;
+}) {
+  const when = scheduledAt.toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  return `${actorName} booked a ${domain === "HIRING" ? "hiring" : "readiness"} interview for ${intervieweeName} with ${interviewerName} on ${when}.`;
+}
+
+export async function bookInterviewWorkflowSlot(formData: FormData) {
+  const viewer = await getViewerContext();
+  const domain = getString(formData, "domain") as InterviewDomain;
+  const workflowId = getString(formData, "workflowId");
+  const interviewerId = getString(formData, "interviewerId");
+  const scheduledAt = getOptionalDateTime(getString(formData, "scheduledAt"));
+  const requestedDuration = getNumber(formData, "duration", 30);
+  const note = getString(formData, "note", false) || null;
+
+  if (!scheduledAt) throw new Error("A valid interview time is required.");
+
+  if (domain === "HIRING") {
+    const application = await prisma.application.findUnique({
+      where: { id: workflowId },
+      include: {
+        applicant: { select: { id: true, name: true, email: true } },
+        position: {
+          select: {
+            title: true,
+            chapterId: true,
+            chapter: { select: { name: true } },
+            interviewRequired: true,
+          },
+        },
+      },
+    });
+    if (!application) throw new Error("Application not found.");
+    if (!application.position.interviewRequired) throw new Error("This application does not require an interview.");
+    if (
+      application.applicantId !== viewer.userId &&
+      !(viewer.isReviewer && (viewer.isAdmin || viewer.chapterId === application.position.chapterId))
+    ) {
+      throw new Error("You are not allowed to book this interview.");
+    }
+
+    const existingRequest = await prisma.interviewSchedulingRequest.findFirst({
+      where: {
+        domain: "HIRING",
+        applicationId: workflowId,
+        status: { in: ["BOOKED", "REQUESTED", "RESCHEDULE_REQUESTED"] },
+      },
+      select: { id: true },
+    });
+    if (existingRequest) {
+      throw new Error("This application already has an active interview scheduling request.");
+    }
+
+    const slotContext = await resolveInterviewerSlotContext({
+      interviewerId,
+      domain,
+      scheduledAt,
+      requestedDuration,
+    });
+    await assertNoBookingConflict({
+      interviewerId,
+      intervieweeId: application.applicantId,
+      scheduledAt,
+      duration: slotContext.duration,
+      ignoreApplicationId: workflowId,
+    });
+
+    const request = await prisma.interviewSchedulingRequest.create({
+      data: {
+        domain: "HIRING",
+        status: "BOOKED",
+        chapterId: application.position.chapterId,
+        applicationId: workflowId,
+        intervieweeId: application.applicantId,
+        interviewerId,
+        requestedById: viewer.userId,
+        requestedStartAt: scheduledAt,
+        requestedEndAt: new Date(scheduledAt.getTime() + slotContext.duration * 60_000),
+        scheduledAt,
+        duration: slotContext.duration,
+        meetingLink: slotContext.meetingLink,
+        sourceTimezone: slotContext.sourceTimezone,
+        note,
+        bookedAt: new Date(),
+      },
+    });
+
+    const interviewer = await prisma.user.findUnique({
+      where: { id: interviewerId },
+      select: { id: true, name: true, email: true },
+    });
+    if (!interviewer) throw new Error("Interviewer not found.");
+
+    const conversationId = await createInterviewRequestConversation({
+      requestId: request.id,
+      domain,
+      chapterId: application.position.chapterId,
+      interviewerId,
+      intervieweeId: application.applicantId,
+      title: `Interview: ${application.position.title}`,
+      requesterId: viewer.userId,
+      initialMessage: bookingInitialMessage({
+        actorName: viewer.userName,
+        intervieweeName: application.applicant.name ?? "Applicant",
+        interviewerName: interviewer.name,
+        scheduledAt,
+        domain,
+      }),
+    });
+
+    await prisma.interviewSchedulingRequest.update({
+      where: { id: request.id },
+      data: { conversationId },
+    });
+
+    await syncHiringBooking({
+      applicationId: workflowId,
+      interviewerId,
+      scheduledAt,
+      duration: slotContext.duration,
+      meetingLink: slotContext.meetingLink,
+    });
+
+    await Promise.all([
+      createSystemNotification(
+        application.applicantId,
+        "SYSTEM",
+        "Interview booked",
+        `Your interview with ${interviewer.name} has been booked.`,
+        `/interviews/schedule`
+      ),
+      createSystemNotification(
+        interviewerId,
+        "SYSTEM",
+        "Interview booked",
+        `${application.applicant.name} booked an interview with you.`,
+        `/interviews/schedule`
+      ),
+    ]);
+
+    if (application.applicant.email) {
+      const baseUrl = process.env.NEXTAUTH_URL || "";
+      sendApplicationStatusEmail({
+        to: application.applicant.email,
+        applicantName: application.applicant.name ?? "Applicant",
+        positionTitle: application.position.title,
+        status: "INTERVIEW_SCHEDULED",
+        message: `Your interview has been booked for ${scheduledAt.toLocaleString()}.`,
+        portalUrl: `${baseUrl}/interviews/schedule`,
+      }).catch(() => {});
+    }
+
+    if (interviewer.email) {
+      const baseUrl = process.env.NEXTAUTH_URL || "";
+      sendNotificationEmail({
+        to: interviewer.email,
+        name: interviewer.name,
+        title: "New Interview Booking",
+        body: `${application.applicant.name} booked an interview with you for ${scheduledAt.toLocaleString()}.`,
+        link: `${baseUrl}/interviews/schedule`,
+        linkText: "Open Interview Calendar",
+      }).catch(() => {});
+    }
+  } else {
+    const gate = await prisma.instructorInterviewGate.findUnique({
+      where: { id: workflowId },
+      include: {
+        instructor: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            chapterId: true,
+            chapter: { select: { name: true } },
+          },
+        },
+      },
+    });
+    if (!gate) throw new Error("Interview gate not found.");
+    if (
+      gate.instructorId !== viewer.userId &&
+      !(viewer.isReviewer && (viewer.isAdmin || viewer.chapterId === gate.instructor.chapterId))
+    ) {
+      throw new Error("You are not allowed to book this interview.");
+    }
+
+    const existingRequest = await prisma.interviewSchedulingRequest.findFirst({
+      where: {
+        domain: "READINESS",
+        gateId: workflowId,
+        status: { in: ["BOOKED", "REQUESTED", "RESCHEDULE_REQUESTED"] },
+      },
+      select: { id: true },
+    });
+    if (existingRequest) {
+      throw new Error("This interview gate already has an active scheduling request.");
+    }
+
+    const slotContext = await resolveInterviewerSlotContext({
+      interviewerId,
+      domain,
+      scheduledAt,
+      requestedDuration,
+    });
+    await assertNoBookingConflict({
+      interviewerId,
+      intervieweeId: gate.instructorId,
+      scheduledAt,
+      duration: slotContext.duration,
+      ignoreGateId: workflowId,
+    });
+
+    const request = await prisma.interviewSchedulingRequest.create({
+      data: {
+        domain: "READINESS",
+        status: "BOOKED",
+        chapterId: gate.instructor.chapterId,
+        gateId: workflowId,
+        intervieweeId: gate.instructorId,
+        interviewerId,
+        requestedById: viewer.userId,
+        requestedStartAt: scheduledAt,
+        requestedEndAt: new Date(scheduledAt.getTime() + slotContext.duration * 60_000),
+        scheduledAt,
+        duration: slotContext.duration,
+        meetingLink: slotContext.meetingLink,
+        sourceTimezone: slotContext.sourceTimezone,
+        note,
+        bookedAt: new Date(),
+      },
+    });
+
+    const interviewer = await prisma.user.findUnique({
+      where: { id: interviewerId },
+      select: { id: true, name: true, email: true },
+    });
+    if (!interviewer) throw new Error("Interviewer not found.");
+
+    const conversationId = await createInterviewRequestConversation({
+      requestId: request.id,
+      domain,
+      chapterId: gate.instructor.chapterId,
+      interviewerId,
+      intervieweeId: gate.instructorId,
+      title: "Instructor readiness interview",
+      requesterId: viewer.userId,
+      initialMessage: bookingInitialMessage({
+        actorName: viewer.userName,
+        intervieweeName: gate.instructor.name ?? "Instructor",
+        interviewerName: interviewer.name,
+        scheduledAt,
+        domain,
+      }),
+    });
+
+    await prisma.interviewSchedulingRequest.update({
+      where: { id: request.id },
+      data: { conversationId },
+    });
+
+    await syncReadinessBooking({
+      gateId: workflowId,
+      interviewerId,
+      scheduledAt,
+      duration: slotContext.duration,
+      meetingLink: slotContext.meetingLink,
+      source: viewer.userId === gate.instructorId ? InterviewSlotSource.INSTRUCTOR_REQUESTED : InterviewSlotSource.REVIEWER_POSTED,
+    });
+
+    await Promise.all([
+      createSystemNotification(
+        gate.instructorId,
+        "SYSTEM",
+        "Readiness interview booked",
+        `Your readiness interview with ${interviewer.name} has been booked.`,
+        `/interviews/schedule`
+      ),
+      createSystemNotification(
+        interviewerId,
+        "SYSTEM",
+        "Readiness interview booked",
+        `${gate.instructor.name} booked a readiness interview with you.`,
+        `/interviews/schedule`
+      ),
+    ]);
+
+    if (gate.instructor.email) {
+      const baseUrl = process.env.NEXTAUTH_URL || "";
+      sendNotificationEmail({
+        to: gate.instructor.email,
+        name: gate.instructor.name ?? "Instructor",
+        title: "Your readiness interview is booked",
+        body: `Your readiness interview has been scheduled for ${scheduledAt.toLocaleString()}.`,
+        link: `${baseUrl}/interviews/schedule`,
+        linkText: "Open Interview Calendar",
+      }).catch(() => {});
+    }
+
+    if (interviewer.email) {
+      const baseUrl = process.env.NEXTAUTH_URL || "";
+      sendNotificationEmail({
+        to: interviewer.email,
+        name: interviewer.name,
+        title: "New readiness interview booking",
+        body: `${gate.instructor.name} booked a readiness interview with you for ${scheduledAt.toLocaleString()}.`,
+        link: `${baseUrl}/interviews/schedule`,
+        linkText: "Open Interview Calendar",
+      }).catch(() => {});
+    }
+  }
+
+  revalidatePath("/interviews/schedule");
+  revalidatePath("/chapter");
+}
+
+export async function requestInterviewReschedule(formData: FormData) {
+  const viewer = await getViewerContext();
+  const requestId = getString(formData, "requestId");
+  const note = getString(formData, "note", false) || "Requesting a new interview time.";
+
+  const request = await prisma.interviewSchedulingRequest.findUnique({
+    where: { id: requestId },
+    select: {
+      id: true,
+      domain: true,
+      status: true,
+      chapterId: true,
+      conversationId: true,
+      intervieweeId: true,
+      interviewerId: true,
+      interviewee: { select: { name: true } },
+      interviewer: { select: { name: true } },
+    },
+  });
+  if (!request) throw new Error("Interview request not found.");
+  if (!["BOOKED", "REQUESTED"].includes(request.status)) {
+    throw new Error("Only booked or pending interviews can be rescheduled.");
+  }
+
+  const canAct =
+    viewer.userId === request.intervieweeId ||
+    viewer.userId === request.interviewerId ||
+    (viewer.isReviewer && (viewer.isAdmin || viewer.chapterId === request.chapterId));
+  if (!canAct) {
+    throw new Error("You are not allowed to update this interview.");
+  }
+
+  await prisma.interviewSchedulingRequest.update({
+    where: { id: requestId },
+    data: {
+      status: "RESCHEDULE_REQUESTED",
+      rescheduleRequestedAt: new Date(),
+      chapterEscalatedAt: null,
+      adminEscalatedAt: null,
+      note,
+    },
+  });
+
+  if (request.conversationId) {
+    await createThreadMessage(request.conversationId, viewer.userId, note);
+  }
+
+  const notifyTargets = Array.from(
+    new Set([request.intervieweeId, request.interviewerId].filter((id) => id !== viewer.userId))
+  );
+  for (const userId of notifyTargets) {
+    await createSystemNotification(
+      userId,
+      "SYSTEM",
+      "Interview reschedule requested",
+      `${viewer.userName} requested a new interview time.`,
+      `/interviews/schedule`
+    );
+  }
+
+  revalidatePath("/interviews/schedule");
+  revalidatePath("/chapter");
+}
+
+export async function confirmInterviewReschedule(formData: FormData) {
+  const viewer = await getViewerContext();
+  if (!viewer.isReviewer) {
+    throw new Error("Only reviewers can confirm a reschedule.");
+  }
+
+  const requestId = getString(formData, "requestId");
+  const interviewerId = getString(formData, "interviewerId");
+  const scheduledAt = getOptionalDateTime(getString(formData, "scheduledAt"));
+  const requestedDuration = getNumber(formData, "duration", 30);
+  const note = getString(formData, "note", false) || "Interview reschedule confirmed.";
+
+  if (!scheduledAt) throw new Error("A valid interview time is required.");
+
+  const request = await prisma.interviewSchedulingRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      application: {
+        include: {
+          applicant: { select: { name: true, email: true } },
+          position: { select: { title: true, chapterId: true } },
+        },
+      },
+      gate: {
+        include: {
+          instructor: {
+            select: { name: true, email: true, chapterId: true },
+          },
+        },
+      },
+    },
+  });
+  if (!request) throw new Error("Interview request not found.");
+  if (!["RESCHEDULE_REQUESTED", "REQUESTED", "BOOKED"].includes(request.status)) {
+    throw new Error("This interview cannot be rescheduled right now.");
+  }
+  if (!viewer.isAdmin && viewer.chapterId !== request.chapterId) {
+    throw new Error("You can only manage interviews for your own chapter.");
+  }
+
+  const slotContext = await resolveInterviewerSlotContext({
+    interviewerId,
+    domain: request.domain,
+    scheduledAt,
+    requestedDuration,
+  });
+  await assertNoBookingConflict({
+    interviewerId,
+    intervieweeId: request.intervieweeId,
+    scheduledAt,
+    duration: slotContext.duration,
+    ignoreRequestId: request.id,
+    ignoreApplicationId: request.applicationId,
+    ignoreGateId: request.gateId,
+  });
+
+  if (request.domain === "HIRING" && request.applicationId) {
+    await syncHiringBooking({
+      applicationId: request.applicationId,
+      interviewerId,
+      scheduledAt,
+      duration: slotContext.duration,
+      meetingLink: slotContext.meetingLink,
+    });
+  }
+
+  if (request.domain === "READINESS" && request.gateId) {
+    await syncReadinessBooking({
+      gateId: request.gateId,
+      interviewerId,
+      scheduledAt,
+      duration: slotContext.duration,
+      meetingLink: slotContext.meetingLink,
+      source: InterviewSlotSource.REVIEWER_POSTED,
+    });
+  }
+
+  await prisma.interviewSchedulingRequest.update({
+    where: { id: request.id },
+    data: {
+      interviewerId,
+      status: "BOOKED",
+      requestedStartAt: scheduledAt,
+      requestedEndAt: new Date(scheduledAt.getTime() + slotContext.duration * 60_000),
+      scheduledAt,
+      duration: slotContext.duration,
+      meetingLink: slotContext.meetingLink,
+      sourceTimezone: slotContext.sourceTimezone,
+      note,
+      bookedAt: new Date(),
+      reminder24SentAt: null,
+      reminder2SentAt: null,
+      rescheduleRequestedAt: null,
+      chapterEscalatedAt: null,
+      adminEscalatedAt: null,
+    },
+  });
+
+  if (request.conversationId) {
+    const operatorIds = await getChapterOperatorIds(request.chapterId);
+    await syncConversationParticipants(request.conversationId, [
+      request.intervieweeId,
+      interviewerId,
+      ...operatorIds,
+    ]);
+    await createThreadMessage(request.conversationId, viewer.userId, note);
+  }
+
+  await Promise.all([
+    createSystemNotification(
+      request.intervieweeId,
+      "SYSTEM",
+      "Interview rescheduled",
+      `Your interview was moved to ${scheduledAt.toLocaleString()}.`,
+      `/interviews/schedule`
+    ),
+    createSystemNotification(
+      interviewerId,
+      "SYSTEM",
+      "Interview rescheduled",
+      `${request.intervieweeId === viewer.userId ? "The interviewee" : viewer.userName} confirmed a new time.`,
+      `/interviews/schedule`
+    ),
+  ]);
+
+  revalidatePath("/interviews/schedule");
+  revalidatePath("/chapter");
+}
+
+export async function cancelInterviewWorkflow(formData: FormData) {
+  const viewer = await getViewerContext();
+  const requestId = getString(formData, "requestId");
+  const note = getString(formData, "note", false) || "Interview cancelled.";
+
+  const request = await prisma.interviewSchedulingRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      application: {
+        select: { id: true },
+      },
+      gate: {
+        select: { id: true },
+      },
+    },
+  });
+  if (!request) throw new Error("Interview request not found.");
+
+  const canAct =
+    viewer.userId === request.intervieweeId ||
+    viewer.userId === request.interviewerId ||
+    (viewer.isReviewer && (viewer.isAdmin || viewer.chapterId === request.chapterId));
+  if (!canAct) throw new Error("You are not allowed to cancel this interview.");
+
+  await prisma.interviewSchedulingRequest.update({
+    where: { id: requestId },
+    data: {
+      status: "CANCELLED",
+      cancelledAt: new Date(),
+      note,
+    },
+  });
+
+  if (request.domain === "HIRING" && request.applicationId) {
+    await prisma.$transaction([
+      prisma.interviewSlot.updateMany({
+        where: {
+          applicationId: request.applicationId,
+          status: { in: ["POSTED", "CONFIRMED"] },
+        },
+        data: {
+          status: "CANCELLED",
+          isConfirmed: false,
+        },
+      }),
+      prisma.application.update({
+        where: { id: request.applicationId },
+        data: { status: "UNDER_REVIEW" },
+      }),
+    ]);
+  }
+
+  if (request.domain === "READINESS" && request.gateId) {
+    await prisma.$transaction([
+      prisma.instructorInterviewSlot.updateMany({
+        where: {
+          gateId: request.gateId,
+          status: { in: ["POSTED", "CONFIRMED"] },
+        },
+        data: { status: "CANCELLED" },
+      }),
+      prisma.instructorInterviewGate.update({
+        where: { id: request.gateId },
+        data: {
+          status: "REQUIRED",
+          scheduledAt: null,
+        },
+      }),
+    ]);
+  }
+
+  if (request.conversationId) {
+    await createThreadMessage(request.conversationId, viewer.userId, note);
+  }
+
+  await Promise.all([
+    createSystemNotification(
+      request.intervieweeId,
+      "SYSTEM",
+      "Interview cancelled",
+      "An interview booking was cancelled. Please choose a new time.",
+      `/interviews/schedule`
+    ),
+    createSystemNotification(
+      request.interviewerId,
+      "SYSTEM",
+      "Interview cancelled",
+      "An interview booking was cancelled.",
+      `/interviews/schedule`
+    ),
+  ]);
+
+  revalidatePath("/interviews/schedule");
+  revalidatePath("/chapter");
 }

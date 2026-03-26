@@ -13,20 +13,21 @@ export default async function ChapterDashboardPage() {
   if (!session) redirect("/login");
 
   const data = await getCommandCenterData();
+  const title = data.chapter?.name ?? data.scope.label;
 
   return (
     <main className="main-content">
-      {/* Chapter Header with Branding */}
       <div
         style={{
-          borderRadius: 16,
+          borderRadius: 24,
           overflow: "hidden",
           marginBottom: 24,
           position: "relative",
+          boxShadow: "0 22px 60px rgba(15, 23, 42, 0.12)",
         }}
       >
         {data.chapter?.bannerUrl ? (
-          <div style={{ height: 140, overflow: "hidden" }}>
+          <div style={{ height: 180, overflow: "hidden" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={data.chapter.bannerUrl}
@@ -37,16 +38,16 @@ export default async function ChapterDashboardPage() {
         ) : (
           <div
             style={{
-              height: 140,
+              height: 180,
               background:
-                "linear-gradient(135deg, var(--ypp-purple) 0%, var(--ypp-pink) 100%)",
+                "radial-gradient(circle at top left, rgba(191,219,254,0.92) 0%, rgba(37,99,235,0.18) 30%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #0ea5e9 100%)",
             }}
           />
         )}
         <div
           style={{
             position: "absolute",
-            bottom: 16,
+            bottom: 20,
             left: 24,
             display: "flex",
             alignItems: "center",
@@ -72,7 +73,7 @@ export default async function ChapterDashboardPage() {
                 width: 52,
                 height: 52,
                 borderRadius: 12,
-                background: "rgba(255,255,255,0.2)",
+                background: "rgba(255,255,255,0.18)",
                 backdropFilter: "blur(8px)",
                 display: "flex",
                 alignItems: "center",
@@ -87,44 +88,65 @@ export default async function ChapterDashboardPage() {
             </div>
           )}
           <div style={{ color: "white", textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>
-            <h1 style={{ margin: 0, fontSize: 22 }}>{data.chapter?.name}</h1>
-            {data.chapter?.tagline && (
+            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.9 }}>
+              {data.scope.isAdmin ? "Admin Oversight" : "Chapter OS"}
+            </div>
+            <h1 style={{ margin: "6px 0 0", fontSize: 30 }}>{title}</h1>
+            {data.chapter?.tagline ? (
               <p style={{ margin: 0, fontSize: 14, opacity: 0.9 }}>
                 {data.chapter.tagline}
+              </p>
+            ) : (
+              <p style={{ margin: 0, fontSize: 14, opacity: 0.9 }}>
+                {data.scope.isAdmin
+                  ? `${data.scope.chapterCount} chapter queues in view`
+                  : "Unified chapter operations, recruiting, and interview scheduling"}
               </p>
             )}
           </div>
         </div>
-        <Link
-          href="/chapter/settings"
-          style={{
-            position: "absolute",
-            top: 12,
-            right: 16,
-            padding: "4px 12px",
-            borderRadius: 8,
-            background: "rgba(255,255,255,0.2)",
-            backdropFilter: "blur(8px)",
-            color: "white",
-            fontSize: 13,
-            textDecoration: "none",
-            fontWeight: 500,
-          }}
-        >
-          Settings
-        </Link>
+        <div style={{ position: "absolute", top: 16, right: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Link
+            href="/interviews/schedule"
+            style={{
+              padding: "6px 12px",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.18)",
+              backdropFilter: "blur(8px)",
+              color: "white",
+              fontSize: 13,
+              textDecoration: "none",
+              fontWeight: 600,
+            }}
+          >
+            Interview OS
+          </Link>
+          <Link
+            href="/chapter/settings"
+            style={{
+              padding: "6px 12px",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.18)",
+              backdropFilter: "blur(8px)",
+              color: "white",
+              fontSize: 13,
+              textDecoration: "none",
+              fontWeight: 600,
+            }}
+          >
+            Settings
+          </Link>
+        </div>
       </div>
 
-      {/* Breadcrumb */}
       <div style={{ marginBottom: 16, fontSize: 13 }}>
         <Link href="/my-chapter" style={{ color: "var(--ypp-purple)", textDecoration: "none" }}>
           ← Chapter Home
         </Link>
         <span style={{ color: "var(--muted)", margin: "0 6px" }}>/</span>
-        <span style={{ color: "var(--muted)" }}>Command Center</span>
+        <span style={{ color: "var(--muted)" }}>Chapter OS</span>
       </div>
 
-      {/* Top Stats Row */}
       <div className="stats-grid">
         <div className="stat-card">
           <span className="stat-value">{data.stats.totalMembers}</span>
@@ -135,8 +157,12 @@ export default async function ChapterDashboardPage() {
           <span className="stat-label">Courses</span>
         </div>
         <div className="stat-card">
-          <span className="stat-value">{data.stats.upcomingEvents}</span>
-          <span className="stat-label">Upcoming Events</span>
+          <span className="stat-value">{data.stats.staleInterviewScheduling}</span>
+          <span className="stat-label">Stale Interview Queue</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-value">{data.stats.nextInterviewBookings}</span>
+          <span className="stat-label">Booked Next 72h</span>
         </div>
         <div className="stat-card">
           <span className="stat-value">{data.stats.openPositions}</span>
@@ -149,21 +175,15 @@ export default async function ChapterDashboardPage() {
         </div>
       </div>
 
-      {/* Main Grid: Two Columns */}
       <div className="grid two" style={{ marginTop: 24, alignItems: "start" }}>
-        {/* Left Column */}
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          {/* Action Center */}
           <ActionCenter
             actionItems={data.actionItems}
-            pendingJoinRequests={data.pendingJoinRequests}
-            pendingApplications={data.pendingApplications}
+            opsQueues={data.opsQueues}
           />
 
-          {/* Growth Chart */}
-          <GrowthChart snapshots={data.kpiSnapshots} />
+          {data.kpiSnapshots.length > 0 ? <GrowthChart snapshots={data.kpiSnapshots} /> : null}
 
-          {/* Quick Actions */}
           <div className="card">
             <h2 style={{ margin: 0 }}>Quick Actions</h2>
             <div
@@ -180,6 +200,13 @@ export default async function ChapterDashboardPage() {
                 style={{ textDecoration: "none" }}
               >
                 🧑‍💼 Recruiting
+              </Link>
+              <Link
+                href="/interviews/schedule"
+                className="action-btn"
+                style={{ textDecoration: "none" }}
+              >
+                🗓 Interview OS
               </Link>
               <Link
                 href="/chapter/recruiting/positions/new"
@@ -227,32 +254,28 @@ export default async function ChapterDashboardPage() {
           </div>
         </div>
 
-        {/* Right Column */}
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          {/* Member Pulse */}
           <MemberPulse
             stats={data.stats}
             inactiveMembers={data.inactiveMembers}
           />
 
-          {/* Chapter Goals */}
-          <ChapterGoals goals={data.activeGoals} />
+          {data.activeGoals.length > 0 ? <ChapterGoals goals={data.activeGoals} /> : null}
 
-          {/* Upcoming Events */}
           <div className="card">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h2 style={{ margin: 0 }}>Upcoming Events</h2>
+              <h2 style={{ margin: 0 }}>Upcoming Events And Deadlines</h2>
               <span style={{ color: "var(--muted)", fontSize: 13 }}>
-                {data.chapter?.events.length ?? 0} scheduled
+                {data.upcomingEvents.length} scheduled
               </span>
             </div>
-            {(!data.chapter?.events || data.chapter.events.length === 0) ? (
+            {data.upcomingEvents.length === 0 ? (
               <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 12 }}>
                 No upcoming events.
               </p>
             ) : (
               <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-                {data.chapter.events.map((event) => (
+                {data.upcomingEvents.map((event) => (
                   <div
                     key={event.id}
                     style={{
@@ -286,7 +309,7 @@ export default async function ChapterDashboardPage() {
                     <div>
                       <p style={{ fontWeight: 600, fontSize: 14, margin: 0 }}>{event.title}</p>
                       <p style={{ color: "var(--muted)", fontSize: 12, margin: 0 }}>
-                        {event.eventType}
+                        {event.chapter?.name ?? title}
                       </p>
                     </div>
                   </div>
