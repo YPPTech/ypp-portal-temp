@@ -1,3 +1,4 @@
+import "./ensure-prisma-env.mjs";
 import { spawnSync } from "node:child_process";
 
 function isVercelBuild() {
@@ -9,22 +10,31 @@ function envIsTrue(v) {
   return v === "1" || v === "true" || v === "yes";
 }
 
-/** Run a command, streaming output live. Returns the exit code. */
-function run(cmd, args) {
-  const res = spawnSync(cmd, args, { stdio: "inherit" });
+function prismaArgs(subcommandAndRest) {
+  return ["prisma", ...subcommandAndRest];
+}
+
+/** Run Prisma CLI via npx (reliable on Windows + Linux/Vercel). */
+function runPrisma(args) {
+  const res = spawnSync("npx", prismaArgs(args), {
+    stdio: "inherit",
+    env: process.env,
+    shell: true,
+  });
   if (res.error) throw res.error;
   if (typeof res.status !== "number") return 1;
   return res.status;
 }
 
 /**
- * Run a command capturing stdout+stderr (also echoing them) so we can
- * inspect the output for specific error codes.
+ * Run Prisma capturing stdout+stderr (also echoing them) for error parsing.
  */
-function runCapture(cmd, args) {
-  const res = spawnSync(cmd, args, {
+function runCapturePrisma(args) {
+  const res = spawnSync("npx", prismaArgs(args), {
     stdio: ["inherit", "pipe", "pipe"],
     encoding: "utf-8",
+    env: process.env,
+    shell: true,
   });
   if (res.error) throw res.error;
   const stdout = res.stdout || "";
@@ -55,7 +65,7 @@ console.log("[db-sync] This requires DIRECT_URL to point to a non-pooled databas
 let status = 0;
 let output = "";
 try {
-  ({ status, output } = runCapture("prisma", ["migrate", "deploy"]));
+  ({ status, output } = runCapturePrisma(["migrate", "deploy"]));
 } catch (err) {
   console.error("[db-sync] Failed to run Prisma CLI:", err);
   status = 1;
@@ -82,7 +92,7 @@ if (status !== 0 && (output.includes("P3009") || output.includes("failed migrati
     for (const name of failedNames) {
       console.log(`[db-sync] Resolving failed migration as rolled-back: ${name}`);
       try {
-        const resolveStatus = run("prisma", ["migrate", "resolve", "--rolled-back", name]);
+        const resolveStatus = runPrisma(["migrate", "resolve", "--rolled-back", name]);
         if (resolveStatus !== 0) {
           console.error(`[db-sync] Failed to resolve migration: ${name}`);
         } else {
@@ -96,7 +106,7 @@ if (status !== 0 && (output.includes("P3009") || output.includes("failed migrati
     // Retry deploy now that the dirty state is cleared.
     console.log("[db-sync] Retrying prisma migrate deploy after resolving failed migrations...");
     try {
-      status = run("prisma", ["migrate", "deploy"]);
+      status = runPrisma(["migrate", "deploy"]);
     } catch (err) {
       console.error("[db-sync] Failed to run Prisma CLI on retry:", err);
       status = 1;

@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/maybe-db-sync.mjs && rm -rf .next node_modules/.prisma && prisma generate && next build",
+    "build": "node scripts/production-build.mjs",
     "vercel-build": "npm run build",
-    "postinstall": "prisma generate",
+    "postinstall": "node scripts/run-prisma-generate.mjs",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
