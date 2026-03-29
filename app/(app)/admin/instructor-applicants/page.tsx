@@ -156,7 +156,8 @@ export default async function AdminInstructorApplicantsPage({
 
       <div className="card" style={{ marginBottom: 24 }}>
         <p style={{ margin: 0, fontSize: 14, color: "var(--muted)" }}>
-          This page manages legacy instructor applications. The canonical hiring workflow also lives in{" "}
+          This page is kept for compatibility. This page manages legacy instructor applications. The canonical
+          hiring workflow also lives in{" "}
           <Link href="/chapter/recruiting" className="link">Chapter Recruiting</Link> and{" "}
           <Link href="/applications" className="link">Applications</Link>.
         </p>

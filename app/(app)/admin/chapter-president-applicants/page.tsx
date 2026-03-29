@@ -137,7 +137,7 @@ export default async function AdminCPApplicantsPage({
 
       <div className="card" style={{ marginBottom: 24 }}>
         <p style={{ margin: 0, fontSize: 14, color: "var(--muted)" }}>
-          The canonical chapter-president hiring flow also runs through{" "}
+          This page is kept for compatibility. The canonical chapter-president hiring flow also runs through{" "}
           <Link href="/chapter/recruiting" className="link">Chapter Recruiting</Link> and{" "}
           <Link href="/applications" className="link">Applications</Link>.
         </p>
