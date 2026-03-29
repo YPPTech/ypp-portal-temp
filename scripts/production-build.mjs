@@ -13,7 +13,7 @@ function runCmdLine(commandLine) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
-run("node", ["scripts/maybe-db-sync.mjs"]);
+runCmdLine("node scripts/maybe-db-sync.mjs");
 
 for (const rel of [".next", path.join("node_modules", ".prisma")]) {
   try {
