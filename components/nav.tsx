@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isNavHrefActive, resolveNavModel } from "@/lib/navigation/resolve-nav";
+import { INSTRUCTOR_GROUP_EMOJI } from "@/lib/navigation/instructor-nav-layout";
 import { STUDENT_MINIMAL_GROUP_EMOJI } from "@/lib/navigation/student-v1-nav-layout";
 import type { NavGroup, NavLink } from "@/lib/navigation/types";
 
@@ -20,6 +21,10 @@ interface NavState {
 }
 
 function storageKeyForRole(primaryRole: string): string {
+  // Instructor IA v3: avoid inheriting collapsed accordion state from older nav versions.
+  if (primaryRole === "INSTRUCTOR") {
+    return `ypp-nav-v3:INSTRUCTOR`;
+  }
   return `ypp-nav-v2:${primaryRole}`;
 }
 
@@ -84,6 +89,17 @@ export default function Nav({
 }) {
   const pathname = usePathname();
 
+  // Stable memo inputs — avoid new model / defaultGroupState churn every parent render (was resetting accordions).
+  const rolesKey = useMemo(() => [...(roles ?? [])].sort().join("\0"), [roles]);
+  const unlockedKey = useMemo(
+    () => (unlockedSections?.size ? [...unlockedSections].sort().join("\0") : ""),
+    [unlockedSections],
+  );
+  const featureKeysKey = useMemo(
+    () => (enabledFeatureKeys?.size ? [...enabledFeatureKeys].sort().join("\0") : ""),
+    [enabledFeatureKeys],
+  );
+
   const model = useMemo(
     () =>
       resolveNavModel({
@@ -95,7 +111,15 @@ export default function Nav({
         unlockedSections,
         studentFullPortalExplorer,
       }),
-    [awardTier, enabledFeatureKeys, pathname, primaryRole, roles, unlockedSections, studentFullPortalExplorer],
+    [
+      awardTier,
+      featureKeysKey,
+      pathname,
+      primaryRole,
+      rolesKey,
+      studentFullPortalExplorer,
+      unlockedKey,
+    ],
   );
 
   // Use locked groups from the model (computed from unlockedSections) or from explicit prop
@@ -110,25 +134,37 @@ export default function Nav({
   const [moreOpen, setMoreOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
-  const defaultGroupState = useMemo(() => {
+  /** When this string changes, the set of nav section titles changed (not just object identity). */
+  const navSectionsKey = useMemo(() => model.more.map((g) => g.label).join("\0"), [model.more]);
+
+  function buildDefaultOpenGroups(): Record<string, boolean> {
     const next: Record<string, boolean> = {};
     for (const group of model.more) {
-      next[group.label] = group.items.some((item) => isNavHrefActive(item.href, pathname));
+      const hasActive = group.items.some((item) => isNavHrefActive(item.href, pathname));
+      if (model.primaryRole === "INSTRUCTOR") {
+        next[group.label] = true;
+      } else {
+        next[group.label] = hasActive;
+      }
     }
     return next;
-  }, [model.more, pathname]);
+  }
 
+  // Only re-hydrate from disk when role/storage bucket or section structure changes — never on
+  // arbitrary model reference churn (fixes accordion taps seemingly doing nothing).
   useEffect(() => {
+    const base = buildDefaultOpenGroups();
     const saved = loadSavedState(storageKey);
     if (!saved) {
       setMoreOpen(false);
-      setOpenGroups(defaultGroupState);
+      setOpenGroups(base);
       return;
     }
 
     setMoreOpen(saved.moreOpen);
-    setOpenGroups({ ...defaultGroupState, ...saved.openGroups });
-  }, [defaultGroupState, storageKey]);
+    setOpenGroups({ ...base, ...saved.openGroups });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally omit pathname/model.more identity; navSectionsKey captures structural changes
+  }, [storageKey, navSectionsKey]);
 
   useEffect(() => {
     setOpenGroups((previous) => {
@@ -136,7 +172,9 @@ export default function Nav({
 
       for (const group of model.more) {
         if (next[group.label] === undefined) {
-          next[group.label] = group.items.some((item) => isNavHrefActive(item.href, pathname));
+          const hasActive = group.items.some((item) => isNavHrefActive(item.href, pathname));
+          next[group.label] =
+            model.primaryRole === "INSTRUCTOR" ? true : hasActive;
         }
       }
 
@@ -148,7 +186,7 @@ export default function Nav({
 
       return next;
     });
-  }, [model.more, pathname]);
+  }, [model.more, pathname, model.primaryRole]);
 
   const isFirstPersist = useRef(true);
   useEffect(() => {
@@ -204,15 +242,27 @@ export default function Nav({
 
   const showStudentMinimalChrome =
     model.primaryRole === "STUDENT" && studentFullPortalExplorer !== true;
+  const showInstructorIaChrome = model.primaryRole === "INSTRUCTOR";
   const studentHomeOnlyCore =
     showStudentMinimalChrome &&
     filteredCore.length === 1 &&
     filteredCore[0]?.href === "/";
+  const instructorHomeOnlyCore =
+    showInstructorIaChrome && filteredCore.length === 1 && filteredCore[0]?.href === "/";
 
   const hasSearch = searchLower.length > 0;
   const effectiveMoreOpen = hasSearch ? true : moreOpen;
   const hiddenCount = model.more.reduce((sum, group) => sum + group.items.length, 0);
   const moreCountLabel = hasSearch ? totalMore : hiddenCount;
+
+  const handleNavLinkClick = useCallback(() => {
+    if (!onNavigate) return;
+    // Close the mobile drawer on the next macrotask so Link/router navigation
+    // isn’t dropped when React re-renders the shell in the same pointer event.
+    window.setTimeout(() => {
+      onNavigate();
+    }, 0);
+  }, [onNavigate]);
 
   const renderNavLink = (item: NavLink): JSX.Element => {
     const isActive = isNavHrefActive(item.href, pathname);
@@ -223,7 +273,7 @@ export default function Nav({
         key={item.href}
         href={item.href}
         className={isActive ? "active" : undefined}
-        onClick={onNavigate}
+        onClick={onNavigate ? handleNavLinkClick : undefined}
       >
         <span className="nav-icon">{item.icon}</span>
         <span className="nav-item-label">{item.label}</span>
@@ -264,12 +314,14 @@ export default function Nav({
       ) : (
         <>
           <section className="nav-main-tools">
-            {studentHomeOnlyCore ? null : <p className="nav-block-title">Top Tools</p>}
+            {studentHomeOnlyCore || instructorHomeOnlyCore ? null : (
+              <p className="nav-block-title">Top Tools</p>
+            )}
             <div className="nav-main-items">{filteredCore.map(renderNavLink)}</div>
           </section>
 
           {filteredMore.length > 0 ? (
-            showStudentMinimalChrome ? (
+            showStudentMinimalChrome || showInstructorIaChrome ? (
               <section className="nav-student-flat-groups" aria-label="Navigation sections">
                 {filteredMore.map((group) => {
                   const groupHasActive = group.items.some((item) => isNavHrefActive(item.href, pathname));
@@ -279,9 +331,12 @@ export default function Nav({
                   const isLocked = lockedGroups?.has(group.label);
                   const lockReason = isLocked && lockedGroups ? lockedGroups.get(group.label) : undefined;
                   const isRecentlyUnlocked = recentlyUnlockedGroups?.has(group.label);
-                  const heading = STUDENT_MINIMAL_GROUP_EMOJI[group.label as NavGroup]
-                    ? `${STUDENT_MINIMAL_GROUP_EMOJI[group.label as NavGroup]} ${group.label}`
-                    : group.label;
+                  const sectionEmoji = showStudentMinimalChrome
+                    ? STUDENT_MINIMAL_GROUP_EMOJI[group.label as NavGroup]
+                    : showInstructorIaChrome
+                      ? INSTRUCTOR_GROUP_EMOJI[group.label as NavGroup]
+                      : undefined;
+                  const heading = sectionEmoji ? `${sectionEmoji} ${group.label}` : group.label;
 
                   return (
                     <div key={group.label} className="nav-student-group">

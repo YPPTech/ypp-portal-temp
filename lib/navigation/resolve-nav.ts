@@ -6,6 +6,11 @@ import {
   shouldApplyStudentV1NavFilter,
 } from "@/lib/navigation/student-v1-allowlist";
 import {
+  applyInstructorSidebarLayout,
+  getInstructorAllowedHrefs,
+  instructorSidebarLinkOrderIndex,
+} from "@/lib/navigation/instructor-nav-layout";
+import {
   applyStudentMinimalSidebarLayout,
   studentMinimalLinkOrderIndex,
 } from "@/lib/navigation/student-v1-nav-layout";
@@ -37,15 +42,20 @@ const GROUP_ORDER_BY_ROLE: RoleGroupOrder = {
     "Admin Operations",
   ],
   INSTRUCTOR: [
-    "Start Here",
+    "Teaching",
+    "Students",
     "Progress",
+    "Schedule",
+    "Communication",
+    "Program",
+    "Profile & Settings",
+    "Start Here",
     "Learning",
     "People & Support",
     "Opportunities",
     "Projects",
     "Challenges",
     "Chapters",
-    "Profile & Settings",
     "Family",
     "Admin People",
     "Admin Content",
@@ -228,9 +238,18 @@ function sortLinksForRole(links: NavLink[], primaryRole: NavRole): NavLink[] {
   return [...links].sort((a, b) => {
     const groupDiff = groupIndex(primaryRole, a.group) - groupIndex(primaryRole, b.group);
     if (groupDiff !== 0) return groupDiff;
+    if (primaryRole === "INSTRUCTOR") {
+      const oa = instructorSidebarLinkOrderIndex(a.href);
+      const ob = instructorSidebarLinkOrderIndex(b.href);
+      if (oa !== ob) return oa - ob;
+    }
     if (a.priority !== b.priority) return a.priority - b.priority;
     return a.label.localeCompare(b.label);
   });
+}
+
+function sortInstructorNavLinks(links: NavLink[]): NavLink[] {
+  return sortLinksForRole(links, "INSTRUCTOR");
 }
 
 export function isNavHrefActive(href: string, pathname: string): boolean {
@@ -326,24 +345,38 @@ export function resolveNavModel(input: ResolveNavInput): NavViewModel & { locked
     visible = visible.map(applyStudentMinimalSidebarLayout);
   }
 
+  if (primaryRole === "INSTRUCTOR") {
+    const allowed = getInstructorAllowedHrefs(input.enabledFeatureKeys);
+    visible = visible
+      .filter((item) => allowed.has(item.href))
+      .map((item) => applyInstructorSidebarLayout(item, input.enabledFeatureKeys));
+    visible = sortInstructorNavLinks(visible);
+  }
+
   const visibleByHref = new Map(visible.map((item) => [item.href, item]));
 
   const coreHrefList =
     studentMinimalSidebar && primaryRole === "STUDENT" ? ["/"] : CORE_NAV_MAP[primaryRole];
 
-  const core: NavLink[] = [];
+  let core: NavLink[] = [];
   for (const href of coreHrefList) {
     const item = visibleByHref.get(href);
     if (!item || !item.coreEligible) continue;
     addOrReplaceCoreItem(core, item, limit);
   }
 
-  if (!studentMinimalSidebar || primaryRole !== "STUDENT") {
+  if (primaryRole !== "INSTRUCTOR" && (!studentMinimalSidebar || primaryRole !== "STUDENT")) {
     for (const criticalHref of CRITICAL_CORE_LINKS) {
       const item = visibleByHref.get(criticalHref);
       if (!item || !item.coreEligible) continue;
       addOrReplaceCoreItem(core, item, limit);
     }
+  }
+
+  if (primaryRole === "INSTRUCTOR") {
+    core = core.map((item) =>
+      item.href === "/" ? { ...item, label: "Home", icon: "🏠" } : item,
+    );
   }
 
   const coreHrefs = new Set(core.map((item) => item.href));

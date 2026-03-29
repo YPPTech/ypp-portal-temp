@@ -21,7 +21,7 @@ export const PARENT_ALWAYS_VISIBLE_GROUPS: NavGroup[] = [
   "Profile & Settings",
 ];
 
-// Nav groups always visible for instructors. Everything else is hidden by default.
+// Catalog groups always visible for instructors before IA remap (links must live here to pass the filter).
 export const INSTRUCTOR_ALWAYS_VISIBLE_GROUPS: NavGroup[] = [
   "Start Here",
   "Progress",
