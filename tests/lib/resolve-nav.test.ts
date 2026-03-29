@@ -22,7 +22,10 @@ describe("resolveNavModel", () => {
     expect(visibleHrefs).toContain("/attendance");
     expect(visibleHrefs).toContain("/instructor/parent-feedback");
     expect(visibleHrefs).toContain("/my-program");
-    expect(visibleHrefs).toContain("/my-program/awards");
+    expect(visibleHrefs).not.toContain("/my-program/awards");
+    expect(visibleHrefs).not.toContain("/college-advisor/roadmap");
+    expect(visibleHrefs).not.toContain("/alumni-network");
+    expect(visibleHrefs).not.toContain("/profile/certifications");
     expect(visibleHrefs).toContain("/messages");
     expect(visibleHrefs).toContain("/notifications");
 
