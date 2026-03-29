@@ -28,7 +28,7 @@ const EVENT_TYPE_CONFIG: Record<
   },
   QUARTERLY_WINDOW: {
     label: "Quarterly Review",
-    color: "#7c3aed",
+    color: "#6b21c8",
     bg: "#faf5ff",
     icon: "🔄",
   },

@@ -654,7 +654,7 @@
 
 .cbs-activity-edit-btn:hover {
   color: var(--cbs-accent);
-  background: rgba(124, 58, 237, 0.1);
+  background: rgba(107, 33, 200, 0.1);
 }
 
 .cbs-activity-delete-btn:hover {
@@ -700,13 +700,13 @@
   font-weight: 600;
   cursor: pointer;
   border: 1px dashed var(--cbs-accent);
-  background: rgba(124, 58, 237, 0.08);
+  background: rgba(107, 33, 200, 0.08);
   color: var(--cbs-accent);
   transition: all var(--cbs-transition);
 }
 
 .cbs-templates-btn:hover {
-  background: rgba(124, 58, 237, 0.15);
+  background: rgba(107, 33, 200, 0.15);
 }
 
 /* ── Builder Footer ────────────────────────────────────────── */
@@ -769,7 +769,7 @@
 }
 
 .cbs-btn-primary:hover {
-  background: #6d28d9;
+  background: #5a1da8;
   box-shadow: 0 6px 24px var(--cbs-accent-glow);
 }
 
@@ -1041,7 +1041,7 @@
 
 .cbs-templates-card:hover {
   border-color: var(--cbs-accent);
-  background: rgba(124, 58, 237, 0.08);
+  background: rgba(107, 33, 200, 0.08);
 }
 
 .cbs-templates-card-top {
@@ -1564,7 +1564,7 @@
   padding: 7px 12px;
   border-radius: 6px;
   border: 1px dashed var(--cbs-accent);
-  background: rgba(124, 58, 237, 0.06);
+  background: rgba(107, 33, 200, 0.06);
   color: var(--cbs-accent);
   font-size: 12px;
   font-weight: 600;
@@ -1575,7 +1575,7 @@
 }
 
 .cbs-example-import-btn:hover {
-  background: rgba(124, 58, 237, 0.14);
+  background: rgba(107, 33, 200, 0.14);
   border-style: solid;
 }
 
@@ -1629,15 +1629,15 @@
   position: relative;
   z-index: 9002;
   background: linear-gradient(145deg, #1a1030 0%, #0f0e17 100%);
-  border: 1px solid rgba(124, 58, 237, 0.4);
+  border: 1px solid rgba(107, 33, 200, 0.4);
   border-radius: 16px;
   padding: 28px 32px 24px;
   width: 420px;
   max-width: 92vw;
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(124, 58, 237, 0.15),
-    0 0 60px rgba(124, 58, 237, 0.1);
+    0 0 0 1px rgba(107, 33, 200, 0.15),
+    0 0 60px rgba(107, 33, 200, 0.1);
   text-align: center;
   animation: ldsTourSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -1663,7 +1663,7 @@
 
 .lds-tour-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #7c3aed, #a78bfa);
+  background: linear-gradient(90deg, #6b21c8, #b47fff);
   border-radius: 3px;
   transition: width 0.3s ease;
 }
@@ -1713,7 +1713,7 @@
 }
 
 .lds-tour-next {
-  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  background: linear-gradient(135deg, #6b21c8, #5a1da8);
   color: #fff;
   border: none;
   padding: 10px 24px;
@@ -1722,13 +1722,13 @@
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
-  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.4);
+  box-shadow: 0 4px 16px rgba(107, 33, 200, 0.4);
   transition: all 0.2s ease;
 }
 
 .lds-tour-next:hover {
-  background: linear-gradient(135deg, #6d28d9, #5b21b6);
-  box-shadow: 0 6px 24px rgba(124, 58, 237, 0.5);
+  background: linear-gradient(135deg, #5a1da8, #5a1da8);
+  box-shadow: 0 6px 24px rgba(107, 33, 200, 0.5);
   transform: translateY(-1px);
 }
 
@@ -1752,13 +1752,13 @@
 }
 
 .lds-tour-dot-active {
-  background: #7c3aed;
+  background: #6b21c8;
   width: 20px;
   border-radius: 3px;
 }
 
 .lds-tour-dot-done {
-  background: rgba(124, 58, 237, 0.5);
+  background: rgba(107, 33, 200, 0.5);
 }
 
 .lds-tour-counter {
@@ -1792,11 +1792,11 @@
 }
 
 .lds-tour-picker-btn:hover {
-  border-color: #7c3aed;
-  background: rgba(124, 58, 237, 0.12);
+  border-color: #6b21c8;
+  background: rgba(107, 33, 200, 0.12);
   color: #f1f5f9;
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.25);
+  box-shadow: 0 4px 16px rgba(107, 33, 200, 0.25);
 }
 
 .lds-tour-picker-btn:active {

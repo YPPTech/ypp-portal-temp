@@ -20,7 +20,7 @@ export default async function CertificationPathwayPage() {
       description: "Proven track record, curriculum creation, and mentoring new instructors",
     },
     Specialist: {
-      color: "#7c3aed",
+      color: "#6b21c8",
       description: "Expert-level mastery in a passion area with published curriculum",
     },
   };

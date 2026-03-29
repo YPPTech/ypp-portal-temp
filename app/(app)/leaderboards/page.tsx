@@ -15,7 +15,7 @@ export default async function LeaderboardsPage() {
     XP: "Total XP", STREAKS: "Longest Streak", CHALLENGES: "Challenges Won", PRACTICE_HOURS: "Practice Hours",
   };
   const categoryColors: Record<string, string> = {
-    XP: "#7c3aed", STREAKS: "#d97706", CHALLENGES: "#3b82f6", PRACTICE_HOURS: "#16a34a",
+    XP: "#6b21c8", STREAKS: "#d97706", CHALLENGES: "#3b82f6", PRACTICE_HOURS: "#16a34a",
   };
 
   // Group my rankings by category for the summary

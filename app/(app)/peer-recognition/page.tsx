@@ -8,7 +8,7 @@ export const metadata = { title: "Peer Recognition — YPP" };
 
 const CATEGORY_CONFIG: Record<string, { label: string; emoji: string; color: string }> = {
   HELPFULNESS: { label: "Helpfulness", emoji: "🤝", color: "#0ea5e9" },
-  LEADERSHIP: { label: "Leadership", emoji: "🌟", color: "#7c3aed" },
+  LEADERSHIP: { label: "Leadership", emoji: "🌟", color: "#6b21c8" },
   CREATIVITY: { label: "Creativity", emoji: "🎨", color: "#ec4899" },
   ABOVE_AND_BEYOND: { label: "Above & Beyond", emoji: "🚀", color: "#f59e0b" },
   TEAMWORK: { label: "Teamwork", emoji: "👥", color: "#10b981" },

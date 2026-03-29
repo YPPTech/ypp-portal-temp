@@ -9,7 +9,7 @@ export const metadata = { title: "Resource Library — College Advisor" };
 const CATEGORY_CONFIG: Record<string, { label: string; emoji: string; color: string }> = {
   SCHOLARSHIP: { label: "Scholarships", emoji: "💰", color: "#16a34a" },
   APPLICATION_TIPS: { label: "Application Tips", emoji: "📝", color: "#2563eb" },
-  ESSAY_WRITING: { label: "Essay Writing", emoji: "✍️", color: "#7c3aed" },
+  ESSAY_WRITING: { label: "Essay Writing", emoji: "✍️", color: "#6b21c8" },
   FINANCIAL_AID: { label: "Financial Aid", emoji: "🏦", color: "#0891b2" },
   CAMPUS_LIFE: { label: "Campus Life", emoji: "🏫", color: "#d97706" },
   CAREER_PLANNING: { label: "Career Planning", emoji: "💼", color: "#4338ca" },

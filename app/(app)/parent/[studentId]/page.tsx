@@ -366,7 +366,7 @@ export default async function ParentStudentDetailPage({
           >
             {[
               { label: "On Track", color: "#16a34a" },
-              { label: "Above & Beyond", color: "#7c3aed" },
+              { label: "Above & Beyond", color: "#6b21c8" },
               { label: "Behind Schedule", color: "#d97706" },
               { label: "Needs Attention", color: "#dc2626" },
             ].map((item) => (
@@ -449,7 +449,7 @@ export default async function ParentStudentDetailPage({
                           h.status === "ON_TRACK"
                             ? "#16a34a"
                             : h.status === "ABOVE_AND_BEYOND"
-                            ? "#7c3aed"
+                            ? "#6b21c8"
                             : h.status === "BEHIND_SCHEDULE"
                             ? "#d97706"
                             : h.status === "GETTING_STARTED"

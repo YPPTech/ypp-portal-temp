@@ -15,7 +15,7 @@ const typeLabels: Record<string, string> = {
 
 const typeColors: Record<string, string> = {
   PRACTICE: "#3b82f6",
-  PROJECT: "#7c3aed",
+  PROJECT: "#6b21c8",
   EXPLORATION: "#059669",
   GROUP: "#d97706",
   REFLECTION: "#ec4899",

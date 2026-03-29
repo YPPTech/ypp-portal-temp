@@ -10,7 +10,7 @@ const RATING_CONFIG: Record<string, { label: string; color: string }> = {
   BEHIND_SCHEDULE: { label: "Behind Schedule", color: "#ef4444" },
   GETTING_STARTED: { label: "Getting Started", color: "#d97706" },
   ACHIEVED: { label: "Achieved", color: "#16a34a" },
-  ABOVE_AND_BEYOND: { label: "Above & Beyond", color: "#7c3aed" },
+  ABOVE_AND_BEYOND: { label: "Above & Beyond", color: "#6b21c8" },
 };
 
 const TIER_LABELS: Record<string, string> = {

@@ -55,7 +55,7 @@ export default async function PassionPassportPage() {
             const passportColors: Record<string, string> = {
               Art: "#ef4444",
               Music: "#3b82f6",
-              Writing: "#8b5cf6",
+              Writing: "#8b3fe8",
               Dance: "#ec4899",
               Theater: "#f59e0b",
               Film: "#6366f1",

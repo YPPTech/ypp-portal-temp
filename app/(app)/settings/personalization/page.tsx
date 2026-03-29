@@ -294,7 +294,7 @@ export default function PersonalizationPage() {
           </label>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             {[
-              "#6366f1", "#ec4899", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#84cc16"
+              "#6366f1", "#ec4899", "#10b981", "#f59e0b", "#ef4444", "#8b3fe8", "#06b6d4", "#84cc16"
             ].map((color) => (
               <div
                 key={color}

@@ -6,12 +6,12 @@ import { getLearnerFitSummary } from "@/lib/learner-fit";
 import Link from "next/link";
 
 const dayColors: Record<string, string> = {
-  Monday: "#7c3aed",
+  Monday: "#6b21c8",
   Tuesday: "#2563eb",
   Wednesday: "#059669",
   Thursday: "#d97706",
   Friday: "#dc2626",
-  Saturday: "#7c3aed",
+  Saturday: "#6b21c8",
   Sunday: "#6366f1",
 };
 

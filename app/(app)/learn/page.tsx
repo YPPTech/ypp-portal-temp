@@ -65,7 +65,7 @@ export default async function LearnIndexPage() {
               justifyContent: "center",
               height: 72,
               borderRadius: "var(--radius-md)",
-              background: "linear-gradient(135deg, #8b5cf620, #6366f120)",
+              background: "linear-gradient(135deg, #8b3fe820, #6366f120)",
               marginBottom: 16,
               fontSize: 32,
             }}

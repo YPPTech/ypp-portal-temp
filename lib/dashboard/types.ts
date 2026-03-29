@@ -56,6 +56,8 @@ export interface ActivePathwaySummary {
 
 export interface InstructorReadinessSummary {
   trainingComplete: boolean;
+  academyModulesComplete: boolean;
+  studioCapstoneComplete: boolean;
   completedRequiredModules: number;
   requiredModulesCount: number;
   trainingPercent: number;

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+import BrandLockup from "@/components/brand-lockup";
 import crypto from "crypto";
 
 export default async function MagicLinkPage({
@@ -64,8 +64,8 @@ function MagicLinkError({ message }: { message: string }) {
   return (
     <div className="login-shell">
       <div className="login-card" style={{ justifySelf: "center" }}>
-        <div className="login-card-header">
-          <Image src="/logo-icon.svg" alt="YPP" width={44} height={44} />
+        <div className="login-card-header login-card-header--stacked">
+          <BrandLockup height={36} className="brand-lockup" reloadOnClick />
           <div>
             <h2 className="page-title" style={{ fontSize: 20 }}>Magic Link Failed</h2>
           </div>

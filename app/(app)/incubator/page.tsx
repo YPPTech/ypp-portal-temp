@@ -59,7 +59,7 @@ export default async function IncubatorPage() {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Link href="/activities" className="button secondary">Activity Hub</Link>
             <Link href="/projects/tracker" className="button secondary">Project Tracker</Link>
-            <Link href="/world" className="button secondary">Passion World</Link>
+            <Link href="/pathways" className="button secondary">Pathways</Link>
           </div>
         </div>
       </div>

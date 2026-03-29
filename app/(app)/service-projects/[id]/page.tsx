@@ -21,7 +21,7 @@ export default async function ServiceProjectDetailPage({ params }: { params: { i
   const statusColors: Record<string, string> = {
     RECRUITING: "#16a34a",
     IN_PROGRESS: "#3b82f6",
-    COMPLETED: "#7c3aed",
+    COMPLETED: "#6b21c8",
   };
   const color = statusColors[project.status] || "#6b7280";
 

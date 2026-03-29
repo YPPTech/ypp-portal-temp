@@ -15,7 +15,7 @@ export default async function ChapterEventsMapPage() {
     Southeast: "#16a34a",
     Midwest: "#d97706",
     Southwest: "#ef4444",
-    West: "#7c3aed",
+    West: "#6b21c8",
     Northwest: "#06b6d4",
     International: "#ec4899",
   };

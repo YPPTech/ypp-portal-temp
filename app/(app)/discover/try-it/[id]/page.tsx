@@ -64,8 +64,8 @@ export default async function TryItSessionDetailPage({
             {tryIt.passionName} · {tryIt.duration} minutes
           </p>
         </div>
-        <Link href="/world" className="button secondary">
-          Passion World
+        <Link href="/pathways" className="button secondary">
+          Pathways
         </Link>
       </div>
 

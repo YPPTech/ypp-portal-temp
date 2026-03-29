@@ -23,7 +23,7 @@ export default async function ProgramDetailPage({
   }
 
   const typeColors: Record<string, string> = {
-    PASSION_LAB: "#7c3aed",
+    PASSION_LAB: "#6b21c8",
     COMPETITION_PREP: "#dc2626",
     EXPERIENCE: "#16a34a",
     SEQUENCE: "#2563eb",

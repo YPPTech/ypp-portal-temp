@@ -89,6 +89,8 @@ export async function middleware(request: NextRequest) {
 
   // Set dynamic nonce-based CSP on every response
   response.headers.set("Content-Security-Policy", buildCsp(nonce));
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   // Expose nonce to layout for use in <Script> nonce props if needed in the future
   response.headers.set("x-nonce", nonce);
 

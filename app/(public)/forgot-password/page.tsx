@@ -2,7 +2,7 @@
 
 import { useFormState } from "react-dom";
 import Link from "next/link";
-import Image from "next/image";
+import BrandLockup from "@/components/brand-lockup";
 import { requestPasswordReset, ActionResult } from "@/lib/password-reset-actions";
 
 const initialState: ActionResult = { status: "idle", message: "" };
@@ -13,13 +13,8 @@ export default function ForgotPasswordPage() {
   return (
     <div className="login-shell">
       <div className="login-card" style={{ justifySelf: "center" }}>
-        <div className="login-card-header">
-          <Image
-            src="/logo-icon.svg"
-            alt="YPP"
-            width={44}
-            height={44}
-          />
+        <div className="login-card-header login-card-header--stacked">
+          <BrandLockup height={36} className="brand-lockup" reloadOnClick />
           <div>
             <h1 className="page-title" style={{ fontSize: 20 }}>
               Reset Your Password

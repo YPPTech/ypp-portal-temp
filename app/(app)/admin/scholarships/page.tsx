@@ -38,8 +38,8 @@ const PLANNED_FEATURES = [
 
 const PLANNED_WORKFLOW = [
   { step: "1", label: "Admin creates scholarship", color: "#6366f1" },
-  { step: "2", label: "Students apply", color: "#8b5cf6" },
-  { step: "3", label: "Committee reviews & scores", color: "#a78bfa" },
+  { step: "2", label: "Students apply", color: "#8b3fe8" },
+  { step: "3", label: "Committee reviews & scores", color: "#b47fff" },
   { step: "4", label: "Committee votes", color: "#c4b5fd" },
   { step: "5", label: "Award granted", color: "#10b981" },
   { step: "6", label: "Disbursement tracked", color: "#059669" },

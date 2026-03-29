@@ -59,7 +59,7 @@ export default async function InstructorCertificationsPage() {
       detail: readiness.canRequestOfferingApproval
         ? "You can request offering approval from class settings."
         : readiness.nextAction.detail,
-      color: "#8b5cf6",
+      color: "#8b3fe8",
       icon: "✅",
     },
   ];

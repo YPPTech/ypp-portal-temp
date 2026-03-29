@@ -35,7 +35,7 @@ export default async function ChallengesPage() {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Link href="/activities" className="button secondary">Activity Hub</Link>
             <Link href="/curriculum" className="button secondary">Curriculum</Link>
-            <Link href="/world" className="button secondary">Passion World</Link>
+            <Link href="/pathways" className="button secondary">Pathways</Link>
           </div>
         </div>
       </div>
@@ -77,7 +77,7 @@ export default async function ChallengesPage() {
   const typeColors: Record<string, string> = {
     DAILY: "#3b82f6",
     WEEKLY: "#d97706",
-    THIRTY_DAY: "#7c3aed",
+    THIRTY_DAY: "#6b21c8",
     SEASONAL: "#16a34a",
   };
 
@@ -135,7 +135,7 @@ export default async function ChallengesPage() {
                 href={`/challenges/${p.challenge.id}`}
                 style={{ textDecoration: "none", color: "inherit" }}
               >
-                <div className="card" style={{ borderLeft: `4px solid ${typeColors[p.challenge.type] || "#7c3aed"}` }}>
+                <div className="card" style={{ borderLeft: `4px solid ${typeColors[p.challenge.type] || "#6b21c8"}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>

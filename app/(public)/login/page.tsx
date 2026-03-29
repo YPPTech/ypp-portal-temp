@@ -3,10 +3,29 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+import BrandLockup from "@/components/brand-lockup";
 import { signIn } from "next-auth/react";
 import { useFormState } from "react-dom";
 import { requestMagicLink, resendVerificationEmail } from "@/lib/email-verification-actions";
+
+/**
+ * With `redirect: false`, NextAuth still returns HTTP 200 + `{ url }` for some failure paths
+ * (e.g. CSRF could not be verified → `/api/auth/signin?csrf=true`). The client treats that as
+ * `ok: true`, we `router.push("/")` without a session, middleware sends us back to `/login`, and
+ * a full reload clears the form with no error message.
+ */
+function isNextAuthCredentialsFalseSuccess(result: { ok?: boolean; url?: string | null } | undefined): boolean {
+  if (!result?.ok || !result.url) return false;
+  try {
+    const u = new URL(result.url);
+    if (u.searchParams.get("csrf") === "true") return true;
+    if (u.pathname.includes("/api/auth/signin")) return true;
+    if (u.pathname.includes("/api/auth/error")) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
 
 // ------------------------------------
 // Inline resend-verification sub-form
@@ -70,9 +89,17 @@ function LoginPageContent() {
   useEffect(() => {
     if (!mt) return;
     setLoading(true);
-    signIn("credentials", { mt, redirect: false }).then((result) => {
-      if (result?.ok) {
-        router.push(callbackUrl);
+    const absoluteCallback =
+      typeof window !== "undefined" ? new URL(callbackUrl, window.location.origin).href : callbackUrl;
+    signIn("credentials", { mt, redirect: false, callbackUrl: absoluteCallback }).then((result) => {
+      if (result?.ok && !isNextAuthCredentialsFalseSuccess(result)) {
+        router.refresh();
+        router.push(callbackUrl.startsWith("/") ? callbackUrl : "/");
+      } else if (isNextAuthCredentialsFalseSuccess(result)) {
+        setError(
+          "Could not verify sign-in. Set NEXTAUTH_SECRET in .env, match NEXTAUTH_URL to how you open the site (localhost vs 127.0.0.1), refresh, and open the magic link again."
+        );
+        setLoading(false);
       } else {
         setError("This magic link has expired or already been used. Please request a new one.");
         setLoading(false);
@@ -86,10 +113,32 @@ function LoginPageContent() {
     setShowResend(false);
     setLoading(true);
 
-    const result = await signIn("credentials", { email, password, redirect: false });
+    const absoluteCallback = new URL(callbackUrl, window.location.origin).href;
+    let result: Awaited<ReturnType<typeof signIn>>;
+    try {
+      result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+        callbackUrl: absoluteCallback,
+      });
+    } catch {
+      setError("Sign-in could not complete. Check your connection and try again.");
+      setLoading(false);
+      return;
+    }
 
-    if (result?.ok) {
-      router.push(callbackUrl);
+    if (result?.ok && !isNextAuthCredentialsFalseSuccess(result)) {
+      router.refresh();
+      router.push(callbackUrl.startsWith("/") ? callbackUrl : "/");
+      return;
+    }
+
+    if (isNextAuthCredentialsFalseSuccess(result)) {
+      setError(
+        "Sign-in session expired or could not be verified. Confirm NEXTAUTH_SECRET is set in .env, use the same host as NEXTAUTH_URL (e.g. only localhost or only 127.0.0.1), then refresh this page and try again."
+      );
+      setLoading(false);
       return;
     }
 
@@ -126,14 +175,32 @@ function LoginPageContent() {
     setError(null);
     setLoading(true);
 
-    const result = await signIn("credentials", {
-      challengeToken,
-      totpCode,
-      redirect: false,
-    });
+    const absoluteCallback = new URL(callbackUrl, window.location.origin).href;
+    let result: Awaited<ReturnType<typeof signIn>>;
+    try {
+      result = await signIn("credentials", {
+        challengeToken,
+        totpCode,
+        redirect: false,
+        callbackUrl: absoluteCallback,
+      });
+    } catch {
+      setError("Verification could not complete. Try again.");
+      setLoading(false);
+      return;
+    }
 
-    if (result?.ok) {
-      router.push(callbackUrl);
+    if (result?.ok && !isNextAuthCredentialsFalseSuccess(result)) {
+      router.refresh();
+      router.push(callbackUrl.startsWith("/") ? callbackUrl : "/");
+      return;
+    }
+
+    if (isNextAuthCredentialsFalseSuccess(result)) {
+      setError(
+        "Session could not be verified. Refresh the page and sign in again. Use the same URL host as NEXTAUTH_URL in .env."
+      );
+      setLoading(false);
       return;
     }
 
@@ -162,7 +229,9 @@ function LoginPageContent() {
     return (
       <div className="login-shell">
         <div className="login-card" style={{ justifySelf: "center", textAlign: "center", padding: "48px 32px" }}>
-          <Image src="/logo-icon.svg" alt="YPP" width={44} height={44} style={{ marginBottom: 16 }} />
+          <div style={{ marginBottom: 16 }}>
+            <BrandLockup height={40} className="brand-lockup" reloadOnClick />
+          </div>
           <p style={{ color: "var(--muted)", margin: 0 }}>Signing you in&hellip;</p>
         </div>
       </div>
@@ -184,14 +253,8 @@ function LoginPageContent() {
     <div className="login-shell">
       <div className="login-grid">
         <section className="login-hero">
-          <div className="login-logo">
-            <Image
-              src="/logo-icon.svg"
-              alt="Youth Passion Project"
-              width={52}
-              height={52}
-            />
-            <span className="login-logo-text">Youth Passion Project</span>
+          <div className="login-logo login-logo--lockup">
+            <BrandLockup height={52} className="brand-lockup" priority reloadOnClick />
           </div>
           <p className="badge">Pathways Portal</p>
           <h1 className="page-title mt-8">
@@ -232,13 +295,8 @@ function LoginPageContent() {
         </section>
 
         <div className="login-card">
-          <div className="login-card-header">
-            <Image
-              src="/logo-icon.svg"
-              alt="YPP"
-              width={44}
-              height={44}
-            />
+          <div className="login-card-header login-card-header--stacked">
+            <BrandLockup height={36} className="brand-lockup" reloadOnClick />
             <div>
               <h2 className="page-title" style={{ fontSize: 20 }}>
                 Welcome Back
@@ -440,7 +498,7 @@ export default function LoginPage() {
       fallback={
         <div className="login-shell">
           <div className="login-card" style={{ justifySelf: "center", textAlign: "center", padding: "48px 32px" }}>
-            <Image src="/logo-icon.svg" alt="YPP" width={44} height={44} />
+            <BrandLockup height={40} className="brand-lockup" reloadOnClick />
           </div>
         </div>
       }

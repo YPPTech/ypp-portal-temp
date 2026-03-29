@@ -188,13 +188,8 @@ export default async function InstructorReadinessPage() {
 
   const totalInstructors = instructors.length;
   const trainingComplete = instructors.filter((instructor) => {
-    const completedIds = new Set(
-      instructor.trainings
-        .filter((assignment) => assignment.status === "COMPLETE")
-        .map((assignment) => assignment.moduleId)
-    );
-
-    return requiredModules.every((module) => completedIds.has(module.id));
+    const readiness = readinessByInstructor.get(instructor.id);
+    return readiness?.trainingComplete ?? false;
   }).length;
 
   const interviewPassed = instructors.filter((instructor) => {
@@ -226,7 +221,7 @@ export default async function InstructorReadinessPage() {
         </div>
         <div className="card">
           <div className="kpi">{trainingComplete}</div>
-          <div className="kpi-label">Training Complete</div>
+          <div className="kpi-label">Training + LDS capstone complete</div>
         </div>
         <div className="card">
           <div className="kpi">{interviewPassed}</div>

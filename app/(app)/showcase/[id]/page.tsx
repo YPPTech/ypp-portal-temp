@@ -6,7 +6,7 @@ import Link from "next/link";
 import { LikeButton, CommentForm, AdminActions } from "./client";
 
 const CONTENT_TYPE_COLORS: Record<string, string> = {
-  VIDEO: "#ef4444", ARTICLE: "#3b82f6", PROJECT: "#7c3aed", TUTORIAL: "#16a34a",
+  VIDEO: "#ef4444", ARTICLE: "#3b82f6", PROJECT: "#6b21c8", TUTORIAL: "#16a34a",
   ART: "#ec4899", MUSIC: "#d97706", CODE: "#06b6d4", OTHER: "#6b7280",
 };
 

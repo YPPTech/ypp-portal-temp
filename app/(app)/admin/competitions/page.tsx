@@ -165,7 +165,7 @@ export default async function AdminCompetitionsPage() {
                 UPCOMING: "#6b7280",
                 OPEN_FOR_SUBMISSIONS: "#16a34a",
                 JUDGING: "#2563eb",
-                VOTING: "#7c3aed",
+                VOTING: "#6b21c8",
                 COMPLETED: "#9ca3af",
               };
               const isDraft = c.status === "UPCOMING" && c.createdById;

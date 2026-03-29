@@ -10,7 +10,7 @@ function getStepPillStyle(status: "COMPLETED" | "ENROLLED" | "WAITLISTED" | "NOT
     case "COMPLETED":
       return { background: "#dcfce7", color: "#166534" };
     case "ENROLLED":
-      return { background: "#ede9fe", color: "var(--ypp-purple)" };
+      return { background: "#f0e6ff", color: "var(--ypp-purple)" };
     case "WAITLISTED":
       return { background: "#fef3c7", color: "#92400e" };
     default:

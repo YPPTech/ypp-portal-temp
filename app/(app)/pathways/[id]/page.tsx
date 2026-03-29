@@ -50,7 +50,7 @@ function getStepStatusStyle(step: JourneyStepSummary) {
     case "COMPLETED":
       return { background: "#dcfce7", color: "#166534" };
     case "ENROLLED":
-      return { background: "#ede9fe", color: "#6d28d9" };
+      return { background: "#f0e6ff", color: "#5a1da8" };
     case "WAITLISTED":
       return { background: "#fef3c7", color: "#92400e" };
     default:

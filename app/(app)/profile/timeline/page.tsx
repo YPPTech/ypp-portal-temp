@@ -21,17 +21,17 @@ const ENTRY_TYPE_ICONS: Record<string, string> = {
 };
 
 const ENTRY_TYPE_COLORS: Record<string, string> = {
-  STARTED_PASSION: "#7c3aed",
+  STARTED_PASSION: "#6b21c8",
   FIRST_VIDEO: "#3b82f6",
   COMPLETED_MODULE: "#16a34a",
   EARNED_BADGE: "#d97706",
   PRACTICE_MILESTONE: "#ec4899",
   SKILL_UNLOCKED: "#06b6d4",
-  JOINED_GROUP: "#8b5cf6",
+  JOINED_GROUP: "#8b3fe8",
   CREATED_PROJECT: "#f59e0b",
   RECEIVED_FEEDBACK: "#10b981",
   COMPETITION_ENTERED: "#ef4444",
-  LEVEL_UP: "#7c3aed",
+  LEVEL_UP: "#6b21c8",
   STREAK_MILESTONE: "#d97706",
   CUSTOM: "#6b7280",
 };

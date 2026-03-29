@@ -40,7 +40,7 @@ function statusColor(status: string): string {
   if (status === "APPROVED") return "#16a34a";
   if (status === "REJECTED") return "#dc2626";
   if (status === "INFO_REQUESTED") return "#d97706";
-  return "#7c3aed";
+  return "#6b21c8";
 }
 
 const STAGES = [
@@ -67,18 +67,18 @@ function ProgressStepper({ status }: { status: string }) {
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 80 }}>
               <div style={{
                 width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                background: i <= stageIdx ? "#7c3aed" : "var(--border)",
+                background: i <= stageIdx ? "#6b21c8" : "var(--border)",
                 color: i <= stageIdx ? "white" : "var(--muted)",
                 fontWeight: 700, fontSize: 14,
               }}>
                 {i < stageIdx ? "\u2713" : i + 1}
               </div>
-              <span style={{ fontSize: 11, color: i <= stageIdx ? "#7c3aed" : "var(--muted)", marginTop: 4, textAlign: "center" }}>
+              <span style={{ fontSize: 11, color: i <= stageIdx ? "#6b21c8" : "var(--muted)", marginTop: 4, textAlign: "center" }}>
                 {stage.label}
               </span>
             </div>
             {i < STAGES.length - 1 && (
-              <div style={{ flex: 1, height: 2, background: i < stageIdx ? "#7c3aed" : "var(--border)", margin: "0 4px", marginBottom: 20 }} />
+              <div style={{ flex: 1, height: 2, background: i < stageIdx ? "#6b21c8" : "var(--border)", margin: "0 4px", marginBottom: 20 }} />
             )}
           </div>
         ))}

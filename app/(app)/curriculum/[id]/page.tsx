@@ -221,8 +221,8 @@ export default async function ClassDetailPage({
                   href={`/pathways/${offering.pathwayStep.pathway.id}`}
                   className="pill"
                   style={{
-                    background: "var(--ypp-purple-100, #ede9fe)",
-                    color: "var(--ypp-purple, #7c3aed)",
+                    background: "var(--ypp-purple-100, #f0e6ff)",
+                    color: "var(--ypp-purple, #6b21c8)",
                     fontWeight: 600,
                     textDecoration: "none",
                     fontSize: 11,
@@ -498,8 +498,8 @@ export default async function ClassDetailPage({
                     width: 32,
                     height: 32,
                     borderRadius: "50%",
-                    background: "var(--ypp-purple-100, #ede9fe)",
-                    color: "var(--ypp-purple, #7c3aed)",
+                    background: "var(--ypp-purple-100, #f0e6ff)",
+                    color: "var(--ypp-purple, #6b21c8)",
                     fontWeight: 700,
                     fontSize: 13,
                     display: "flex",

@@ -11,7 +11,7 @@ function statusColor(status: InstructorApplicationStatus): string {
   if (status === "REJECTED") return "#dc2626";
   if (status === "INFO_REQUESTED") return "#d97706";
   if (status === "INTERVIEW_SCHEDULED" || status === "INTERVIEW_COMPLETED") return "#2563eb";
-  return "#7c3aed";
+  return "#6b21c8";
 }
 
 function statusLabel(status: InstructorApplicationStatus): string {

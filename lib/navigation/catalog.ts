@@ -9,7 +9,7 @@ const INSTRUCTOR_AND_APPLICANT_ROLES: NavRole[] = ["APPLICANT", "INSTRUCTOR", "A
 const MENTOR_ROLES: NavRole[] = ["MENTOR", "CHAPTER_PRESIDENT", "ADMIN"];
 const MY_PROGRAM_ROLES: NavRole[] = ["STUDENT", "INSTRUCTOR", "CHAPTER_PRESIDENT", "ADMIN", "STAFF"];
 const APPLICANT_ROLES: NavRole[] = ["APPLICANT", "STUDENT", "INSTRUCTOR", "STAFF", "ADMIN"];
-const INTERVIEW_ROLES: NavRole[] = ["STUDENT", "INSTRUCTOR", "STAFF", "ADMIN", "CHAPTER_PRESIDENT"];
+const INTERVIEW_ROLES: NavRole[] = ["INSTRUCTOR", "STAFF", "ADMIN", "CHAPTER_PRESIDENT"];
 const ADMIN_ONLY: NavRole[] = ["ADMIN"];
 const PARENT_ONLY: NavRole[] = ["PARENT"];
 const STUDENT_ONLY: NavRole[] = ["STUDENT"];
@@ -92,28 +92,11 @@ export const NAV_CATALOG: NavLink[] = [
       dashboardBadgeKey: "interview_queue",
     },
     {
-      href: "/world",
-      label: "Passion World",
-      icon: "🌍",
-      featureKey: "PASSION_WORLD",
-      dashboardDescription: "Explore islands, progress, and passion-linked opportunities.",
-      dashboardPriority: 40,
-    },
-    {
       href: "/announcements",
       label: "Updates",
       icon: "📢",
       dashboardDescription: "Read chapter and platform updates.",
       dashboardPriority: 25,
-    },
-    {
-      href: "/notifications",
-      label: "Notifications",
-      icon: "🔔",
-      badgeKey: "notifications",
-      dashboardBadgeKey: "unread_notifications",
-      dashboardDescription: "Review unread alerts and updates.",
-      dashboardPriority: 10,
     },
     {
       href: "/messages",
@@ -691,6 +674,15 @@ export const NAV_CATALOG: NavLink[] = [
     { href: "/profile/xp", label: "XP & Levels", icon: "⬆" },
     { href: "/profile/certifications", label: "Certifications", icon: "🏅" },
     { href: "/settings/personalization", label: "Personalization", icon: "🎨" },
+    {
+      href: "/notifications",
+      label: "Notifications",
+      icon: "🔔",
+      badgeKey: "notifications",
+      dashboardBadgeKey: "unread_notifications",
+      dashboardDescription: "Review unread alerts and updates.",
+      dashboardPriority: 10,
+    },
   ]),
 
   ...groupLinks("Admin People", 1100, [
@@ -843,7 +835,7 @@ export const NAV_CATALOG: NavLink[] = [
       label: "Feature Access",
       icon: "🔑",
       roles: ADMIN_ONLY,
-      dashboardDescription: "Grant or revoke per-user feature access (e.g., Passion World, Teaching Tools).",
+      dashboardDescription: "Grant or revoke per-user feature access (e.g., optional modules, Teaching Tools).",
     },
     {
       href: "/admin/hiring-committee",

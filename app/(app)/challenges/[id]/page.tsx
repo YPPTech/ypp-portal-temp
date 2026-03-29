@@ -31,10 +31,10 @@ export default async function ChallengeDetailPage({ params }: { params: { id: st
   const typeColors: Record<string, string> = {
     DAILY: "#3b82f6",
     WEEKLY: "#d97706",
-    THIRTY_DAY: "#7c3aed",
+    THIRTY_DAY: "#6b21c8",
     SEASONAL: "#16a34a",
   };
-  const color = typeColors[challenge.type] || "#7c3aed";
+  const color = typeColors[challenge.type] || "#6b21c8";
 
   return (
     <div>

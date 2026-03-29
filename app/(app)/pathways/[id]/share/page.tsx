@@ -52,7 +52,7 @@ export default async function PathwaySharePage({ params }: { params: { id: strin
         <div
           id="share-card"
           style={{
-            background: "linear-gradient(135deg, var(--ypp-purple) 0%, #7c3aed 100%)",
+            background: "linear-gradient(135deg, var(--ypp-purple) 0%, #6b21c8 100%)",
             borderRadius: 20,
             padding: "36px 40px",
             color: "white",

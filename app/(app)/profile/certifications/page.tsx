@@ -94,7 +94,7 @@ export default async function CertificationsPage() {
     switch (level) {
       case "BEGINNER": return "#10b981";
       case "INTERMEDIATE": return "#f59e0b";
-      case "ADVANCED": return "#8b5cf6";
+      case "ADVANCED": return "#8b3fe8";
       case "EXPERT": return "#ef4444";
       default: return "var(--primary-color)";
     }

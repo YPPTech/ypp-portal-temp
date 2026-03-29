@@ -165,7 +165,7 @@ function ActivityCard({ activity: a }: { activity: Activity }) {
             <span>{cfg.emoji}</span>
             <p style={{ fontWeight: 700, fontSize: "0.9rem" }}>{a.name}</p>
             {a.isYppActivity && (
-              <span className="pill" style={{ fontSize: "0.62rem", background: "#ede9fe", color: "#7c3aed" }}>YPP</span>
+              <span className="pill" style={{ fontSize: "0.62rem", background: "#f0e6ff", color: "#6b21c8" }}>YPP</span>
             )}
           </div>
           {a.role && (

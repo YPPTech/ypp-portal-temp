@@ -8,7 +8,7 @@ import { getPublicIncubatorLaunches } from "@/lib/incubator-actions";
 const CONTENT_TYPE_COLORS: Record<string, string> = {
   VIDEO: "#ef4444",
   ARTICLE: "#3b82f6",
-  PROJECT: "#7c3aed",
+  PROJECT: "#6b21c8",
   TUTORIAL: "#16a34a",
   ART: "#ec4899",
   MUSIC: "#d97706",

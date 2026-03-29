@@ -2,7 +2,7 @@
 
 import { useFormState } from "react-dom";
 import Link from "next/link";
-import Image from "next/image";
+import BrandLockup from "@/components/brand-lockup";
 import { signUpParent } from "@/lib/signup-actions";
 
 const initialState = { status: "idle" as const, message: "" };
@@ -14,9 +14,8 @@ export default function ParentSignupPage() {
     <div className="login-shell">
       <div className="login-grid" style={{ maxWidth: 1000 }}>
         <div className="login-hero">
-          <div className="login-logo">
-            <Image src="/logo-icon.svg" alt="YPP" width={48} height={48} />
-            <span className="login-logo-text">Youth Passion Project</span>
+          <div className="login-logo login-logo--lockup">
+            <BrandLockup height={48} className="brand-lockup" priority reloadOnClick />
           </div>
           <h1 className="page-title" style={{ fontSize: 28, marginBottom: 12 }}>
             Parent & Guardian Portal
@@ -43,8 +42,8 @@ export default function ParentSignupPage() {
         </div>
 
         <div className="login-card">
-          <div className="login-card-header">
-            <Image src="/logo-icon.svg" alt="YPP" width={40} height={40} />
+          <div className="login-card-header login-card-header--stacked">
+            <BrandLockup height={34} className="brand-lockup" reloadOnClick />
             <div>
               <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
                 Create Parent Account

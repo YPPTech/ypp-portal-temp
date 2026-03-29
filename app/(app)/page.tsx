@@ -10,7 +10,6 @@ import RoleHero from "@/components/dashboard/role-hero";
 import KpiStrip from "@/components/dashboard/kpi-strip";
 import QueueBoard from "@/components/dashboard/queue-board";
 import NextActions from "@/components/dashboard/next-actions";
-import ToolExplorer from "@/components/dashboard/tool-explorer";
 import PathwayWidget from "@/components/dashboard/pathway-widget";
 import InstructorReadinessWidget from "@/components/dashboard/instructor-readiness-widget";
 import DailyChecklist from "@/components/dashboard/daily-checklist";
@@ -19,12 +18,56 @@ import NudgeStrip from "@/components/dashboard/nudge-strip";
 import AtRiskPanel from "@/components/dashboard/at-risk-panel";
 import { getAtRiskChapters } from "@/lib/governance/actions";
 import LegacyOverviewPage from "./legacy-overview-page";
+import type { DashboardKpi } from "@/lib/dashboard/types";
 
 function isMissingTableError(error: unknown) {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
     error.code === "P2021"
   );
+}
+
+type HeroStatTone = "urgent" | "warning" | "success" | "info" | "accent";
+
+const HERO_TONE_CYCLE: HeroStatTone[] = ["urgent", "warning", "success", "info", "accent"];
+
+function firstNameFromDisplay(fullName: string): string {
+  const trimmed = fullName.trim();
+  if (!trimmed) return "there";
+  return trimmed.split(/\s+/)[0] ?? trimmed;
+}
+
+/** e.g. CHAPTER_PRESIDENT → Chapter President */
+function formatDashboardRoleLabel(role: string): string {
+  return role
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function buildHeroMetricStrip(
+  kpis: DashboardKpi[],
+  nextActionCount: number,
+  queueTotal: number,
+  toolCount: number,
+): { value: string | number; label: string; tone: HeroStatTone }[] {
+  const out = kpis.slice(0, 5).map((k, i) => ({
+    value: k.value,
+    label: k.label,
+    tone: HERO_TONE_CYCLE[i % HERO_TONE_CYCLE.length],
+  }));
+  const fillers: { value: number; label: string; tone: HeroStatTone }[] = [
+    { value: nextActionCount, label: "Next actions", tone: "urgent" },
+    { value: queueTotal, label: "Queue items", tone: "warning" },
+    { value: toolCount, label: "Tools available", tone: "info" },
+  ];
+  for (const f of fillers) {
+    if (out.length >= 5) break;
+    if (!out.some((o) => o.label === f.label)) {
+      out.push(f);
+    }
+  }
+  return out.slice(0, 5);
 }
 
 export default async function OverviewPage() {
@@ -154,19 +197,61 @@ export default async function OverviewPage() {
     "One connected flow from onboarding to outcomes with less admin overhead.",
   ];
 
-  const passionWorldGoals = [
-    "Turn curiosity into action with clear island-based paths.",
-    "Make progress visible through challenges, badges, and milestones.",
-    "Connect exploration to real classes, projects, and mentorship opportunities.",
-  ];
   const priorityTool = dashboard.sections[0]?.modules[0];
   const queueTotal = dashboard.queues.reduce((sum, queue) => sum + queue.count, 0);
+  const toolCount = dashboard.sections.reduce((sum, section) => sum + section.modules.length, 0);
+  const heroMetrics = buildHeroMetricStrip(
+    dashboard.kpis,
+    dashboard.nextActions.length,
+    queueTotal,
+    toolCount,
+  );
   const roleFocusItems = roleFocus[dashboard.role] ?? roleFocus.STAFF;
   const todayDateLabel = new Intl.DateTimeFormat("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
   }).format(new Date());
+  const yearLabel = new Intl.DateTimeFormat("en-US", { year: "numeric" }).format(new Date());
+
+  const userId = session.user.id;
+  let unreadNotifications = 0;
+  let unreadMessages = 0;
+  try {
+    [unreadNotifications, unreadMessages] = await Promise.all([
+      prisma.notification.count({
+        where: { userId, isRead: false },
+      }),
+      prisma.conversationParticipant
+        .findMany({
+          where: { userId },
+          include: {
+            conversation: {
+              include: {
+                messages: {
+                  orderBy: { createdAt: "desc" },
+                  take: 1,
+                  select: { createdAt: true, senderId: true },
+                },
+              },
+            },
+          },
+        })
+        .then((parts) =>
+          parts.filter((p) => {
+            const latest = p.conversation.messages[0];
+            return (
+              !!latest &&
+              latest.senderId !== userId &&
+              latest.createdAt > p.lastReadAt
+            );
+          }).length,
+        ),
+    ]);
+  } catch {
+    unreadNotifications = 0;
+    unreadMessages = 0;
+  }
 
   const portalPillars = [
     {
@@ -181,8 +266,8 @@ export default async function OverviewPage() {
     },
     {
       title: "Show Progress",
-      detail: "See your momentum through KPIs, streaks, and role queues.",
-      href: "/world",
+      detail: "See your momentum through pathways, KPIs, and role queues.",
+      href: "/pathways/progress",
     },
   ];
 
@@ -240,10 +325,10 @@ export default async function OverviewPage() {
             tag: "INC",
           },
           {
-            title: "Passion World",
-            description: "See your growth islands update from real activity and progress.",
-            href: "/world",
-            tag: "PWR",
+            title: "Pathways",
+            description: "Track pathway progress and your next recommended steps.",
+            href: "/pathways",
+            tag: "PTH",
           },
         ];
 
@@ -258,59 +343,133 @@ export default async function OverviewPage() {
     },
     {
       title: "3. Watch Everything Sync",
-      detail: "Your queues, KPIs, and Passion World signals update automatically.",
+      detail: "Your queues, KPIs, and pathway progress update automatically.",
     },
   ];
 
+  const displayName = session.user.name?.trim() || "there";
+  const firstName = firstNameFromDisplay(displayName);
+  const friendlyRole = formatDashboardRoleLabel(dashboard.role);
+  const isStudent = dashboard.role === "STUDENT";
+  const heroMetricsForLayout = isStudent ? heroMetrics.slice(0, 4) : heroMetrics;
+
   return (
     <div>
-      <div className="topbar">
+      <div className="topbar topbar-dashboard">
         <div>
-          <h1 className="page-title">
-            Welcome back{session.user.name ? `, ${session.user.name}` : ""}
+          <h1 className="dashboard-page-title">
+            {isStudent ? (
+              <>
+                Hi, <span className="dashboard-welcome-name">{firstName}</span>
+              </>
+            ) : (
+              "Home Dashboard"
+            )}
           </h1>
-          <p className="page-subtitle">
-            Your classes, activities, challenges, and progress in one place.
+          <p className="dashboard-header-date">
+            {isStudent ? (
+              <>
+                <span className="dashboard-header-role">{friendlyRole}</span>
+                <span className="dashboard-header-sep" aria-hidden>
+                  {" "}
+                  ·{" "}
+                </span>
+                {todayDateLabel}
+              </>
+            ) : (
+              <>
+                {todayDateLabel}, {yearLabel}
+              </>
+            )}
           </p>
         </div>
-        <div className="badge" style={{ background: "var(--ypp-purple-100)", color: "var(--ypp-purple-700)" }}>
-          {dashboard.roleLabel}
+        <div className="dashboard-header-actions">
+          <span className="dashboard-role-pill">{friendlyRole}</span>
+          <Link
+            href="/messages"
+            className={`dashboard-header-icon-btn${unreadMessages > 0 ? " has-unread" : ""}`}
+            aria-label={
+              unreadMessages > 0
+                ? `Messages, ${unreadMessages > 99 ? "99+" : unreadMessages} unread`
+                : "Messages"
+            }
+          >
+            ✉
+          </Link>
+          <Link
+            href="/notifications"
+            className={`dashboard-header-icon-btn${unreadNotifications > 0 ? " has-unread" : ""}`}
+            aria-label={
+              unreadNotifications > 0
+                ? `Notifications, ${unreadNotifications > 99 ? "99+" : unreadNotifications} unread`
+                : "Notifications"
+            }
+          >
+            🔔
+          </Link>
         </div>
       </div>
 
-      <div className="overview-hero card">
+      <div
+        className={`overview-hero card${isStudent ? " overview-hero--student-compact" : ""}`}
+      >
         <div className="overview-hero-orb overview-hero-orb-left" aria-hidden />
         <div className="overview-hero-orb overview-hero-orb-right" aria-hidden />
         <div className="overview-hero-content">
-          <span className="overview-hero-kicker">Your Portal Guide</span>
-          <h2 className="overview-hero-title">
-            Everything important is connected here, so you always know what to do next.
-          </h2>
-          <p className="overview-hero-copy">
-            {dashboard.role === "INSTRUCTOR"
-              ? "This page brings your training status, class management, readiness gates, and teaching tools into one command center. Start with your top next action and your progress updates across the portal."
-              : "This page brings classes, challenges, incubator, communication, and progress into one simple command center. Start with one action, finish it, and your progress updates across the portal."}
-          </p>
-          <p className="overview-hero-note">
-            Today is {todayDateLabel}. If you only do one thing, finish your top Next Action.
-          </p>
+          {isStudent ? (
+            <>
+              <span className="overview-hero-kicker">{friendlyRole} home</span>
+              <p className="overview-hero-copy overview-hero-copy--student">
+                {dashboard.heroSubtitle}
+              </p>
+              <p className="overview-hero-note">
+                <Link href="/learn" className="link">
+                  Learn
+                </Link>
+                {" · "}
+                <Link href="/curriculum" className="link">
+                  Classes & pathways
+                </Link>
+              </p>
+            </>
+          ) : (
+            <>
+              <span className="overview-hero-kicker">Your portal guide</span>
+              <h2 className="overview-hero-title">
+                Welcome back, <span className="dashboard-welcome-name">{displayName}.</span>
+              </h2>
+              <p className="overview-hero-copy">
+                {dashboard.role === "INSTRUCTOR"
+                  ? "Training, class management, readiness gates, and teaching tools in one place. Start with your top next action—progress updates everywhere else."
+                  : "Classes, challenges, incubator, and communication in one calm home. Pick one next action and the rest of the portal stays in sync."}
+              </p>
+              <p className="overview-hero-note">
+                Need a broader tour?{" "}
+                <Link href="/learn" className="link">
+                  Open Learn
+                </Link>{" "}
+                or explore{" "}
+                <Link href="/curriculum" className="link">
+                  classes and pathways
+                </Link>
+                .
+              </p>
+            </>
+          )}
 
-          <div className="overview-hero-stats">
-            <div className="overview-hero-stat">
-              <span className="overview-hero-stat-label">Next Actions</span>
-              <strong>{dashboard.nextActions.length}</strong>
-            </div>
-            <div className="overview-hero-stat">
-              <span className="overview-hero-stat-label">Live Queues</span>
-              <strong>{queueTotal}</strong>
-            </div>
-            <div className="overview-hero-stat">
-              <span className="overview-hero-stat-label">Focus</span>
-              <strong>{roleFocusItems[0]}</strong>
-            </div>
+          <div className={`overview-hero-stats${isStudent ? " overview-hero-stats--student" : ""}`}>
+            {heroMetricsForLayout.map((m) => (
+              <div
+                key={`${m.label}-${String(m.value)}`}
+                className={`overview-hero-stat stat-tone-${m.tone}`}
+              >
+                <span className="overview-hero-stat-label">{m.label}</span>
+                <strong>{m.value}</strong>
+              </div>
+            ))}
           </div>
 
-          <div className="overview-pillar-grid">
+          <div className={`overview-pillar-grid${isStudent ? " overview-pillar-grid--student" : ""}`}>
             {portalPillars.map((pillar) => (
               <Link key={pillar.title} href={pillar.href} className="overview-pillar-card">
                 <span className="overview-pillar-title">{pillar.title}</span>
@@ -318,62 +477,79 @@ export default async function OverviewPage() {
               </Link>
             ))}
           </div>
-        </div>
-      </div>
 
-      <div className="card overview-flow-card">
-        <div className="overview-flow-header">
-          <h3 style={{ margin: 0 }}>How Everything Connects</h3>
-          <p style={{ margin: 0 }}>
-            One completed action updates your dashboard cards, role queues, and Passion World signals.
-          </p>
-        </div>
-        <div className="overview-flow-grid">
-          {portalLoop.map((item) => (
-            <div key={item.title} className="overview-flow-item">
-              <h4>{item.title}</h4>
-              <p>{item.detail}</p>
+          {isStudent ? (
+            <div className="student-quick-links" aria-label="Quick links">
+              {quickExperienceLinks.map((item) => (
+                <Link key={item.href} href={item.href} className="student-quick-link">
+                  <span className="student-quick-link-tag">{item.tag}</span>
+                  {item.title}
+                </Link>
+              ))}
             </div>
-          ))}
+          ) : null}
         </div>
       </div>
 
-      <div className="grid two" style={{ marginBottom: 16 }}>
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>How To Use This Portal (3 Easy Steps)</h3>
-          <div className="overview-steps">
-            {howToUsePortal.map((step, index) => (
-              <div key={step} className="overview-step-item">
-                <span className="overview-step-number">{index + 1}</span>
-                <p>{step}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>Explore Key Areas</h3>
-          <div className="overview-link-list">
-            {quickExperienceLinks.map((item) => (
-              <Link key={item.title} href={item.href} className="overview-link-card">
-                <div>
-                  <p className="overview-link-title">
-                    <span className="overview-link-tag">{item.tag}</span> {item.title}
-                  </p>
-                  <p className="overview-link-description">{item.description}</p>
+      {!isStudent ? (
+        <>
+          <div className="card overview-flow-card">
+            <div className="overview-flow-header">
+              <h3 style={{ margin: 0 }}>How Everything Connects</h3>
+              <p style={{ margin: 0 }}>
+                One completed action updates your dashboard cards, role queues, and progress signals.
+              </p>
+            </div>
+            <div className="overview-flow-grid">
+              {portalLoop.map((item) => (
+                <div key={item.title} className="overview-flow-item">
+                  <h4>{item.title}</h4>
+                  <p>{item.detail}</p>
                 </div>
-                <span className="overview-link-arrow">→</span>
-              </Link>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      </div>
 
-      <RoleHero
-        role={dashboard.role}
-        title={dashboard.heroTitle}
-        subtitle={dashboard.heroSubtitle}
-      />
+          <div className="grid two" style={{ marginBottom: 16 }}>
+            <div className="card">
+              <h3 style={{ marginTop: 0 }}>How To Use This Portal (3 Easy Steps)</h3>
+              <div className="overview-steps">
+                {howToUsePortal.map((step, index) => (
+                  <div key={step} className="overview-step-item">
+                    <span className="overview-step-number">{index + 1}</span>
+                    <p>{step}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="card">
+              <h3 style={{ marginTop: 0 }}>Explore Key Areas</h3>
+              <div className="overview-link-list">
+                {quickExperienceLinks.map((item) => (
+                  <Link key={item.title} href={item.href} className="overview-link-card">
+                    <div>
+                      <p className="overview-link-title">
+                        <span className="overview-link-tag">{item.tag}</span> {item.title}
+                      </p>
+                      <p className="overview-link-description">{item.description}</p>
+                    </div>
+                    <span className="overview-link-arrow">→</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      {!isStudent ? (
+        <RoleHero
+          role={dashboard.role}
+          title={dashboard.heroTitle}
+          subtitle={dashboard.heroSubtitle}
+        />
+      ) : null}
 
       {/* Daily Checklist — what to do today */}
       {dashboard.checklist && dashboard.checklist.length > 0 && (
@@ -385,10 +561,10 @@ export default async function OverviewPage() {
         <NudgeStrip nudges={dashboard.nudges} />
       )}
 
-      {/* Journey Roadmap — visual progress timeline */}
-      {dashboard.journeyMilestones && (
+      {/* Journey Roadmap — visual progress timeline (hidden on condensed student home) */}
+      {!isStudent && dashboard.journeyMilestones ? (
         <JourneyRoadmap milestones={dashboard.journeyMilestones} />
-      )}
+      ) : null}
 
       {launchBanner ? (
         <div className="card" style={{ marginBottom: 16, borderLeft: "4px solid var(--ypp-purple)" }}>
@@ -435,71 +611,70 @@ export default async function OverviewPage() {
       )}
 
       {dashboard.role === "STUDENT" && studentSnapshot ? (
-        <div className="grid two" style={{ marginTop: 16 }}>
-          <div className="card">
-            <h3 style={{ marginTop: 0 }}>First Week Checklist</h3>
-            <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
-              {[
-                {
-                  done: studentSnapshot.checklist.profileCompleted,
-                  text: "Complete your profile",
-                  href: "/onboarding",
-                },
-                {
-                  done: studentSnapshot.checklist.joinedFirstClass,
-                  text: "Join your first class",
-                  href: "/curriculum",
-                },
-                {
-                  done: studentSnapshot.checklist.submittedFirstAssignment,
-                  text: "Submit your first assignment",
-                  href: "/my-classes",
-                },
-                {
-                  done: studentSnapshot.checklist.checkedInAtLeastOnce,
-                  text: "Complete one check-in",
-                  href: "/check-in",
-                },
-              ].map((item) => (
-                <Link key={item.text} href={item.href} style={{ textDecoration: "none", color: "inherit" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 10, border: "1px solid var(--border)", borderRadius: 10 }}>
+        <div className="card student-dashboard-snapshot" style={{ marginTop: 16 }}>
+          <div className="student-dashboard-snapshot-grid">
+            <div>
+              <h3 style={{ marginTop: 0, marginBottom: 8 }}>First week checklist</h3>
+              <div className="student-checklist-compact">
+                {[
+                  {
+                    done: studentSnapshot.checklist.profileCompleted,
+                    text: "Complete your profile",
+                    href: "/onboarding",
+                  },
+                  {
+                    done: studentSnapshot.checklist.joinedFirstClass,
+                    text: "Join your first class",
+                    href: "/curriculum",
+                  },
+                  {
+                    done: studentSnapshot.checklist.submittedFirstAssignment,
+                    text: "Submit your first assignment",
+                    href: "/my-classes",
+                  },
+                  {
+                    done: studentSnapshot.checklist.checkedInAtLeastOnce,
+                    text: "Complete one check-in",
+                    href: "/check-in",
+                  },
+                ].map((item) => (
+                  <Link key={item.text} href={item.href} className="student-checklist-row">
                     <span>{item.text}</span>
-                    <span className="pill" style={item.done ? { background: "#f0fdf4", color: "#166534" } : {}}>
-                      {item.done ? "Done" : "Pending"}
+                    <span className={`student-checklist-status${item.done ? " is-done" : ""}`}>
+                      {item.done ? "Done" : "To do"}
                     </span>
-                  </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h3 style={{ marginTop: 0, marginBottom: 8 }}>Due soon (7 days)</h3>
+              <div className="student-due-compact">
+                <div className="student-due-row">
+                  <span>Assignments due</span>
+                  <strong>{studentSnapshot.dueAssignmentsNext7Days}</strong>
+                </div>
+                <div className="student-due-row">
+                  <span>Sessions</span>
+                  <strong>{studentSnapshot.upcomingSessionsNext7Days}</strong>
+                </div>
+                <div className="student-due-row">
+                  <span>Training due</span>
+                  <strong>{studentSnapshot.trainingDue}</strong>
+                </div>
+                <div className="student-due-row">
+                  <span>Pathway steps</span>
+                  <strong>{studentSnapshot.nextPathwaySteps}</strong>
+                </div>
+              </div>
+              <div className="student-due-actions">
+                <Link href="/curriculum" className="button secondary" style={{ fontSize: 13 }}>
+                  Curriculum
                 </Link>
-              ))}
-            </div>
-          </div>
-
-          <div className="card">
-            <h3 style={{ marginTop: 0 }}>Due Soon (Next 7 Days)</h3>
-            <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Assignments due</span>
-                <strong>{studentSnapshot.dueAssignmentsNext7Days}</strong>
+                <Link href="/my-chapter" className="button secondary" style={{ fontSize: 13 }}>
+                  My Chapter
+                </Link>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Upcoming sessions</span>
-                <strong>{studentSnapshot.upcomingSessionsNext7Days}</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Training modules due</span>
-                <strong>{studentSnapshot.trainingDue}</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Pathway next steps</span>
-                <strong>{studentSnapshot.nextPathwaySteps}</strong>
-              </div>
-            </div>
-            <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Link href="/curriculum" className="button secondary" style={{ fontSize: 13 }}>
-                Open Curriculum
-              </Link>
-              <Link href="/my-chapter" className="button secondary" style={{ fontSize: 13 }}>
-                Open My Chapter
-              </Link>
             </div>
           </div>
         </div>
@@ -517,11 +692,6 @@ export default async function OverviewPage() {
         </div>
       )}
 
-      <ToolExplorer
-        sections={dashboard.sections}
-        moduleBadgeByHref={dashboard.moduleBadgeByHref}
-      />
-
       <div className="card" style={{ marginTop: 16 }}>
         <details className="dashboard-about">
           <summary>About this dashboard</summary>
@@ -530,10 +700,10 @@ export default async function OverviewPage() {
               Dashboard generated at {new Date(dashboard.generatedAt).toLocaleTimeString()}.
             </p>
             <p style={{ marginBottom: 8 }}>
-              Use queue cards for urgent work first, then use the All Tools Explorer for everything else.
+              Use queue cards and next actions first; open the sidebar for the full tool list.
             </p>
             <p style={{ marginBottom: 0 }}>
-              Need full navigation? Open the sidebar and browse grouped tools in More.
+              Need something specific? Use the sidebar sections and More menu.
             </p>
 
             <div className="portal-goal-grid">
@@ -541,14 +711,6 @@ export default async function OverviewPage() {
                 <h4>Portal Goals</h4>
                 <ul className="portal-goal-list">
                   {portalGoals.map((goal) => (
-                    <li key={goal}>{goal}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="portal-goal-block">
-                <h4>Passion World Goals</h4>
-                <ul className="portal-goal-list">
-                  {passionWorldGoals.map((goal) => (
                     <li key={goal}>{goal}</li>
                   ))}
                 </ul>

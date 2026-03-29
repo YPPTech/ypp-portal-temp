@@ -19,7 +19,7 @@ export default async function PortfolioTemplatesPage() {
   };
 
   const colorPreviews: Record<string, string> = {
-    default: "#7c3aed",
+    default: "#6b21c8",
     dark: "#1f2937",
     warm: "#ea580c",
     cool: "#0891b2",
@@ -56,7 +56,7 @@ export default async function PortfolioTemplatesPage() {
             const tips = Array.isArray(template.tips) ? template.tips as string[] : [];
 
             return (
-              <div key={template.id} className="card" style={{ borderTop: `4px solid ${colorPreviews[template.colorScheme] || "#7c3aed"}` }}>
+              <div key={template.id} className="card" style={{ borderTop: `4px solid ${colorPreviews[template.colorScheme] || "#6b21c8"}` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
                   <div>
                     <h3 style={{ margin: 0 }}>{template.name}</h3>
@@ -74,7 +74,7 @@ export default async function PortfolioTemplatesPage() {
                       width: 16,
                       height: 16,
                       borderRadius: "50%",
-                      background: colorPreviews[template.colorScheme] || "#7c3aed",
+                      background: colorPreviews[template.colorScheme] || "#6b21c8",
                     }} />
                   </div>
                 </div>

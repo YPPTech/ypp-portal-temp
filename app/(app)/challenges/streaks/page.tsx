@@ -9,7 +9,7 @@ const MILESTONE_LABELS: Record<number, string> = {
   7: "1 Week", 14: "2 Weeks", 30: "1 Month", 60: "2 Months", 90: "3 Months",
 };
 const MILESTONE_COLORS: Record<number, string> = {
-  7: "#3b82f6", 14: "#7c3aed", 30: "#d97706", 60: "#ec4899", 90: "#ef4444",
+  7: "#3b82f6", 14: "#6b21c8", 30: "#d97706", 60: "#ec4899", 90: "#ef4444",
 };
 
 export default async function StreaksPage() {

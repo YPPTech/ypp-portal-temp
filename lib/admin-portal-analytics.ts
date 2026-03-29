@@ -446,6 +446,7 @@ export async function getAdminPortalAnalytics(rawFilters: RawAnalyticsFilters) {
     }),
     prisma.curriculumDraft.findMany({
       select: {
+        authorId: true,
         status: true,
         interestArea: true,
         createdAt: true,
@@ -655,10 +656,13 @@ export async function getAdminPortalAnalytics(rawFilters: RawAnalyticsFilters) {
   const readinessSnapshot = filteredInstructors.map((instructor) => {
     const completedRequiredModules =
       completedRequiredModuleCounts.get(instructor.id) ?? 0;
-    const trainingComplete =
+    const academyModulesComplete =
       eligibleRequiredModuleIds.size === 0
         ? true
         : completedRequiredModules >= eligibleRequiredModuleIds.size;
+    const studioCapstoneComplete =
+      studioCapstoneCompleteByInstructor.has(instructor.id);
+    const trainingComplete = academyModulesComplete && studioCapstoneComplete;
     const interviewStatus =
       interviewGateStatusByInstructor.get(instructor.id) ?? "REQUIRED";
     const interviewPassed =

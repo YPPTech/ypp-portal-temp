@@ -13,7 +13,7 @@ function statusColor(status: InstructorApplicationStatus): string {
   if (status === "REJECTED") return "#dc2626";
   if (status === "INFO_REQUESTED") return "#d97706";
   if (status === "INTERVIEW_SCHEDULED" || status === "INTERVIEW_COMPLETED") return "#2563eb";
-  return "#7c3aed";
+  return "#6b21c8";
 }
 
 function statusLabel(status: InstructorApplicationStatus): string {
@@ -58,7 +58,7 @@ function ScoreBar({ score, label }: { score: number | null; label: string }) {
               width: 10,
               height: 10,
               borderRadius: 2,
-              background: score != null && n <= score ? "#7c3aed" : "var(--surface-2)",
+              background: score != null && n <= score ? "#6b21c8" : "var(--surface-2)",
               border: "1px solid var(--border)",
             }}
           />
@@ -262,7 +262,7 @@ export default async function AdminInstructorApplicantsPage({
                       </span>
                     )}
                     {app.graduationYear && (
-                      <span style={{ fontSize: 12, background: "#ede9fe", color: "#7c3aed", borderRadius: 4, padding: "2px 8px", fontWeight: 600 }}>
+                      <span style={{ fontSize: 12, background: "#f0e6ff", color: "#6b21c8", borderRadius: 4, padding: "2px 8px", fontWeight: 600 }}>
                         Class of {app.graduationYear}
                       </span>
                     )}

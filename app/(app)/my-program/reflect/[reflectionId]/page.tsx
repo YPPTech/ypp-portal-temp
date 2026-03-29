@@ -10,7 +10,7 @@ const RATING_CONFIG: Record<string, { label: string; color: string; bg: string }
   BEHIND_SCHEDULE: { label: "Behind Schedule", color: "#ef4444", bg: "#fef2f2" },
   GETTING_STARTED: { label: "Getting Started", color: "#d97706", bg: "#fffbeb" },
   ACHIEVED: { label: "Achieved", color: "#16a34a", bg: "#f0fdf4" },
-  ABOVE_AND_BEYOND: { label: "Above & Beyond", color: "#7c3aed", bg: "#faf5ff" },
+  ABOVE_AND_BEYOND: { label: "Above & Beyond", color: "#6b21c8", bg: "#faf5ff" },
 };
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {

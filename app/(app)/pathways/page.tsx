@@ -208,7 +208,7 @@ export default async function PathwaysPage() {
                           step.status === "COMPLETED"
                             ? { background: "#dcfce7", color: "#166534" }
                             : step.status === "ENROLLED" || step.status === "WAITLISTED"
-                              ? { background: "#ede9fe", color: "var(--ypp-purple)" }
+                              ? { background: "#f0e6ff", color: "var(--ypp-purple)" }
                               : {}
                         }
                       >

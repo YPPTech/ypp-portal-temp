@@ -10,7 +10,7 @@ const STATUS_COLORS: Record<string, string> = {
   DRAFT: "#6b7280",
   ACCEPTING_APPLICATIONS: "#3b82f6",
   IN_PROGRESS: "#d97706",
-  SHOWCASE_PHASE: "#7c3aed",
+  SHOWCASE_PHASE: "#6b21c8",
   COMPLETED: "#16a34a",
   ARCHIVED: "#9ca3af",
 };

@@ -21,6 +21,10 @@ import { getInstructorReadiness, buildFallbackInstructorReadiness, isInterviewGa
 import { getRecommendedActivitiesForUser } from "@/lib/activity-hub/actions";
 import { getStudentChapterJourneyData } from "@/lib/chapter-pathway-journey";
 import { withPrismaFallback } from "@/lib/prisma-guard";
+import {
+  isStudentFullPortalExplorerEnabled,
+  STUDENT_V1_ALLOWLIST_VERSION,
+} from "@/lib/navigation/student-v1-allowlist";
 
 const FINAL_APPLICATION_STATUSES = ["ACCEPTED", "REJECTED", "WITHDRAWN"] as const;
 
@@ -115,6 +119,7 @@ async function buildDashboardData(userId: string, requestedPrimaryRole: string |
         hasAward,
         unlockedSections,
         enabledFeatureKeys: new Set(enabledFeatureKeys),
+        studentFullPortalExplorer: isStudentFullPortalExplorerEnabled(),
       })
     ),
     prisma.notification.count({ where: { userId, isRead: false } }),
@@ -444,6 +449,25 @@ async function buildDashboardData(userId: string, requestedPrimaryRole: string |
         ),
       ]);
 
+      const chapterInstructorIds = chapterInstructors.map((instructor) => instructor.id);
+      const studioCapstoneAuthors = await withPrismaFallback(
+        "dashboard:chapter:studio-capstone",
+        () =>
+          prisma.curriculumDraft.findMany({
+            where: {
+              authorId: {
+                in: chapterInstructorIds.length > 0 ? chapterInstructorIds : ["__none__"],
+              },
+              status: { in: ["SUBMITTED", "APPROVED"] },
+            },
+            select: { authorId: true },
+          }),
+        []
+      );
+      const studioCapstoneAuthorSet = new Set(
+        studioCapstoneAuthors.map((row) => row.authorId)
+      );
+
       const decisionReadyCount = unresolvedApplications.filter((application) => {
         if (!application.position.interviewRequired) return true;
         const hasCompletedInterview = application.interviewSlots.some((slot) => slot.status === "COMPLETED");
@@ -460,7 +484,11 @@ async function buildDashboardData(userId: string, requestedPrimaryRole: string |
             .map((assignment) => assignment.moduleId)
         );
 
-        const trainingComplete = Array.from(requiredSet).every((moduleId) => completedRequired.has(moduleId));
+        const academyModulesComplete = Array.from(requiredSet).every((moduleId) =>
+          completedRequired.has(moduleId)
+        );
+        const studioCapstoneComplete = studioCapstoneAuthorSet.has(instructor.id);
+        const trainingComplete = academyModulesComplete && studioCapstoneComplete;
         const interviewStatus = instructor.interviewGate?.status ?? "REQUIRED";
         const interviewPassed =
           !interviewEnforced || interviewStatus === "PASSED" || interviewStatus === "WAIVED";
@@ -559,14 +587,19 @@ async function buildDashboardData(userId: string, requestedPrimaryRole: string |
 
     const classCount = courses.length;
     const learnerCount = courses.reduce((sum, course) => sum + course._count.enrollments, 0);
+    const moduleWeight = readiness.requiredModulesCount;
+    const doneModuleWeight = readiness.academyModulesComplete
+      ? moduleWeight
+      : readiness.completedRequiredModules;
+    const totalTrainingWeight = moduleWeight + 1;
+    const doneTrainingWeight = doneModuleWeight + (readiness.studioCapstoneComplete ? 1 : 0);
     const trainingPercent =
-      readiness.requiredModulesCount === 0
+      totalTrainingWeight === 0
         ? 100
-        : Math.round((readiness.completedRequiredModules / readiness.requiredModulesCount) * 100);
-    const trainingIncomplete = Math.max(
-      0,
-      readiness.requiredModulesCount - readiness.completedRequiredModules
-    );
+        : Math.round((doneTrainingWeight / totalTrainingWeight) * 100);
+    const trainingIncomplete =
+      Math.max(0, readiness.requiredModulesCount - readiness.completedRequiredModules) +
+      (readiness.academyModulesComplete && !readiness.studioCapstoneComplete ? 1 : 0);
     const interviewBlocked = isInterviewGateEnforced() && !readiness.interviewPassed;
 
     heroTitle = "Instructor Command Center";
@@ -646,6 +679,8 @@ async function buildDashboardData(userId: string, requestedPrimaryRole: string |
 
     instructorReadiness = {
       trainingComplete: readiness.trainingComplete,
+      academyModulesComplete: readiness.academyModulesComplete,
+      studioCapstoneComplete: readiness.studioCapstoneComplete,
       completedRequiredModules: readiness.completedRequiredModules,
       requiredModulesCount: readiness.requiredModulesCount,
       trainingPercent,
@@ -748,79 +783,126 @@ async function buildDashboardData(userId: string, requestedPrimaryRole: string |
       ? activeIncubatorProject.currentPhase.replace(/_/g, " ")
       : "Not Started";
 
+    const studentFullExplorer = isStudentFullPortalExplorerEnabled();
+
     heroTitle = "Student Chapter Command Center";
-    heroSubtitle = chapterJourney.chapterName
-      ? `Track your ${chapterJourney.chapterName} pathway journey, local classes, and fallback options in one place.`
-      : "Track your pathway journey, local classes, and fallback options in one place.";
+    heroSubtitle = studentFullExplorer
+      ? chapterJourney.chapterName
+        ? `Track your ${chapterJourney.chapterName} pathway journey, local classes, and fallback options in one place.`
+        : "Track your pathway journey, local classes, and fallback options in one place."
+      : chapterJourney.chapterName
+        ? `Classes, pathways, and mentorship for ${chapterJourney.chapterName} — prioritized for launch.`
+        : "Classes, pathways, and mentorship — prioritized for launch.";
 
-    kpis = [
-      { id: "student_active_enrollments", label: "Active Enrollments", value: activeEnrollments },
-      { id: "student_next_steps", label: "Pathway Next Steps", value: nextPathwaySteps },
-      { id: "student_active_challenges", label: "Active Challenges", value: activeChallengeCount },
-      { id: "student_best_streak", label: "Best Challenge Streak", value: bestChallengeStreak },
-      { id: "student_active_applications", label: "Active Applications", value: activeApplications },
-      { id: "student_training_due", label: "Training Modules Due", value: studentTrainingDue },
-      { id: "student_recommended_activities", label: "Recommended Activities", value: recommendedActivities.length },
-    ];
+    kpis = studentFullExplorer
+      ? [
+          { id: "student_active_enrollments", label: "Active Enrollments", value: activeEnrollments },
+          { id: "student_next_steps", label: "Pathway Next Steps", value: nextPathwaySteps },
+          { id: "student_active_challenges", label: "Active Challenges", value: activeChallengeCount },
+          { id: "student_best_streak", label: "Best Challenge Streak", value: bestChallengeStreak },
+          { id: "student_active_applications", label: "Active Applications", value: activeApplications },
+          { id: "student_training_due", label: "Training Modules Due", value: studentTrainingDue },
+          {
+            id: "student_recommended_activities",
+            label: "Recommended Activities",
+            value: recommendedActivities.length,
+          },
+        ]
+      : [
+          { id: "student_active_enrollments", label: "Active Enrollments", value: activeEnrollments },
+          { id: "student_next_steps", label: "Pathway Next Steps", value: nextPathwaySteps },
+          { id: "student_active_applications", label: "Active Applications", value: activeApplications },
+          { id: "student_training_due", label: "Training Modules Due", value: studentTrainingDue },
+        ];
 
-    queues = [
-      {
-        id: "student_activity_hub",
-        title: "Recommended Activities",
-        description: "Activity recommendations across challenge, incubator, and projects.",
-        count: recommendedActivities.length,
-        href: "/activities",
-        status: queueStatus(recommendedActivities.length, 5),
-        badgeKey: "student_recommended_activities",
-      },
-      {
-        id: "student_active_challenges",
-        title: "Challenge Momentum",
-        description: "Stay consistent with your active challenge check-ins.",
-        count: activeChallengeCount,
-        href: "/challenges",
-        status: queueStatus(activeChallengeCount, 7),
-        badgeKey: "student_active_challenges",
-      },
-      {
-        id: "student_incubator",
-        title: "Incubator Progress",
-        description: activeIncubatorProject
-          ? `Current phase: ${incubatorPhaseLabel}.`
-          : "No incubator project yet.",
-        count: activeIncubatorProject ? 1 : 0,
-        href: "/incubator",
-        status: activeIncubatorProject ? "needs_action" : "healthy",
-        badgeKey: "student_incubator",
-      },
-      {
-        id: "student_training_due",
-        title: "Training Academy",
-        description: "Finish assigned training modules, quizzes, checkpoints, and evidence submissions.",
-        count: studentTrainingDue,
-        href: "/student-training",
-        status: queueStatus(studentTrainingDue, 4),
-        badgeKey: "student_training_due",
-      },
-      {
-        id: "student_next_steps",
-        title: "Pathway Next Steps",
-        description: "Complete one next step this week to stay on track.",
-        count: nextPathwaySteps,
-        href: "/my-chapter",
-        status: queueStatus(nextPathwaySteps, 6),
-        badgeKey: "student_next_steps",
-      },
-      {
-        id: "student_active_applications",
-        title: "Active Applications",
-        description: "Track interviews and status updates for your applications.",
-        count: activeApplications,
-        href: "/interviews?scope=hiring&view=mine&state=needs_action",
-        status: queueStatus(activeApplications, 5),
-        badgeKey: "active_applications",
-      },
-    ];
+    queues = studentFullExplorer
+      ? [
+          {
+            id: "student_activity_hub",
+            title: "Recommended Activities",
+            description: "Activity recommendations across challenge, incubator, and projects.",
+            count: recommendedActivities.length,
+            href: "/activities",
+            status: queueStatus(recommendedActivities.length, 5),
+            badgeKey: "student_recommended_activities",
+          },
+          {
+            id: "student_active_challenges",
+            title: "Challenge Momentum",
+            description: "Stay consistent with your active challenge check-ins.",
+            count: activeChallengeCount,
+            href: "/challenges",
+            status: queueStatus(activeChallengeCount, 7),
+            badgeKey: "student_active_challenges",
+          },
+          {
+            id: "student_incubator",
+            title: "Incubator Progress",
+            description: activeIncubatorProject
+              ? `Current phase: ${incubatorPhaseLabel}.`
+              : "No incubator project yet.",
+            count: activeIncubatorProject ? 1 : 0,
+            href: "/incubator",
+            status: activeIncubatorProject ? "needs_action" : "healthy",
+            badgeKey: "student_incubator",
+          },
+          {
+            id: "student_training_due",
+            title: "Training Academy",
+            description: "Finish assigned training modules, quizzes, checkpoints, and evidence submissions.",
+            count: studentTrainingDue,
+            href: "/student-training",
+            status: queueStatus(studentTrainingDue, 4),
+            badgeKey: "student_training_due",
+          },
+          {
+            id: "student_next_steps",
+            title: "Pathway Next Steps",
+            description: "Complete one next step this week to stay on track.",
+            count: nextPathwaySteps,
+            href: "/my-chapter",
+            status: queueStatus(nextPathwaySteps, 6),
+            badgeKey: "student_next_steps",
+          },
+          {
+            id: "student_active_applications",
+            title: "Active Applications",
+            description: "Track status and updates for your applications.",
+            count: activeApplications,
+            href: "/applications",
+            status: queueStatus(activeApplications, 5),
+            badgeKey: "active_applications",
+          },
+        ]
+      : [
+          {
+            id: "student_next_steps",
+            title: "Pathway Next Steps",
+            description: "Complete one next step this week to stay on track.",
+            count: nextPathwaySteps,
+            href: "/my-chapter",
+            status: queueStatus(nextPathwaySteps, 6),
+            badgeKey: "student_next_steps",
+          },
+          {
+            id: "student_active_applications",
+            title: "Active Applications",
+            description: "Track status and updates for your applications.",
+            count: activeApplications,
+            href: "/applications",
+            status: queueStatus(activeApplications, 5),
+            badgeKey: "active_applications",
+          },
+          {
+            id: "student_training_due",
+            title: "Training Academy",
+            description: "Finish assigned training modules, quizzes, checkpoints, and evidence submissions.",
+            count: studentTrainingDue,
+            href: "/student-training",
+            status: queueStatus(studentTrainingDue, 4),
+            badgeKey: "student_training_due",
+          },
+        ];
 
     nextActions = [];
 
@@ -847,11 +929,11 @@ async function buildDashboardData(userId: string, requestedPrimaryRole: string |
         id: "student-applications",
         title: "Check application updates",
         detail: `${activeApplications} active application(s) in progress.`,
-        href: "/interviews?scope=hiring&view=mine&state=needs_action",
+        href: "/applications",
       });
     }
 
-    if (activeChallengeCount > 0) {
+    if (studentFullExplorer && activeChallengeCount > 0) {
       nextActions.push({
         id: "student-challenge",
         title: "Complete today's challenge check-in",
@@ -860,7 +942,7 @@ async function buildDashboardData(userId: string, requestedPrimaryRole: string |
       });
     }
 
-    if (activeIncubatorProject) {
+    if (studentFullExplorer && activeIncubatorProject) {
       nextActions.push({
         id: "student-incubator",
         title: "Post an incubator project update",
@@ -869,7 +951,7 @@ async function buildDashboardData(userId: string, requestedPrimaryRole: string |
       });
     }
 
-    if (recommendedActivities.length > 0) {
+    if (studentFullExplorer && recommendedActivities.length > 0) {
       nextActions.push({
         id: "student-activities",
         title: "Open your recommended activities",
@@ -900,7 +982,6 @@ async function buildDashboardData(userId: string, requestedPrimaryRole: string |
     moduleBadgeByHref["/my-chapter"] = nextPathwaySteps;
     moduleBadgeByHref["/pathways"] = nextPathwaySteps;
     moduleBadgeByHref["/applications"] = activeApplications;
-    moduleBadgeByHref["/interviews"] = activeApplications;
     moduleBadgeByHref["/student-training"] = studentTrainingDue;
     moduleBadgeByHref["/activities"] = recommendedActivities.length;
     moduleBadgeByHref["/challenges"] = activeChallengeCount;
@@ -1295,44 +1376,93 @@ async function buildChecklist(
 
   // If we have fewer than 3 real tasks, add encouraging suggestions
   if (items.length < 3) {
-    const suggestions: ChecklistItemData[] = [
-      {
-        id: "sug-pathways",
-        title: "Open your chapter hub",
-        detail: "See what your chapter is running and what step is next",
-        href: "/my-chapter",
-        priority: "anytime",
-        category: "suggestion",
-        icon: "📚",
-      },
-      {
-        id: "sug-challenges",
-        title: "Try a challenge",
-        detail: "Test your skills and earn badges",
-        href: "/challenges",
-        priority: "anytime",
-        category: "suggestion",
-        icon: "🏆",
-      },
-      {
-        id: "sug-badges",
-        title: "Check your badge progress",
-        detail: "See how close you are to earning a new badge",
-        href: "/badges",
-        priority: "anytime",
-        category: "suggestion",
-        icon: "🏅",
-      },
-      {
-        id: "sug-showcase",
-        title: "Browse the project showcase",
-        detail: "See what others have been working on",
-        href: "/showcase",
-        priority: "anytime",
-        category: "suggestion",
-        icon: "🌟",
-      },
-    ];
+    const studentV1Minimal = role === "STUDENT" && !isStudentFullPortalExplorerEnabled();
+    const suggestions: ChecklistItemData[] = studentV1Minimal
+      ? [
+          {
+            id: "sug-chapter",
+            title: "Open your chapter hub",
+            detail: "Pathways, announcements, and your next step",
+            href: "/my-chapter",
+            priority: "anytime",
+            category: "suggestion",
+            icon: "📚",
+          },
+          {
+            id: "sug-curriculum",
+            title: "Browse classes",
+            detail: "Enroll in instructor-led offerings",
+            href: "/curriculum",
+            priority: "anytime",
+            category: "suggestion",
+            icon: "📖",
+          },
+          {
+            id: "sug-announcements",
+            title: "Read announcements",
+            detail: "Chapter and platform updates",
+            href: "/announcements",
+            priority: "anytime",
+            category: "suggestion",
+            icon: "📢",
+          },
+          {
+            id: "sug-program",
+            title: "Open My Program",
+            detail: "Mentorship, reflections, and action items",
+            href: "/my-program",
+            priority: "anytime",
+            category: "suggestion",
+            icon: "🎯",
+          },
+          {
+            id: "sug-events",
+            title: "See upcoming events",
+            detail: "RSVP and add sessions to your calendar",
+            href: "/events",
+            priority: "anytime",
+            category: "suggestion",
+            icon: "📅",
+          },
+        ]
+      : [
+          {
+            id: "sug-pathways",
+            title: "Open your chapter hub",
+            detail: "See what your chapter is running and what step is next",
+            href: "/my-chapter",
+            priority: "anytime",
+            category: "suggestion",
+            icon: "📚",
+          },
+          {
+            id: "sug-challenges",
+            title: "Try a challenge",
+            detail: "Test your skills and earn badges",
+            href: "/challenges",
+            priority: "anytime",
+            category: "suggestion",
+            icon: "🏆",
+          },
+          {
+            id: "sug-badges",
+            title: "Check your badge progress",
+            detail: "See how close you are to earning a new badge",
+            href: "/badges",
+            priority: "anytime",
+            category: "suggestion",
+            icon: "🏅",
+          },
+          {
+            id: "sug-showcase",
+            title: "Browse the project showcase",
+            detail: "See what others have been working on",
+            href: "/showcase",
+            priority: "anytime",
+            category: "suggestion",
+            icon: "🌟",
+          },
+        ];
 
     const needed = 5 - items.length;
     items.push(...suggestions.slice(0, needed));
@@ -1371,12 +1501,15 @@ async function fetchJourneyMilestones(
 }
 
 const getDashboardDataCached = unstable_cache(
-  async (userId: string, requestedPrimaryRole: string | null) =>
+  async (userId: string, requestedPrimaryRole: string | null, _cachePartition: string) =>
     buildDashboardData(userId, requestedPrimaryRole),
   ["dashboard-data-v1"],
   { revalidate: 45 }
 );
 
 export async function getDashboardData(userId: string, primaryRole: string | null): Promise<DashboardData> {
-  return getDashboardDataCached(userId, primaryRole);
+  const cachePartition = `${STUDENT_V1_ALLOWLIST_VERSION}-${
+    process.env.STUDENT_FULL_PORTAL_EXPLORER === "true" ? "full" : "minimal"
+  }`;
+  return getDashboardDataCached(userId, primaryRole, cachePartition);
 }

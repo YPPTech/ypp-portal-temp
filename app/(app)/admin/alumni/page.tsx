@@ -361,7 +361,7 @@ export default async function AdminAlumniPage() {
         .admin-alumni-page .kpi-value {
           font-size: 1.5rem;
           font-weight: 700;
-          color: var(--ypp-purple-700, #7c3aed);
+          color: var(--ypp-purple-700, #6b21c8);
         }
         .admin-alumni-page .kpi-label {
           font-size: 0.75rem;

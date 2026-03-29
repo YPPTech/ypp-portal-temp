@@ -153,6 +153,8 @@ export default async function AppLayout({
     }
   }
 
+  const studentFullPortalExplorer = process.env.STUDENT_FULL_PORTAL_EXPLORER === "true";
+
   return (
     <AppShell
       userName={session?.user?.name}
@@ -163,6 +165,7 @@ export default async function AppLayout({
       enabledFeatureKeys={enabledFeatureKeysArray}
       unlockedSections={unlockedSectionsArray}
       recentlyUnlockedGroups={recentlyUnlockedGroupsArray}
+      studentFullPortalExplorer={studentFullPortalExplorer}
     >
       {children}
     </AppShell>

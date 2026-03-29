@@ -24,7 +24,7 @@ export default async function CompetitionsPage() {
     OPEN_FOR_SUBMISSIONS: "#16a34a",
     JUDGING: "#d97706",
     VOTING: "#3b82f6",
-    COMPLETED: "#7c3aed",
+    COMPLETED: "#6b21c8",
   };
 
   return (

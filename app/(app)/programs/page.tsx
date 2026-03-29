@@ -70,7 +70,7 @@ export default async function ProgramsPage() {
           title="Passion Labs"
           description={programTypeDescriptions.PASSION_LAB}
           programs={passionLabs}
-          color="#7c3aed"
+          color="#6b21c8"
         />
       )}
 

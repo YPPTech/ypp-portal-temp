@@ -22,7 +22,7 @@ export default async function PredictionsPage() {
   };
 
   const typeColors: Record<string, string> = {
-    LEVEL_UP: "#7c3aed",
+    LEVEL_UP: "#6b21c8",
     SKILL_MASTERY: "#3b82f6",
     COURSE_COMPLETION: "#16a34a",
     STREAK_MILESTONE: "#d97706",

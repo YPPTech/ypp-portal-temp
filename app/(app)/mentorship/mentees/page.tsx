@@ -282,7 +282,7 @@ export default async function MenteesPage() {
                       {mentee.chapter && (
                         <span
                           className="pill"
-                          style={{ background: "#f3e8ff", color: "#7c3aed" }}
+                          style={{ background: "#f3e8ff", color: "#6b21c8" }}
                         >
                           {mentee.chapter.name}
                         </span>
