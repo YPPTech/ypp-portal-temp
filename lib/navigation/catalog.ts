@@ -653,7 +653,7 @@ export const NAV_CATALOG: NavLink[] = [
     { href: "/certificates", label: "My Certificates", icon: "📜" },
     {
       href: "/alumni",
-      label: "Alumni Network",
+      label: "My alumni hub",
       icon: "🎓",
       requiresAward: true,
     },
